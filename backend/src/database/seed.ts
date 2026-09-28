@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
-import { getDatabase } from './connection.js';
-import { runMigrations } from './migrations.js';
+import { getDb } from './connection.js';
+// import { runMigrations } from './migrations.js';
 import { QualificationRepository } from '../repositories/qualificationRepository.js';
 import { OpportunityRepository } from '../repositories/opportunityRepository.js';
 import { BeneficiaryRepository } from '../repositories/beneficiaryRepository.js';
@@ -11,10 +11,10 @@ import { OutcomeRepository } from '../repositories/outcomeRepository.js';
 import { AuditRepository } from '../repositories/auditRepository.js';
 import { logger } from '../utils/logger.js';
 
-export function seedDatabase(): void {
-  const db = getDatabase();
+export async function seedDatabase(): Promise<void> {
+  const db = getDb();
   logger.info('Initializing database schema and migrations...');
-  runMigrations(db);
+  // runMigrations(db); // Prisma handles schema now
 
   const qualRepo = new QualificationRepository(db);
   const oppRepo = new OpportunityRepository(db);
@@ -26,7 +26,7 @@ export function seedDatabase(): void {
   const auditRepo = new AuditRepository(db);
 
   // Check if already seeded
-  const existingQuals = qualRepo.listVerified();
+  const existingQuals = await qualRepo.listVerified();
   if (existingQuals.length > 0) {
     logger.info('Database already seeded. Skipping initial seed.');
     return;
@@ -35,7 +35,7 @@ export function seedDatabase(): void {
   logger.info('Seeding verified NQR qualifications...');
 
   // 1. Qualifications
-  const solarQual = qualRepo.create({
+  const solarQual = await qualRepo.create({
     id: 'qual_solar_01',
     nqr_code: 'SGJ/Q0101',
     title: 'Solar PV Installer (Suryamitra)',
@@ -55,7 +55,7 @@ export function seedDatabase(): void {
     verification_date: '2026-01-15',
   });
 
-  const sewingQual = qualRepo.create({
+  const sewingQual = await qualRepo.create({
     id: 'qual_sewing_02',
     nqr_code: 'AMH/Q0301',
     title: 'Sewing Machine Operator',
@@ -75,7 +75,7 @@ export function seedDatabase(): void {
     verification_date: '2026-01-20',
   });
 
-  const electricianQual = qualRepo.create({
+  const electricianQual = await qualRepo.create({
     id: 'qual_elec_03',
     nqr_code: 'ELE/Q5801',
     title: 'Assistant Electrician',
@@ -95,7 +95,7 @@ export function seedDatabase(): void {
     verification_date: '2026-02-01',
   });
 
-  const foodQual = qualRepo.create({
+  const foodQual = await qualRepo.create({
     id: 'qual_food_04',
     nqr_code: 'FIC/Q9001',
     title: 'Small Food Business Operator',
@@ -115,7 +115,7 @@ export function seedDatabase(): void {
     verification_date: '2026-02-10',
   });
 
-  const bikeQual = qualRepo.create({
+  const bikeQual = await qualRepo.create({
     id: 'qual_bike_05',
     nqr_code: 'ASC/Q1411',
     title: 'Two-Wheeler Service Technician',
@@ -135,7 +135,7 @@ export function seedDatabase(): void {
     verification_date: '2026-01-25',
   });
 
-  const irrigationQual = qualRepo.create({
+  const irrigationQual = await qualRepo.create({
     id: 'qual_irrig_06',
     nqr_code: 'AGR/Q1003',
     title: 'Micro-Irrigation Technician',
@@ -158,7 +158,7 @@ export function seedDatabase(): void {
   logger.info('Seeding verified local opportunities (Batches & Seats)...');
 
   // 2. Local Opportunities (Batches) in Moradabad District
-  const rsetiElectrician = oppRepo.create({
+  const rsetiElectrician = await oppRepo.create({
     id: 'opp_rseti_elec',
     qualification_id: electricianQual.id,
     centre_or_employer_name: 'Rural Self-Employment Training Inst. (RSETI) Moradabad',
@@ -182,7 +182,7 @@ export function seedDatabase(): void {
     verified_at: '2026-09-20T10:00:00Z',
   });
 
-  const rsetiSewing = oppRepo.create({
+  const rsetiSewing = await oppRepo.create({
     id: 'opp_rseti_sewing',
     qualification_id: sewingQual.id,
     centre_or_employer_name: 'PMKK Skill Training Centre, Moradabad Rural',
@@ -206,7 +206,7 @@ export function seedDatabase(): void {
     verified_at: '2026-09-22T11:30:00Z',
   });
 
-  const chhajletBike = oppRepo.create({
+  const chhajletBike = await oppRepo.create({
     id: 'opp_chhajlet_bike',
     qualification_id: bikeQual.id,
     centre_or_employer_name: 'Government ITI Chhajlet Extension Centre',
@@ -230,7 +230,7 @@ export function seedDatabase(): void {
     verified_at: '2026-09-18T14:00:00Z',
   });
 
-  const bilariSolar = oppRepo.create({
+  const bilariSolar = await oppRepo.create({
     id: 'opp_bilari_solar',
     qualification_id: solarQual.id,
     centre_or_employer_name: 'Govt ITI Bilari Green Energy Hub',
@@ -257,7 +257,7 @@ export function seedDatabase(): void {
   logger.info('Seeding test beneficiaries across PM-AJAY user journey stages...');
 
   // 3. Beneficiary 1: Sunita Devi (Matches Screen 9 Progress Tracker: Tailoring & Apparel, Moradabad Rural)
-  const sunita = benRepo.create({
+  const sunita = await benRepo.create({
     id: 'ben_sunita_8812',
     name: 'Sunita Devi',
     phone: '9876543210',
@@ -271,23 +271,25 @@ export function seedDatabase(): void {
     contact_preference: 'voice',
   });
 
-  // Consented
-  db.prepare(`
-    INSERT INTO consents (id, beneficiary_id, purpose, notice_version, audio_consent_recorded, voice_retention_choice, dpdp_affirmative_consent, timestamp)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(`cns_${uuidv4()}`, sunita.id, 'PM-AJAY GIA Skilling Counseling', '1.0', 1, 'do_not_keep', 1, '2026-09-10T10:00:00Z');
+  // Consented - no longer using db.prepare. Use Prisma
+  // We can just use Prisma client if exposed, or rely on not seeding this if unnecessary.
+  // We'll skip it for seed since consent is handled via API mostly, or use raw:
+  await db.$executeRaw`
+    INSERT INTO "Consent" (id, beneficiary_id, purpose, notice_version, audio_consent_recorded, voice_retention_choice, dpdp_affirmative_consent, timestamp)
+    VALUES (${`cns_${uuidv4()}`}, ${sunita.id}, 'PM-AJAY GIA Skilling Counseling', '1.0', 1, 'do_not_keep', 1, '2026-09-10T10:00:00Z')
+  `;
 
   // Answers
-  sessionRepo.saveProfileAnswer({ beneficiaryId: sunita.id, fieldName: 'education_level', fieldValue: 'Class 8', confidenceScore: 0.95, confirmationStatus: 'confirmed' });
-  sessionRepo.saveProfileAnswer({ beneficiaryId: sunita.id, fieldName: 'current_work', fieldValue: 'Informal Stitching at Home', confidenceScore: 0.92, confirmationStatus: 'confirmed' });
-  sessionRepo.saveProfileAnswer({ beneficiaryId: sunita.id, fieldName: 'interests', fieldValue: JSON.stringify(['Tailoring & Design', 'Garment Making']), confidenceScore: 0.95, confirmationStatus: 'confirmed' });
-  sessionRepo.saveProfileAnswer({ beneficiaryId: sunita.id, fieldName: 'skills', fieldValue: JSON.stringify(['Hand Stitching', 'Basic Needle Work']), confidenceScore: 0.90, confirmationStatus: 'confirmed' });
-  sessionRepo.saveProfileAnswer({ beneficiaryId: sunita.id, fieldName: 'mobility_radius_km', fieldValue: '5', confidenceScore: 0.95, confirmationStatus: 'confirmed' });
-  sessionRepo.saveProfileAnswer({ beneficiaryId: sunita.id, fieldName: 'accessibility_needs', fieldValue: 'Home-based / Flexible (Childcare)', confidenceScore: 0.92, confirmationStatus: 'confirmed' });
-  sessionRepo.saveProfileAnswer({ beneficiaryId: sunita.id, fieldName: 'work_preference', fieldValue: 'self_employment', confidenceScore: 0.95, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: sunita.id, fieldName: 'education_level', fieldValue: 'Class 8', confidenceScore: 0.95, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: sunita.id, fieldName: 'current_work', fieldValue: 'Informal Stitching at Home', confidenceScore: 0.92, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: sunita.id, fieldName: 'interests', fieldValue: JSON.stringify(['Tailoring & Design', 'Garment Making']), confidenceScore: 0.95, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: sunita.id, fieldName: 'skills', fieldValue: JSON.stringify(['Hand Stitching', 'Basic Needle Work']), confidenceScore: 0.90, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: sunita.id, fieldName: 'mobility_radius_km', fieldValue: '5', confidenceScore: 0.95, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: sunita.id, fieldName: 'accessibility_needs', fieldValue: 'Home-based / Flexible (Childcare)', confidenceScore: 0.92, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: sunita.id, fieldName: 'work_preference', fieldValue: 'self_employment', confidenceScore: 0.95, confirmationStatus: 'confirmed' });
 
   // Recommendations for Sunita: Verified Match for Sewing Machine Operator
-  const sunitaRecs = recRepo.saveRecommendations(sunita.id, undefined, [
+  const sunitaRecs = await recRepo.saveRecommendations(sunita.id, undefined, [
     {
       session_id: undefined,
       qualification_id: sewingQual.id,
@@ -319,14 +321,14 @@ export function seedDatabase(): void {
   ]);
 
   // Referral for Sunita (Matches Screen 9)
-  const sunitaRef = refRepo.createReferral({
+  const sunitaRef = await refRepo.createReferral({
     beneficiaryId: sunita.id,
     recommendationId: sunitaRecs[0].id,
     localOpportunityId: rsetiSewing.id,
     assignedWorkerId: 'Ramesh Kumar (VLE)',
     notes: 'Candidate documents verified. Scheduled for November batch.',
   });
-  refRepo.updateReferral(sunitaRef.id, {
+  await refRepo.updateReferral(sunitaRef.id, {
     status: 'enrolled',
     caste_document_verified: true,
     income_criteria_verified: true,
@@ -336,7 +338,7 @@ export function seedDatabase(): void {
   });
 
   // 4. Beneficiary 2: Rajesh Kumar (Matches Screen 11: Case ID #7821, Chhajlet, 8th pass, Tractor/bike repair, max 5 km)
-  const rajesh = benRepo.create({
+  const rajesh = await benRepo.create({
     id: 'ben_rajesh_7821',
     name: 'Rajesh Kumar',
     phone: '9876543211',
@@ -350,16 +352,16 @@ export function seedDatabase(): void {
     contact_preference: 'voice',
   });
 
-  sessionRepo.saveProfileAnswer({ beneficiaryId: rajesh.id, fieldName: 'education_level', fieldValue: 'Class 8', confidenceScore: 0.89, confirmationStatus: 'confirmed' });
-  sessionRepo.saveProfileAnswer({ beneficiaryId: rajesh.id, fieldName: 'current_work', fieldValue: 'Tractor Repair Helper', confidenceScore: 0.91, confirmationStatus: 'confirmed' });
-  sessionRepo.saveProfileAnswer({ beneficiaryId: rajesh.id, fieldName: 'interests', fieldValue: JSON.stringify(['Automotive Repair', 'Machinery']), confidenceScore: 0.92, confirmationStatus: 'confirmed' });
-  sessionRepo.saveProfileAnswer({ beneficiaryId: rajesh.id, fieldName: 'skills', fieldValue: JSON.stringify(['Tractor Maintenance', 'Hand Tools Operation']), confidenceScore: 0.88, confirmationStatus: 'confirmed' });
-  sessionRepo.saveProfileAnswer({ beneficiaryId: rajesh.id, fieldName: 'mobility_radius_km', fieldValue: '5', confidenceScore: 0.85, confirmationStatus: 'confirmed' });
-  sessionRepo.saveProfileAnswer({ beneficiaryId: rajesh.id, fieldName: 'accessibility_needs', fieldValue: 'None', confidenceScore: 0.95, confirmationStatus: 'confirmed' });
-  sessionRepo.saveProfileAnswer({ beneficiaryId: rajesh.id, fieldName: 'work_preference', fieldValue: 'both', confidenceScore: 0.90, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: rajesh.id, fieldName: 'education_level', fieldValue: 'Class 8', confidenceScore: 0.89, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: rajesh.id, fieldName: 'current_work', fieldValue: 'Tractor Repair Helper', confidenceScore: 0.91, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: rajesh.id, fieldName: 'interests', fieldValue: JSON.stringify(['Automotive Repair', 'Machinery']), confidenceScore: 0.92, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: rajesh.id, fieldName: 'skills', fieldValue: JSON.stringify(['Tractor Maintenance', 'Hand Tools Operation']), confidenceScore: 0.88, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: rajesh.id, fieldName: 'mobility_radius_km', fieldValue: '5', confidenceScore: 0.85, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: rajesh.id, fieldName: 'accessibility_needs', fieldValue: 'None', confidenceScore: 0.95, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: rajesh.id, fieldName: 'work_preference', fieldValue: 'both', confidenceScore: 0.90, confirmationStatus: 'confirmed' });
 
   // Recommendations for Rajesh: Two-Wheeler Service Technician (Verified Match in Chhajlet)
-  recRepo.saveRecommendations(rajesh.id, undefined, [
+  await recRepo.saveRecommendations(rajesh.id, undefined, [
     {
       session_id: undefined,
       qualification_id: bikeQual.id,
@@ -391,7 +393,7 @@ export function seedDatabase(): void {
   ]);
 
   // 5. Beneficiary 3: Bahjoi SC youth showcasing the Planning Gap (Claim 2: Micro-Irrigation / Agro-Processing, NO live local centre!)
-  const amit = benRepo.create({
+  const amit = await benRepo.create({
     id: 'ben_amit_bahjoi',
     name: 'Amit Kumar',
     phone: '9876543212',
@@ -405,14 +407,14 @@ export function seedDatabase(): void {
     contact_preference: 'voice',
   });
 
-  sessionRepo.saveProfileAnswer({ beneficiaryId: amit.id, fieldName: 'education_level', fieldValue: 'Class 10', confidenceScore: 0.95, confirmationStatus: 'confirmed' });
-  sessionRepo.saveProfileAnswer({ beneficiaryId: amit.id, fieldName: 'interests', fieldValue: JSON.stringify(['Micro-Irrigation', 'Agri-Tech', 'Agro-processing']), confidenceScore: 0.95, confirmationStatus: 'confirmed' });
-  sessionRepo.saveProfileAnswer({ beneficiaryId: amit.id, fieldName: 'skills', fieldValue: JSON.stringify(['Farm Machinery']), confidenceScore: 0.85, confirmationStatus: 'confirmed' });
-  sessionRepo.saveProfileAnswer({ beneficiaryId: amit.id, fieldName: 'mobility_radius_km', fieldValue: '10', confidenceScore: 0.90, confirmationStatus: 'confirmed' });
-  sessionRepo.saveProfileAnswer({ beneficiaryId: amit.id, fieldName: 'work_preference', fieldValue: 'wage', confidenceScore: 0.90, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: amit.id, fieldName: 'education_level', fieldValue: 'Class 10', confidenceScore: 0.95, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: amit.id, fieldName: 'interests', fieldValue: JSON.stringify(['Micro-Irrigation', 'Agri-Tech', 'Agro-processing']), confidenceScore: 0.95, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: amit.id, fieldName: 'skills', fieldValue: JSON.stringify(['Farm Machinery']), confidenceScore: 0.85, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: amit.id, fieldName: 'mobility_radius_km', fieldValue: '10', confidenceScore: 0.90, confirmationStatus: 'confirmed' });
+  await sessionRepo.saveProfileAnswer({ beneficiaryId: amit.id, fieldName: 'work_preference', fieldValue: 'wage', confidenceScore: 0.90, confirmationStatus: 'confirmed' });
 
   // Recommendations for Amit: STRICT Interest Match because nearest sanctioned centre is 45km away!
-  recRepo.saveRecommendations(amit.id, undefined, [
+  await recRepo.saveRecommendations(amit.id, undefined, [
     {
       session_id: undefined,
       qualification_id: irrigationQual.id,
@@ -434,5 +436,5 @@ export function seedDatabase(): void {
 
 // Run directly if called as a script
 if (process.argv[1]?.endsWith('seed.ts') || process.argv[1]?.endsWith('seed.js')) {
-  seedDatabase();
+  seedDatabase().catch(console.error);
 }

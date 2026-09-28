@@ -21,36 +21,44 @@ export class ConsentController {
     this.auditRepo = new AuditRepository();
   }
 
-  record = (req: Request, res: Response): void => {
-    const data = recordConsentSchema.parse(req.body);
-    const consent = this.consentRepo.recordConsent(data);
+  record = async (req: Request, res: Response, next: any): Promise<void> => {
+    try {
+      const data = recordConsentSchema.parse(req.body);
+      const consent = await this.consentRepo.recordConsent(data);
 
-    this.auditRepo.logEvent({
-      actorId: data.beneficiaryId,
-      actorName: 'Beneficiary',
-      actorRole: 'beneficiary',
-      action: 'CONSENT_RECORDED',
-      entityType: 'consent',
-      entityId: consent.id,
-      newValues: {
-        voiceRetentionChoice: data.voiceRetentionChoice,
-        dpdpConsent: data.dpdpAffirmativeConsent,
-        noticeVersion: data.noticeVersion,
-      },
-    });
+      await this.auditRepo.logEvent({
+        actorId: data.beneficiaryId,
+        actorName: 'Beneficiary',
+        actorRole: 'beneficiary',
+        action: 'CONSENT_RECORDED',
+        entityType: 'consent',
+        entityId: consent.id,
+        newValues: {
+          voiceRetentionChoice: data.voiceRetentionChoice,
+          dpdpConsent: data.dpdpAffirmativeConsent,
+          noticeVersion: data.noticeVersion,
+        },
+      });
 
-    res.status(201).json({
-      message: 'Consent recorded in compliance with DPDP Act principles.',
-      consent,
-    });
+      res.status(201).json({
+        message: 'Consent recorded in compliance with DPDP Act principles.',
+        consent,
+      });
+    } catch (err) {
+      next(err);
+    }
   };
 
-  getByBeneficiary = (req: Request, res: Response): void => {
-    const beneficiaryId = String(req.params.beneficiaryId);
-    const consents = this.consentRepo.getByBeneficiaryId(beneficiaryId);
-    res.json({
-      beneficiaryId,
-      consents,
-    });
+  getByBeneficiary = async (req: Request, res: Response, next: any): Promise<void> => {
+    try {
+      const beneficiaryId = String(req.params.beneficiaryId);
+      const consents = await this.consentRepo.getByBeneficiaryId(beneficiaryId);
+      res.json({
+        beneficiaryId,
+        consents,
+      });
+    } catch (err) {
+      next(err);
+    }
   };
 }

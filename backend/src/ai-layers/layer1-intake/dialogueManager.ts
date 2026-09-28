@@ -50,24 +50,26 @@ export class DialogueManager {
       audioUrl?: string;
     };
   }> {
-    const session = this.sessionRepo.createSession({
+    const session = await this.sessionRepo.createSession({
       beneficiaryId,
       channel,
       language: lang,
     });
 
     const firstQ = INTERVIEW_QUESTIONS[0];
-    const text = firstQ.text[lang] || firstQ.text['hi'];
+    const text = firstQ.text[lang as LanguageCode] || firstQ.text['hi'];
     const synthesis = await this.speechAdapter.synthesize(text, lang);
 
-    this.sessionRepo.updateSession(session.id, {
+    await this.sessionRepo.updateSession(session.id, {
       current_question_index: 0,
       last_question: text,
       status: 'in_progress',
     });
 
+    const updatedSession = await this.sessionRepo.getSession(session.id);
+
     return {
-      session: this.sessionRepo.getSession(session.id)!,
+      session: updatedSession!,
       firstQuestion: {
         index: 0,
         questionId: firstQ.id,
@@ -81,12 +83,12 @@ export class DialogueManager {
    * Process a single turn of voice/text response from the beneficiary
    */
   async processTurn(input: ProcessTurnInput): Promise<TurnResponse> {
-    const session = this.sessionRepo.getSession(input.sessionId);
+    const session = await this.sessionRepo.getSession(input.sessionId);
     if (!session) {
       throw new Error(`Session ${input.sessionId} not found.`);
     }
 
-    const lang = session.language;
+    const lang = session.language as LanguageCode;
     const currentIndex = session.current_question_index;
     const currentQDef = INTERVIEW_QUESTIONS[currentIndex] || INTERVIEW_QUESTIONS[0];
 
@@ -137,10 +139,10 @@ export class DialogueManager {
       timestamp: new Date().toISOString(),
     };
 
-    this.sessionRepo.appendTurn(session.id, turn);
+    await this.sessionRepo.appendTurn(session.id, turn);
 
     const isCompleted = nextIndex >= INTERVIEW_QUESTIONS.length;
-    this.sessionRepo.updateSession(session.id, {
+    await this.sessionRepo.updateSession(session.id, {
       current_question_index: nextIndex,
       last_question: spokenReplyText,
       status: isCompleted ? 'profile_extracted' : 'in_progress',

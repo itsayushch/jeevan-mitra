@@ -1,0 +1,109 @@
+openapi: 3.0.0
+info:
+  title: JeevanMitra 2.0 Backend Core API
+  version: 2.0.0
+  description: "A Verification-First, Multi-Layer Generative AI System for PM-AJAY Livelihood Matching & District Planning"
+servers:
+  - url: http://localhost:4000/api
+    description: Local development server
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      responses:
+        '200':
+          description: OK
+  /beneficiaries:
+    get:
+      summary: List beneficiaries
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create a beneficiary
+      responses:
+        '201':
+          description: Created
+  /beneficiaries/{id}:
+    get:
+      summary: Get beneficiary by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+    patch:
+      summary: Update beneficiary
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /consents:
+    get:
+      summary: List consents
+      responses:
+        '200':
+          description: OK
+  /interview:
+    get:
+      summary: Get interview sessions
+      responses:
+        '200':
+          description: OK
+  /recommendations:
+    get:
+      summary: List recommendations
+      responses:
+        '200':
+          description: OK
+  /worker:
+    get:
+      summary: Worker dashboard and tasks
+      responses:
+        '200':
+          description: OK
+  /referrals:
+    get:
+      summary: List referrals
+      responses:
+        '200':
+          description: OK
+  /planning:
+    get:
+      summary: Get planning aggregates
+      responses:
+        '200':
+          description: OK
+  /monitoring:
+    get:
+      summary: Get monitoring metrics
+      responses:
+        '200':
+          description: OK
+  /channels:
+    get:
+      summary: Channel webhooks (WhatsApp/IVR)
+      responses:
+        '200':
+          description: OK
+  /audit-events:
+    get:
+      summary: List audit logs
+      responses:
+        '200':
+          description: OK
+  /catalogue/qualifications:
+    get:
+      summary: List catalogue qualifications
+      responses:
+        '200':
+          description: OK

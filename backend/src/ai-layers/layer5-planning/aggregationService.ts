@@ -23,8 +23,8 @@ export class PlanningAggregationService {
     this.planningRepo = planningRepo || new PlanningRepository();
   }
 
-  aggregateDemandVsCapacity(district: string): DistrictAggregationSummary {
-    const matrix = this.planningRepo.getDemandSupplyMatrix(district);
+  async aggregateDemandVsCapacity(district: string): Promise<DistrictAggregationSummary> {
+    const matrix = await this.planningRepo.getDemandSupplyMatrix(district);
     return {
       district,
       totalBeneficiaries: matrix.totalBeneficiaries,

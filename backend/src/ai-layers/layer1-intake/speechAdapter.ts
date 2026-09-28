@@ -1,5 +1,7 @@
 import { LanguageCode } from '../../types/index.js';
 import { logger } from '../../utils/logger.js';
+import { env } from '../../config/env.js';
+import { OpenAISpeechAdapter } from './openaiSpeechAdapter.js';
 
 export interface TranscriptionResult {
   text: string;
@@ -68,5 +70,8 @@ export class MockSpeechAdapter implements ISpeechAdapter {
  * Factory to obtain the active Speech Adapter based on configuration
  */
 export function getSpeechAdapter(): ISpeechAdapter {
+  if (env.AI_PROVIDER === 'openai') {
+    return new OpenAISpeechAdapter();
+  }
   return new MockSpeechAdapter();
 }

@@ -15,26 +15,26 @@ export class AdvisoryQueueManager {
   /**
    * Run automated drift detection and post new advisories to human reviewer queue
    */
-  runAuditCycle(district: string = 'Moradabad'): DriftAdvisory[] {
+  async runAuditCycle(district: string = 'Moradabad'): Promise<DriftAdvisory[]> {
     logger.info('AdvisoryQueueManager: Running drift and bias audit cycle', { district });
-    const detected = this.driftDetector.scanForDrift(district);
+    const detected = await this.driftDetector.scanForDrift(district);
 
     for (const advisory of detected) {
-      this.monitoringRepo.recordAdvisory(advisory);
+      await this.monitoringRepo.recordAdvisory(advisory);
     }
 
     return detected;
   }
 
-  getReviewerQueue(district?: string): DriftAdvisory[] {
+  async getReviewerQueue(district?: string): Promise<DriftAdvisory[]> {
     return this.monitoringRepo.listAdvisories({ district, status: 'open' });
   }
 
-  acknowledgeAdvisory(id: string): boolean {
+  async acknowledgeAdvisory(id: string): Promise<boolean> {
     return this.monitoringRepo.updateStatus(id, 'acknowledged');
   }
 
-  resolveAdvisory(id: string): boolean {
+  async resolveAdvisory(id: string): Promise<boolean> {
     return this.monitoringRepo.updateStatus(id, 'resolved');
   }
 }

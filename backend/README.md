@@ -186,3 +186,43 @@ You can deploy directly to Azure Container Apps or Azure App Service without nee
 * **CI/CD via GitHub Actions**: Automated deployment on push to `main` via [.github/workflows/azure-deploy.yml](../.github/workflows/azure-deploy.yml).
 
 For comprehensive Azure architecture, Azure Files persistent volume mounts, and custom domain configuration, read [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md).
+
+---
+
+## 7. Python FastAPI Backend Quickstart
+
+The backend has been converted to Python using **FastAPI**, **Pydantic v2**, and **Uvicorn**, providing high performance, automatic OpenAPI documentation, and native AI integration.
+
+### Prerequisites
+- Python 3.10+ (tested on Python 3.11.9)
+
+### 1. Install Dependencies
+```bash
+cd backend
+pip install -r requirements.txt
+```
+
+### 2. Configure Environment
+A `.env` file in `backend/` or project root is read automatically:
+```env
+PORT=4000
+HOST=0.0.0.0
+DEFAULT_DISTRICT=Moradabad
+DEFAULT_STATE=Uttar Pradesh
+AI_PROVIDER=gemini
+GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+### 3. Run the Server
+```bash
+python run.py
+```
+Or directly using Uvicorn:
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 4000 --reload
+```
+
+### 4. Interactive Documentation
+- **Swagger UI:** [http://localhost:4000/docs](http://localhost:4000/docs)
+- **ReDoc:** [http://localhost:4000/redoc](http://localhost:4000/redoc)
+- **Health Check:** [http://localhost:4000/api/health](http://localhost:4000/api/health)

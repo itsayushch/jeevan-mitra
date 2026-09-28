@@ -1,0 +1,245 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./jeevanmitra.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id               String   @id @default(uuid())
+  auth_provider_id String?
+  name             String
+  phone            String?
+  email            String?
+  role             String   @default("beneficiary") // beneficiary, field_worker, district_admin, etc
+  status           String   @default("active")
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+}
+
+model Beneficiary {
+  id                 String              @id @default(uuid())
+  name               String
+  phone              String?
+  gender             String              @default("prefer_not_to_say")
+  age                Int?
+  category           String              @default("SC")
+  preferred_language String              @default("hi")
+  district           String
+  block              String
+  village            String?
+  contact_preference String              @default("voice")
+  created_at         DateTime            @default(now())
+  updated_at         DateTime            @updatedAt
+  consents           Consent[]
+  sessions           InterviewSession[]
+  answers            ProfileAnswer[]
+  recommendations    Recommendation[]
+  referrals          Referral[]
+  outcomes           Outcome[]
+}
+
+model Consent {
+  id                       String      @id @default(uuid())
+  beneficiary              Beneficiary @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
+  beneficiary_id           String
+  purpose                  String
+  notice_version           String      @default("1.0")
+  audio_consent_recorded   Boolean     @default(true)
+  voice_retention_choice   String      @default("do_not_keep")
+  dpdp_affirmative_consent Boolean     @default(true)
+  timestamp                DateTime    @default(now())
+}
+
+model InterviewSession {
+  id                     String           @id @default(uuid())
+  beneficiary            Beneficiary      @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
+  beneficiary_id         String
+  channel                String           @default("web_app")
+  status                 String           @default("in_progress")
+  current_question_index Int              @default(0)
+  last_question          String?
+  language               String           @default("hi")
+  transcript_history     String           @default("[]")
+  created_at             DateTime         @default(now())
+  updated_at             DateTime         @updatedAt
+  answers                ProfileAnswer[]
+  recommendations        Recommendation[]
+}
+
+model ProfileAnswer {
+  id                  String            @id @default(uuid())
+  beneficiary         Beneficiary       @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
+  beneficiary_id      String
+  session             InterviewSession? @relation(fields: [session_id], references: [id], onDelete: SetNull)
+  session_id          String?
+  field_name          String
+  field_value         String
+  confidence_score    Float             @default(1.0)
+  confirmation_status String            @default("unconfirmed")
+  source              String            @default("voice_extraction")
+  created_at          DateTime          @default(now())
+  updated_at          DateTime          @updatedAt
+}
+
+model Qualification {
+  id                  String             @id @default(uuid())
+  nqr_code            String             @unique
+  title               String
+  sector              String
+  nsqf_level          Int
+  duration_hours      Int
+  min_education       String
+  min_education_rank  Int
+  work_type           String
+  physical_intensity  String             @default("light")
+  skills_acquired     String
+  curriculum_summary  String
+  entry_criteria      String
+  certification_body  String
+  nqr_link            String
+  verification_status String             @default("verified")
+  verification_date   DateTime
+  opportunities       LocalOpportunity[]
+  recommendations     Recommendation[]
+}
+
+model LocalOpportunity {
+  id                      String           @id @default(uuid())
+  qualification           Qualification    @relation(fields: [qualification_id], references: [id], onDelete: Cascade)
+  qualification_id        String
+  centre_or_employer_name String
+  type                    String           @default("training_centre")
+  district                String
+  block                   String
+  address                 String
+  latitude                Float
+  longitude               Float
+  batch_start_date        DateTime
+  batch_end_date          DateTime
+  total_seats             Int              @default(30)
+  available_seats         Int              @default(15)
+  sc_reserved_seats       Int              @default(10)
+  batch_status            String           @default("active")
+  hostel_available        Boolean          @default(false)
+  stipend_amount_inr      Int              @default(0)
+  free_toolkit_provided   Boolean          @default(true)
+  source                  String           @default("pm_ajay_portal")
+  verified_by_worker_id   String?
+  verified_at             DateTime
+  created_at              DateTime         @default(now())
+  recommendations         Recommendation[]
+  referrals               Referral[]
+}
+
+model Recommendation {
+  id                       String            @id @default(uuid())
+  beneficiary              Beneficiary       @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
+  beneficiary_id           String
+  session                  InterviewSession? @relation(fields: [session_id], references: [id], onDelete: SetNull)
+  session_id               String?
+  qualification            Qualification     @relation(fields: [qualification_id], references: [id], onDelete: Restrict)
+  qualification_id         String
+  local_opportunity        LocalOpportunity? @relation(fields: [local_opportunity_id], references: [id], onDelete: SetNull)
+  local_opportunity_id     String?
+  rank                     Int
+  score                    Float
+  score_breakdown          String
+  match_state              String            @default("Interest Match")
+  explanation_text         String
+  audio_explanation_script String
+  tradeoff_summary         String
+  skill_gap_summary        String
+  data_snapshot            String
+  created_at               DateTime          @default(now())
+  updated_at               DateTime          @updatedAt
+  referrals                Referral[]
+}
+
+model Referral {
+  id                       String           @id @default(uuid())
+  beneficiary              Beneficiary      @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
+  beneficiary_id           String
+  recommendation           Recommendation   @relation(fields: [recommendation_id], references: [id], onDelete: Restrict)
+  recommendation_id        String
+  local_opportunity        LocalOpportunity @relation(fields: [local_opportunity_id], references: [id], onDelete: Restrict)
+  local_opportunity_id     String
+  assigned_worker_id       String
+  status                   String           @default("pending")
+  notes                    String?
+  caste_document_verified  Boolean          @default(false)
+  income_criteria_verified Boolean          @default(false)
+  residence_proof_verified Boolean          @default(false)
+  sms_sent                 Boolean          @default(false)
+  whatsapp_sent            Boolean          @default(false)
+  next_follow_up           DateTime?
+  created_at               DateTime         @default(now())
+  updated_at               DateTime         @updatedAt
+  outcomes                 Outcome[]
+}
+
+model Outcome {
+  id                          String      @id @default(uuid())
+  beneficiary                 Beneficiary @relation(fields: [beneficiary_id], references: [id], onDelete: Cascade)
+  beneficiary_id              String
+  referral                    Referral?   @relation(fields: [referral_id], references: [id], onDelete: SetNull)
+  referral_id                 String?
+  enrolment_status            String      @default("enrolled")
+  completion_status           String      @default("in_progress")
+  dropout_reason              String?
+  employment_status           String      @default("unemployed")
+  employer_or_enterprise_name String?
+  monthly_income_inr          Float?      @default(0)
+  toolkit_received            Boolean     @default(false)
+  seed_grant_applied          Boolean     @default(false)
+  follow_up_date              DateTime?
+  notes                       String?
+  recorded_by_worker_id       String
+  created_at                  DateTime    @default(now())
+  updated_at                  DateTime    @updatedAt
+}
+
+model PlanningBrief {
+  id                            String    @id @default(uuid())
+  district                      String
+  period                        String
+  total_beneficiaries_interviewed Int
+  total_verified_matches        Int
+  total_supply_gaps             Int
+  aggregation_snapshot          String
+  generated_narrative           String
+  suggested_policy_actions      String
+  reviewer_sign_off_status      String    @default("draft")
+  signed_off_by                 String?
+  signed_off_at                 DateTime?
+  created_at                    DateTime  @default(now())
+  updated_at                    DateTime  @updatedAt
+}
+
+model AuditEvent {
+  id          String   @id @default(uuid())
+  actor_id    String
+  actor_name  String
+  actor_role  String
+  action      String
+  entity_type String
+  entity_id   String
+  old_values  String?
+  new_values  String?
+  metadata    String?
+  timestamp   DateTime @default(now())
+}
+
+model DriftAdvisory {
+  id                     String   @id @default(uuid())
+  district               String
+  flag_type              String
+  severity               String   @default("medium")
+  headline               String
+  evidence               String
+  suggested_human_action String
+  status                 String   @default("open")
+  created_at             DateTime @default(now())
+}

@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
-import Database from 'better-sqlite3';
-import { getDatabase } from '../database/connection.js';
+import { PrismaClient } from '@prisma/client';
+import { getDb } from '../database/connection.js';
 import { AuditEvent, ActorRole } from '../types/index.js';
 
 export interface CreateAuditInput {
@@ -16,69 +16,49 @@ export interface CreateAuditInput {
 }
 
 export class AuditRepository {
-  private db: Database.Database;
+  private prisma: PrismaClient;
 
-  constructor(customDb?: Database.Database) {
-    this.db = customDb || getDatabase();
+  constructor(customPrisma?: PrismaClient) {
+    this.prisma = customPrisma || getDb();
   }
 
-  logEvent(input: CreateAuditInput): AuditEvent {
+  async logEvent(input: CreateAuditInput): Promise<AuditEvent> {
     const id = `audit_${uuidv4()}`;
-    const timestamp = new Date().toISOString();
 
-    const stmt = this.db.prepare(`
-      INSERT INTO audit_events (
-        id, actor_id, actor_name, actor_role, action, entity_type, entity_id,
-        old_values, new_values, metadata, timestamp
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+    const event = await this.prisma.auditEvent.create({
+      data: {
+        id,
+        actor_id: input.actorId,
+        actor_name: input.actorName,
+        actor_role: input.actorRole,
+        action: input.action,
+        entity_type: input.entityType,
+        entity_id: input.entityId,
+        old_values: input.oldValues ? JSON.stringify(input.oldValues) : null,
+        new_values: input.newValues ? JSON.stringify(input.newValues) : null,
+        metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+      },
+    });
 
-    stmt.run(
-      id,
-      input.actorId,
-      input.actorName,
-      input.actorRole,
-      input.action,
-      input.entityType,
-      input.entityId,
-      input.oldValues ? JSON.stringify(input.oldValues) : null,
-      input.newValues ? JSON.stringify(input.newValues) : null,
-      input.metadata ? JSON.stringify(input.metadata) : null,
-      timestamp
-    );
-
-    return {
-      id,
-      actor_id: input.actorId,
-      actor_name: input.actorName,
-      actor_role: input.actorRole,
-      action: input.action,
-      entity_type: input.entityType,
-      entity_id: input.entityId,
-      old_values: input.oldValues,
-      new_values: input.newValues,
-      metadata: input.metadata,
-      timestamp,
-    };
+    return this.mapRowToAuditEvent(event);
   }
 
-  getEventsByEntity(entityType: string, entityId: string): AuditEvent[] {
-    const stmt = this.db.prepare(`
-      SELECT * FROM audit_events
-      WHERE entity_type = ? AND entity_id = ?
-      ORDER BY timestamp DESC
-    `);
-    const rows = stmt.all(entityType, entityId) as any[];
+  async getEventsByEntity(entityType: string, entityId: string): Promise<AuditEvent[]> {
+    const rows = await this.prisma.auditEvent.findMany({
+      where: {
+        entity_type: entityType,
+        entity_id: entityId,
+      },
+      orderBy: { timestamp: 'desc' },
+    });
     return rows.map(this.mapRowToAuditEvent);
   }
 
-  getRecentEvents(limit: number = 50): AuditEvent[] {
-    const stmt = this.db.prepare(`
-      SELECT * FROM audit_events
-      ORDER BY timestamp DESC
-      LIMIT ?
-    `);
-    const rows = stmt.all(limit) as any[];
+  async getRecentEvents(limit: number = 50): Promise<AuditEvent[]> {
+    const rows = await this.prisma.auditEvent.findMany({
+      orderBy: { timestamp: 'desc' },
+      take: limit,
+    });
     return rows.map(this.mapRowToAuditEvent);
   }
 
@@ -87,14 +67,14 @@ export class AuditRepository {
       id: row.id,
       actor_id: row.actor_id,
       actor_name: row.actor_name,
-      actor_role: row.actor_role,
+      actor_role: row.actor_role as ActorRole,
       action: row.action,
       entity_type: row.entity_type,
       entity_id: row.entity_id,
       old_values: row.old_values ? JSON.parse(row.old_values) : null,
       new_values: row.new_values ? JSON.parse(row.new_values) : null,
       metadata: row.metadata ? JSON.parse(row.metadata) : null,
-      timestamp: row.timestamp,
+      timestamp: row.timestamp.toISOString(),
     };
   }
 }

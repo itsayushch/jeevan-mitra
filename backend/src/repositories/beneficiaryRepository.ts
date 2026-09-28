@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
-import Database from 'better-sqlite3';
-import { getDatabase } from '../database/connection.js';
+import { PrismaClient } from '@prisma/client';
+import { getDb } from '../database/connection.js';
 import { Beneficiary, LanguageCode } from '../types/index.js';
 
 export interface CreateBeneficiaryInput {
@@ -18,112 +18,81 @@ export interface CreateBeneficiaryInput {
 }
 
 export class BeneficiaryRepository {
-  private db: Database.Database;
+  private prisma: PrismaClient;
 
-  constructor(customDb?: Database.Database) {
-    this.db = customDb || getDatabase();
+  constructor(customPrisma?: PrismaClient) {
+    this.prisma = customPrisma || getDb();
   }
 
-  create(input: CreateBeneficiaryInput): Beneficiary {
+  async create(input: CreateBeneficiaryInput): Promise<Beneficiary> {
     const id = input.id || `ben_${uuidv4()}`;
-    const now = new Date().toISOString();
 
-    const stmt = this.db.prepare(`
-      INSERT INTO beneficiaries (
-        id, name, phone, gender, age, category, preferred_language,
-        district, block, village, contact_preference, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+    const ben = await this.prisma.beneficiary.create({
+      data: {
+        id,
+        name: input.name,
+        phone: input.phone || null,
+        gender: input.gender || 'prefer_not_to_say',
+        age: input.age || null,
+        category: input.category || 'SC',
+        preferred_language: input.preferred_language || 'hi',
+        district: input.district,
+        block: input.block,
+        village: input.village || null,
+        contact_preference: input.contact_preference || 'voice',
+      },
+    });
 
-    stmt.run(
-      id,
-      input.name,
-      input.phone || null,
-      input.gender || 'prefer_not_to_say',
-      input.age || null,
-      input.category || 'SC',
-      input.preferred_language || 'hi',
-      input.district,
-      input.block,
-      input.village || null,
-      input.contact_preference || 'voice',
-      now,
-      now
-    );
-
-    return this.findById(id)!;
+    return this.mapRow(ben);
   }
 
-  findById(id: string): Beneficiary | null {
-    const stmt = this.db.prepare(`SELECT * FROM beneficiaries WHERE id = ?`);
-    const row = stmt.get(id) as any;
+  async findById(id: string): Promise<Beneficiary | null> {
+    const row = await this.prisma.beneficiary.findUnique({ where: { id } });
     if (!row) return null;
     return this.mapRow(row);
   }
 
-  findByPhone(phone: string): Beneficiary | null {
-    const stmt = this.db.prepare(`SELECT * FROM beneficiaries WHERE phone = ?`);
-    const row = stmt.get(phone) as any;
+  async findByPhone(phone: string): Promise<Beneficiary | null> {
+    const row = await this.prisma.beneficiary.findFirst({ where: { phone } });
     if (!row) return null;
     return this.mapRow(row);
   }
 
-  list(filters?: { district?: string; block?: string; limit?: number }): Beneficiary[] {
-    let query = `SELECT * FROM beneficiaries WHERE 1=1`;
-    const params: any[] = [];
+  async list(filters?: { district?: string; block?: string; limit?: number }): Promise<Beneficiary[]> {
+    const where: any = {};
+    if (filters?.district) where.district = filters.district;
+    if (filters?.block) where.block = filters.block;
 
-    if (filters?.district) {
-      query += ` AND district = ?`;
-      params.push(filters.district);
-    }
-    if (filters?.block) {
-      query += ` AND block = ?`;
-      params.push(filters.block);
-    }
+    const rows = await this.prisma.beneficiary.findMany({
+      where,
+      orderBy: { created_at: 'desc' },
+      take: filters?.limit,
+    });
 
-    query += ` ORDER BY created_at DESC`;
-
-    if (filters?.limit) {
-      query += ` LIMIT ?`;
-      params.push(filters.limit);
-    }
-
-    const stmt = this.db.prepare(query);
-    const rows = stmt.all(...params) as any[];
     return rows.map(this.mapRow);
   }
 
-  update(id: string, updates: Partial<CreateBeneficiaryInput>): Beneficiary | null {
-    const existing = this.findById(id);
+  async update(id: string, updates: Partial<CreateBeneficiaryInput>): Promise<Beneficiary | null> {
+    const existing = await this.findById(id);
     if (!existing) return null;
 
-    const now = new Date().toISOString();
-    const updated = { ...existing, ...updates, updated_at: now };
+    const row = await this.prisma.beneficiary.update({
+      where: { id },
+      data: {
+        name: updates.name,
+        phone: updates.phone,
+        gender: updates.gender,
+        age: updates.age,
+        category: updates.category,
+        preferred_language: updates.preferred_language,
+        district: updates.district,
+        block: updates.block,
+        village: updates.village,
+        contact_preference: updates.contact_preference,
+      },
+    });
 
-    const stmt = this.db.prepare(`
-      UPDATE beneficiaries
-      SET name = ?, phone = ?, gender = ?, age = ?, category = ?,
-          preferred_language = ?, district = ?, block = ?, village = ?,
-          contact_preference = ?, updated_at = ?
-      WHERE id = ?
-    `);
-
-    stmt.run(
-      updated.name,
-      updated.phone || null,
-      updated.gender,
-      updated.age || null,
-      updated.category,
-      updated.preferred_language,
-      updated.district,
-      updated.block,
-      updated.village || null,
-      updated.contact_preference,
-      now,
-      id
-    );
-
-    return this.findById(id);
+    return this.mapRow(row);
   }
 
   private mapRow(row: any): Beneficiary {
@@ -134,13 +103,13 @@ export class BeneficiaryRepository {
       gender: row.gender,
       age: row.age || undefined,
       category: row.category,
-      preferred_language: row.preferred_language,
+      preferred_language: row.preferred_language as LanguageCode,
       district: row.district,
       block: row.block,
       village: row.village || undefined,
       contact_preference: row.contact_preference,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
+      created_at: row.created_at.toISOString(),
+      updated_at: row.updated_at.toISOString(),
     };
   }
 }

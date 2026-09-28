@@ -40,128 +40,148 @@ export class InterviewController {
     this.auditRepo = new AuditRepository();
   }
 
-  start = async (req: Request, res: Response): Promise<void> => {
-    const data = startInterviewSchema.parse(req.body);
-    const result = await this.dialogueManager.startInterview(
-      data.beneficiaryId,
-      data.channel,
-      data.language
-    );
+  start = async (req: Request, res: Response, next: any): Promise<void> => {
+    try {
+      const data = startInterviewSchema.parse(req.body);
+      const result = await this.dialogueManager.startInterview(
+        data.beneficiaryId,
+        data.channel,
+        data.language
+      );
 
-    this.auditRepo.logEvent({
-      actorId: data.beneficiaryId,
-      actorName: 'Beneficiary',
-      actorRole: 'beneficiary',
-      action: 'INTERVIEW_STARTED',
-      entityType: 'interview_session',
-      entityId: result.session.id,
-      metadata: { channel: data.channel, language: data.language },
-    });
-
-    res.status(201).json(result);
-  };
-
-  processTurn = async (req: Request, res: Response): Promise<void> => {
-    const data = processTurnSchema.parse(req.body);
-    const result = await this.dialogueManager.processTurn({
-      sessionId: data.sessionId,
-      userSpeechOrText: data.speechOrText,
-      isAudio: data.isAudio,
-    });
-
-    res.json(result);
-  };
-
-  extractProfile = (req: Request, res: Response): void => {
-    const sessionId = String(req.params.sessionId);
-    const session = this.sessionRepo.getSession(sessionId);
-    if (!session) {
-      res.status(404).json({ error: 'Session not found' });
-      return;
-    }
-
-    const beneficiary = this.beneficiaryRepo.findById(session.beneficiary_id);
-    const profile = this.extractionEngine.extractProfile(
-      session.transcript_history,
-      beneficiary?.district || 'Moradabad',
-      beneficiary?.block || 'Moradabad Rural'
-    );
-
-    const readback = generateProfileConfirmation(profile, session.language);
-
-    res.json({
-      sessionId,
-      beneficiaryId: session.beneficiary_id,
-      profile,
-      readback,
-    });
-  };
-
-  confirmProfile = (req: Request, res: Response): void => {
-    const data = confirmProfileSchema.parse(req.body);
-    const session = this.sessionRepo.getSession(data.sessionId);
-    if (!session) {
-      res.status(404).json({ error: 'Session not found' });
-      return;
-    }
-
-    // Save profile answers into persistent DB
-    const savedAnswers = [];
-    for (const [fieldName, fieldData] of Object.entries(data.confirmedFields)) {
-      const dataObj = fieldData as any;
-      const valStr = typeof dataObj === 'object' && dataObj !== null
-        ? (Array.isArray(dataObj.value) ? JSON.stringify(dataObj.value) : String(dataObj.value))
-        : String(fieldData);
-
-      const confidence = typeof dataObj === 'object' && dataObj !== null && dataObj.confidence !== undefined
-        ? Number(dataObj.confidence)
-        : 1.0;
-
-      const confirmed = typeof dataObj === 'object' && dataObj !== null && dataObj.confirmed !== undefined
-        ? (dataObj.confirmed ? 'confirmed' : 'unconfirmed')
-        : 'confirmed';
-
-      const ans = this.sessionRepo.saveProfileAnswer({
-        beneficiaryId: data.beneficiaryId,
-        sessionId: data.sessionId,
-        fieldName: fieldName as any,
-        fieldValue: valStr,
-        confidenceScore: confidence,
-        confirmationStatus: confirmed as any,
-        source: 'voice_extraction',
+      await this.auditRepo.logEvent({
+        actorId: data.beneficiaryId,
+        actorName: 'Beneficiary',
+        actorRole: 'beneficiary',
+        action: 'INTERVIEW_STARTED',
+        entityType: 'interview_session',
+        entityId: result.session.id,
+        metadata: { channel: data.channel, language: data.language },
       });
-      savedAnswers.push(ans);
+
+      res.status(201).json(result);
+    } catch (err) {
+      next(err);
     }
-
-    this.sessionRepo.updateSession(data.sessionId, { status: 'confirmed' });
-
-    this.auditRepo.logEvent({
-      actorId: data.beneficiaryId,
-      actorName: 'Beneficiary',
-      actorRole: 'beneficiary',
-      action: 'PROFILE_CONFIRMED',
-      entityType: 'interview_session',
-      entityId: data.sessionId,
-      metadata: { answerCount: savedAnswers.length },
-    });
-
-    res.json({
-      message: 'Beneficiary profile confirmed and validated.',
-      savedAnswers,
-    });
   };
 
-  getSession = (req: Request, res: Response): void => {
-    const id = String(req.params.id);
-    const session = this.sessionRepo.getSession(id);
-    if (!session) {
-      res.status(404).json({ error: 'Session not found' });
-      return;
+  processTurn = async (req: Request, res: Response, next: any): Promise<void> => {
+    try {
+      const data = processTurnSchema.parse(req.body);
+      const result = await this.dialogueManager.processTurn({
+        sessionId: data.sessionId,
+        userSpeechOrText: data.speechOrText,
+        isAudio: data.isAudio,
+      });
+
+      res.json(result);
+    } catch (err) {
+      next(err);
     }
-    const answers = this.sessionRepo.getProfileAnswers(session.beneficiary_id);
-    res.json({
-      session,
-      profileAnswers: answers,
-    });
+  };
+
+  extractProfile = async (req: Request, res: Response, next: any): Promise<void> => {
+    try {
+      const sessionId = String(req.params.sessionId);
+      const session = await this.sessionRepo.getSession(sessionId);
+      if (!session) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+
+      const beneficiary = await this.beneficiaryRepo.findById(session.beneficiary_id);
+      const profile = await this.extractionEngine.extractProfile(
+        session.transcript_history,
+        beneficiary?.district || 'Moradabad',
+        beneficiary?.block || 'Moradabad Rural'
+      );
+
+      const readback = generateProfileConfirmation(profile, session.language);
+
+      res.json({
+        sessionId,
+        beneficiaryId: session.beneficiary_id,
+        profile,
+        readback,
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  confirmProfile = async (req: Request, res: Response, next: any): Promise<void> => {
+    try {
+      const data = confirmProfileSchema.parse(req.body);
+      const session = await this.sessionRepo.getSession(data.sessionId);
+      if (!session) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+
+      // Save profile answers into persistent DB
+      const savedAnswers = [];
+      for (const [fieldName, fieldData] of Object.entries(data.confirmedFields)) {
+        const dataObj = fieldData as any;
+        const valStr = typeof dataObj === 'object' && dataObj !== null
+          ? (Array.isArray(dataObj.value) ? JSON.stringify(dataObj.value) : String(dataObj.value))
+          : String(fieldData);
+
+        const confidence = typeof dataObj === 'object' && dataObj !== null && dataObj.confidence !== undefined
+          ? Number(dataObj.confidence)
+          : 1.0;
+
+        const confirmed = typeof dataObj === 'object' && dataObj !== null && dataObj.confirmed !== undefined
+          ? (dataObj.confirmed ? 'confirmed' : 'unconfirmed')
+          : 'confirmed';
+
+        const ans = await this.sessionRepo.saveProfileAnswer({
+          beneficiaryId: data.beneficiaryId,
+          sessionId: data.sessionId,
+          fieldName: fieldName as any,
+          fieldValue: valStr,
+          confidenceScore: confidence,
+          confirmationStatus: confirmed as any,
+          source: 'voice_extraction',
+        });
+        savedAnswers.push(ans);
+      }
+
+      await this.sessionRepo.updateSession(data.sessionId, { status: 'confirmed' });
+
+      await this.auditRepo.logEvent({
+        actorId: data.beneficiaryId,
+        actorName: 'Beneficiary',
+        actorRole: 'beneficiary',
+        action: 'PROFILE_CONFIRMED',
+        entityType: 'interview_session',
+        entityId: data.sessionId,
+        metadata: { answerCount: savedAnswers.length },
+      });
+
+      res.json({
+        message: 'Beneficiary profile confirmed and validated.',
+        savedAnswers,
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  getSession = async (req: Request, res: Response, next: any): Promise<void> => {
+    try {
+      const id = String(req.params.id);
+      const session = await this.sessionRepo.getSession(id);
+      if (!session) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+      const answers = await this.sessionRepo.getProfileAnswers(session.beneficiary_id);
+      res.json({
+        session,
+        profileAnswers: answers,
+      });
+    } catch (err) {
+      next(err);
+    }
   };
 }

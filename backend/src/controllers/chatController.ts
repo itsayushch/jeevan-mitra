@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 
 export class ChatController {
-  public handleChat = async (req: Request, res: Response): Promise<void> => {
+  public handleChat = async (req: Request, res: Response, next: any): Promise<void> => {
     try {
       const message = req.method === 'GET' ? req.query.message : req.body.message;
 
@@ -43,7 +43,7 @@ export class ChatController {
 
       res.json({ reply });
     } catch (error) {
-      res.status(500).json({ error: 'Internal server error', details: String(error) });
+      next(error);
     }
   };
 }

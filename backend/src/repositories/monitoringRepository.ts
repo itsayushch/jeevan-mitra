@@ -1,83 +1,74 @@
 import { v4 as uuidv4 } from 'uuid';
-import Database from 'better-sqlite3';
-import { getDatabase } from '../database/connection.js';
+import { PrismaClient } from '@prisma/client';
+import { getDb } from '../database/connection.js';
 import { DriftAdvisory } from '../types/index.js';
 
 export class MonitoringRepository {
-  private db: Database.Database;
+  private prisma: PrismaClient;
 
-  constructor(customDb?: Database.Database) {
-    this.db = customDb || getDatabase();
+  constructor(customPrisma?: PrismaClient) {
+    this.prisma = customPrisma || getDb();
   }
 
-  recordAdvisory(input: Omit<DriftAdvisory, 'id' | 'created_at'>): DriftAdvisory {
+  async recordAdvisory(input: Omit<DriftAdvisory, 'id' | 'created_at'>): Promise<DriftAdvisory> {
     const id = `drift_${uuidv4()}`;
-    const now = new Date().toISOString();
 
-    const stmt = this.db.prepare(`
-      INSERT INTO drift_advisories (
-        id, district, flag_type, severity, headline, evidence,
-        suggested_human_action, status, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
-      id,
-      input.district,
-      input.flag_type,
-      input.severity,
-      input.headline,
-      JSON.stringify(input.evidence),
-      input.suggested_human_action,
-      'open',
-      now
-    );
+    const advisory = await this.prisma.driftAdvisory.create({
+      data: {
+        id,
+        district: input.district,
+        flag_type: input.flag_type,
+        severity: input.severity,
+        headline: input.headline,
+        evidence: JSON.stringify(input.evidence),
+        suggested_human_action: input.suggested_human_action,
+        status: 'open',
+      },
+    });
 
     return {
-      id,
-      district: input.district,
-      flag_type: input.flag_type,
-      severity: input.severity,
-      headline: input.headline,
-      evidence: input.evidence,
-      suggested_human_action: input.suggested_human_action,
-      created_at: now,
+      id: advisory.id,
+      district: advisory.district,
+      flag_type: advisory.flag_type as any,
+      severity: advisory.severity as any,
+      headline: advisory.headline,
+      evidence: typeof advisory.evidence === 'string' ? JSON.parse(advisory.evidence || '{}') : advisory.evidence,
+      suggested_human_action: advisory.suggested_human_action,
+      created_at: typeof advisory.created_at === 'string' ? advisory.created_at : advisory.created_at.toISOString(),
     };
   }
 
-  listAdvisories(filters?: { district?: string; status?: 'open' | 'acknowledged' | 'resolved' }): DriftAdvisory[] {
-    let query = `SELECT * FROM drift_advisories WHERE 1=1`;
-    const params: any[] = [];
+  async listAdvisories(filters?: { district?: string; status?: 'open' | 'acknowledged' | 'resolved' }): Promise<DriftAdvisory[]> {
+    const where: any = {};
+    if (filters?.district) where.district = filters.district;
+    if (filters?.status) where.status = filters.status;
 
-    if (filters?.district) {
-      query += ` AND district = ?`;
-      params.push(filters.district);
-    }
-    if (filters?.status) {
-      query += ` AND status = ?`;
-      params.push(filters.status);
-    }
-
-    query += ` ORDER BY created_at DESC`;
-
-    const stmt = this.db.prepare(query);
-    const rows = stmt.all(...params) as any[];
+    const rows = await this.prisma.driftAdvisory.findMany({
+      where,
+      orderBy: { created_at: 'desc' },
+    });
 
     return rows.map((r) => ({
       id: r.id,
       district: r.district,
-      flag_type: r.flag_type,
-      severity: r.severity,
+      flag_type: r.flag_type as any,
+      severity: r.severity as any,
       headline: r.headline,
-      evidence: JSON.parse(r.evidence || '{}'),
+      evidence: typeof r.evidence === 'string' ? JSON.parse(r.evidence || '{}') : r.evidence,
       suggested_human_action: r.suggested_human_action,
-      created_at: r.created_at,
+      created_at: typeof r.created_at === 'string' ? r.created_at : r.created_at.toISOString(),
     }));
   }
 
-  updateStatus(id: string, status: 'open' | 'acknowledged' | 'resolved'): boolean {
-    const stmt = this.db.prepare(`UPDATE drift_advisories SET status = ? WHERE id = ?`);
-    const res = stmt.run(status, id);
-    return res.changes > 0;
+  async updateStatus(id: string, status: 'open' | 'acknowledged' | 'resolved'): Promise<boolean> {
+    try {
+      await this.prisma.driftAdvisory.update({
+        where: { id },
+        data: { status },
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 }

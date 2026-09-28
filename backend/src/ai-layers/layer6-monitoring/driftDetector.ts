@@ -1,48 +1,50 @@
-import Database from 'better-sqlite3';
-import { getDatabase } from '../../database/connection.js';
+import { PrismaClient } from '@prisma/client';
+import { getDb } from '../../database/connection.js';
 import { DriftAdvisory } from '../../types/index.js';
 
 export class DriftDetector {
-  private db: Database.Database;
+  private prisma: PrismaClient;
 
-  constructor(customDb?: Database.Database) {
-    this.db = customDb || getDatabase();
+  constructor(customPrisma?: PrismaClient) {
+    this.prisma = customPrisma || getDb();
   }
 
   /**
    * Scans recommendation records for gender skew, geographic neglect, or unconfirmed spikes
    */
-  scanForDrift(district: string = 'Moradabad'): DriftAdvisory[] {
+  async scanForDrift(district: string = 'Moradabad'): Promise<DriftAdvisory[]> {
     const advisories: DriftAdvisory[] = [];
 
     // 1. Check for Gender Skew in Technical vs Tailoring Trades
-    const genderTradeStmt = this.db.prepare(`
+    // Using Prisma's raw query since this requires joining across tables
+    const genderRows = await this.prisma.$queryRaw<any[]>`
       SELECT 
         b.gender,
         q.sector,
         COUNT(r.id) as count
-      FROM recommendations r
-      JOIN beneficiaries b ON r.beneficiary_id = b.id
-      JOIN qualifications q ON r.qualification_id = q.id
-      WHERE b.district = ? AND b.gender IN ('male', 'female')
+      FROM "Recommendation" r
+      JOIN "Beneficiary" b ON r.beneficiary_id = b.id
+      JOIN "Qualification" q ON r.qualification_id = q.id
+      WHERE b.district = ${district} AND b.gender IN ('male', 'female')
       GROUP BY b.gender, q.sector
-    `);
-    const genderRows = genderTradeStmt.all(district) as any[];
+    `;
 
     let femaleTechCount = 0;
     let femaleApparelCount = 0;
     let maleTechCount = 0;
 
     for (const r of genderRows) {
+      // Prisma raw query numeric results might be BigInt, convert to Number
+      const count = Number(r.count);
       if (r.gender === 'female') {
         if (r.sector === 'Apparel' || r.sector === 'Handicrafts') {
-          femaleApparelCount += r.count;
+          femaleApparelCount += count;
         } else if (r.sector === 'Green Energy' || r.sector === 'Automotive' || r.sector === 'Electronics') {
-          femaleTechCount += r.count;
+          femaleTechCount += count;
         }
       } else if (r.gender === 'male') {
         if (r.sector === 'Green Energy' || r.sector === 'Automotive' || r.sector === 'Electronics') {
-          maleTechCount += r.count;
+          maleTechCount += count;
         }
       }
     }
@@ -68,23 +70,24 @@ export class DriftDetector {
     }
 
     // 2. Check for Spike in "Interest Match" (Unconfirmed Batches) in Specific Blocks
-    const blockMatchStmt = this.db.prepare(`
+    const blockRows = await this.prisma.$queryRaw<any[]>`
       SELECT 
         b.block,
         r.match_state,
         COUNT(r.id) as count
-      FROM recommendations r
-      JOIN beneficiaries b ON r.beneficiary_id = b.id
-      WHERE b.district = ?
+      FROM "Recommendation" r
+      JOIN "Beneficiary" b ON r.beneficiary_id = b.id
+      WHERE b.district = ${district}
       GROUP BY b.block, r.match_state
-    `);
-    const blockRows = blockMatchStmt.all(district) as any[];
+    `;
 
     const blockStats: Record<string, { interest: number; verified: number }> = {};
     for (const r of blockRows) {
-      if (!blockStats[r.block]) blockStats[r.block] = { interest: 0, verified: 0 };
-      if (r.match_state === 'Interest Match') blockStats[r.block].interest += r.count;
-      if (r.match_state === 'Verified Match') blockStats[r.block].verified += r.count;
+      const block = String(r.block);
+      const count = Number(r.count);
+      if (!blockStats[block]) blockStats[block] = { interest: 0, verified: 0 };
+      if (r.match_state === 'Interest Match') blockStats[block].interest += count;
+      if (r.match_state === 'Verified Match') blockStats[block].verified += count;
     }
 
     for (const [block, stats] of Object.entries(blockStats)) {

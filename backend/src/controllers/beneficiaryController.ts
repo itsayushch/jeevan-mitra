@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { BeneficiaryRepository } from '../repositories/beneficiaryRepository.js';
 import { ConsentRepository } from '../repositories/consentRepository.js';
@@ -16,6 +16,8 @@ export const createBeneficiarySchema = z.object({
   contact_preference: z.enum(['voice', 'whatsapp', 'sms', 'field_worker']).default('voice'),
 });
 
+export const updateBeneficiarySchema = createBeneficiarySchema.partial();
+
 export class BeneficiaryController {
   private beneficiaryRepo: BeneficiaryRepository;
   private consentRepo: ConsentRepository;
@@ -25,47 +27,64 @@ export class BeneficiaryController {
     this.consentRepo = new ConsentRepository();
   }
 
-  create = (req: Request, res: Response): void => {
-    const data = createBeneficiarySchema.parse(req.body);
-    const beneficiary = this.beneficiaryRepo.create(data);
-    res.status(201).json(beneficiary);
-  };
-
-  getById = (req: Request, res: Response): void => {
-    const id = String(req.params.id);
-    const beneficiary = this.beneficiaryRepo.findById(id);
-    if (!beneficiary) {
-      res.status(404).json({ error: 'Beneficiary not found' });
-      return;
+  create = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const data = createBeneficiarySchema.parse(req.body);
+      const beneficiary = await this.beneficiaryRepo.create(data);
+      res.status(201).json(beneficiary);
+    } catch (err) {
+      next(err);
     }
-
-    const consents = this.consentRepo.getByBeneficiaryId(id);
-    res.json({
-      ...beneficiary,
-      consents,
-    });
   };
 
-  list = (req: Request, res: Response): void => {
-    const { district, block, limit } = req.query;
-    const beneficiaries = this.beneficiaryRepo.list({
-      district: district ? String(district) : undefined,
-      block: block ? String(block) : undefined,
-      limit: limit ? Number(limit) : undefined,
-    });
-    res.json({
-      count: beneficiaries.length,
-      beneficiaries,
-    });
-  };
+  getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = String(req.params.id);
+      const beneficiary = await this.beneficiaryRepo.findById(id);
+      if (!beneficiary) {
+        res.status(404).json({ error: 'Beneficiary not found' });
+        return;
+      }
 
-  update = (req: Request, res: Response): void => {
-    const id = String(req.params.id);
-    const updated = this.beneficiaryRepo.update(id, req.body);
-    if (!updated) {
-      res.status(404).json({ error: 'Beneficiary not found' });
-      return;
+      const consents = await this.consentRepo.getByBeneficiaryId(id);
+      res.json({
+        ...beneficiary,
+        consents,
+      });
+    } catch (err) {
+      next(err);
     }
-    res.json(updated);
+  };
+
+  list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { district, block, limit } = req.query;
+      const beneficiaries = await this.beneficiaryRepo.list({
+        district: district ? String(district) : undefined,
+        block: block ? String(block) : undefined,
+        limit: limit ? Number(limit) : undefined,
+      });
+      res.json({
+        count: beneficiaries.length,
+        beneficiaries,
+      });
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  update = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = String(req.params.id);
+      const data = updateBeneficiarySchema.parse(req.body);
+      const updated = await this.beneficiaryRepo.update(id, data);
+      if (!updated) {
+        res.status(404).json({ error: 'Beneficiary not found' });
+        return;
+      }
+      res.json(updated);
+    } catch (err) {
+      next(err);
+    }
   };
 }

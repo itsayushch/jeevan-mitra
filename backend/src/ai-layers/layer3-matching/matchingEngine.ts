@@ -54,7 +54,7 @@ export class MatchingEngine {
     const userCoords = getBlockCoordinates(input.block);
 
     // 1. Fetch all verified qualifications (Closed Document Set - Guardrail)
-    const verifiedQuals = this.qualRepo.listVerified();
+    const verifiedQuals = await this.qualRepo.listVerified();
 
     const scoredList: Array<{
       qualification: Qualification;
@@ -79,7 +79,7 @@ export class MatchingEngine {
       }
 
       // Check available opportunities in this district
-      const liveBatches = this.oppRepo.findLiveBatches(
+      const liveBatches = await this.oppRepo.findLiveBatches(
         qual.id,
         input.district,
         userCoords.lat,

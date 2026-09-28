@@ -12,11 +12,19 @@ import channelRoutes from './channelRoutes.js';
 import auditRoutes from './auditRoutes.js';
 import catalogueRoutes from './catalogueRoutes.js';
 import chatRoutes from './chatRoutes.js';
+import { authenticate } from '../middleware/authMiddleware.js';
 
 const router = Router();
 const healthController = new HealthController();
 
 router.get('/health', healthController.check);
+
+// Channels/webhooks should be public (or have their own specific auth)
+router.use('/channels', channelRoutes);
+
+// Apply authentication to all other routes
+router.use(authenticate);
+
 router.use('/beneficiaries', beneficiaryRoutes);
 router.use('/consents', consentRoutes);
 router.use('/interview', interviewRoutes);
@@ -25,7 +33,6 @@ router.use('/worker', workerRoutes);
 router.use('/referrals', referralRoutes);
 router.use('/planning', planningRoutes);
 router.use('/monitoring', monitoringRoutes);
-router.use('/channels', channelRoutes);
 router.use('/audit-events', auditRoutes);
 router.use('/catalogue', catalogueRoutes);
 router.use('/chat', chatRoutes);

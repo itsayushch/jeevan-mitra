@@ -1,13 +1,13 @@
 import { Request, Response } from 'express';
-import { getDatabase } from '../database/connection.js';
+import { getDb } from '../database/connection.js';
 import { env } from '../config/env.js';
 
 export class HealthController {
-  check(req: Request, res: Response): void {
+  check = async (req: Request, res: Response): Promise<void> => {
     let dbStatus = 'healthy';
     try {
-      const db = getDatabase();
-      db.prepare('SELECT 1').get();
+      const db = getDb();
+      await db.$queryRaw`SELECT 1`;
     } catch (e: any) {
       dbStatus = `unhealthy: ${e.message}`;
     }

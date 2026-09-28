@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
-import Database from 'better-sqlite3';
-import { getDatabase } from '../database/connection.js';
+import { PrismaClient } from '@prisma/client';
+import { getDb } from '../database/connection.js';
 import {
   PlanningBrief,
   TradeDemandSupplyGap,
@@ -8,19 +8,19 @@ import {
 import { AuditRepository } from './auditRepository.js';
 
 export class PlanningRepository {
-  private db: Database.Database;
+  private prisma: PrismaClient;
   private auditRepo: AuditRepository;
 
-  constructor(customDb?: Database.Database) {
-    this.db = customDb || getDatabase();
-    this.auditRepo = new AuditRepository(this.db);
+  constructor(customPrisma?: PrismaClient) {
+    this.prisma = customPrisma || getDb();
+    this.auditRepo = new AuditRepository(this.prisma);
   }
 
   /**
    * Aggregates real voice interview demand against verified training capacity.
    * Every figure produced here is directly traceable to raw database rows.
    */
-  getDemandSupplyMatrix(district: string): {
+  async getDemandSupplyMatrix(district: string): Promise<{
     totalBeneficiaries: number;
     totalVerifiedMatches: number;
     totalGaps: number;
@@ -32,87 +32,73 @@ export class PlanningRepository {
       nearest_centre_distance_km: number;
       suggested_action: string;
     }>;
-  } {
+  }> {
     // 1. Total beneficiaries interviewed in this district
-    const totalBenRow = this.db
-      .prepare(`SELECT COUNT(DISTINCT id) as cnt FROM beneficiaries WHERE district = ?`)
-      .get(district) as any;
-    const totalBeneficiaries = totalBenRow?.cnt || 0;
+    const totalBenRow: any[] = await this.prisma.$queryRawUnsafe(`SELECT COUNT(DISTINCT id) as cnt FROM beneficiaries WHERE district = $1`, district);
+    const totalBeneficiaries = Number(totalBenRow[0]?.cnt || 0);
 
     // 2. Total recommendations in 'Verified Match' state in this district
-    const verifiedRow = this.db
-      .prepare(`
-        SELECT COUNT(r.id) as cnt
-        FROM recommendations r
-        JOIN beneficiaries b ON r.beneficiary_id = b.id
-        WHERE b.district = ? AND r.match_state = 'Verified Match'
-      `)
-      .get(district) as any;
-    const totalVerifiedMatches = verifiedRow?.cnt || 0;
+    const verifiedRow: any[] = await this.prisma.$queryRawUnsafe(`
+      SELECT COUNT(r.id) as cnt
+      FROM recommendations r
+      JOIN beneficiaries b ON r.beneficiary_id = b.id
+      WHERE b.district = $1 AND r.match_state = 'Verified Match'
+    `, district);
+    const totalVerifiedMatches = Number(verifiedRow[0]?.cnt || 0);
 
     // 3. Trade demand from profile_answers and recommendations
     // Query all verified qualifications
-    const quals = this.db
-      .prepare(`SELECT id, nqr_code, title, sector FROM qualifications WHERE verification_status = 'verified'`)
-      .all() as any[];
+    const quals: any[] = await this.prisma.$queryRawUnsafe(`SELECT id, nqr_code, title, sector FROM qualifications WHERE verification_status = 'verified'`);
 
     const gaps: TradeDemandSupplyGap[] = [];
     let totalGapsCount = 0;
 
     for (const q of quals) {
       // Beneficiary interest count for this qualification in this district
-      const demandRow = this.db
-        .prepare(`
-          SELECT COUNT(DISTINCT r.beneficiary_id) as demand
-          FROM recommendations r
-          JOIN beneficiaries b ON r.beneficiary_id = b.id
-          WHERE b.district = ? AND r.qualification_id = ?
-        `)
-        .get(district, q.id) as any;
-      const voiceDemand = demandRow?.demand || 0;
+      const demandRow: any[] = await this.prisma.$queryRawUnsafe(`
+        SELECT COUNT(DISTINCT r.beneficiary_id) as demand
+        FROM recommendations r
+        JOIN beneficiaries b ON r.beneficiary_id = b.id
+        WHERE b.district = $1 AND r.qualification_id = $2
+      `, district, q.id);
+      const voiceDemand = Number(demandRow[0]?.demand || 0);
 
       // Sanctioned seats and active batches for this qualification in this district
-      const supplyRow = this.db
-        .prepare(`
-          SELECT 
-            COALESCE(SUM(total_seats), 0) as total_sanctioned,
-            COUNT(id) as active_batches
-          FROM local_opportunities
-          WHERE district = ? AND qualification_id = ? AND batch_status IN ('active', 'upcoming')
-        `)
-        .get(district, q.id) as any;
-      const sanctionedSeats = supplyRow?.total_sanctioned || 0;
-      const activeBatches = supplyRow?.active_batches || 0;
+      const supplyRow: any[] = await this.prisma.$queryRawUnsafe(`
+        SELECT 
+          COALESCE(SUM(total_seats), 0) as total_sanctioned,
+          COUNT(id) as active_batches
+        FROM local_opportunities
+        WHERE district = $1 AND qualification_id = $2 AND batch_status IN ('active', 'upcoming')
+      `, district, q.id);
+      const sanctionedSeats = Number(supplyRow[0]?.total_sanctioned || 0);
+      const activeBatches = Number(supplyRow[0]?.active_batches || 0);
 
       // Block-level breakdown
-      const blockDemandRows = this.db
-        .prepare(`
-          SELECT b.block, COUNT(DISTINCT r.beneficiary_id) as block_demand
-          FROM recommendations r
-          JOIN beneficiaries b ON r.beneficiary_id = b.id
-          WHERE b.district = ? AND r.qualification_id = ?
-          GROUP BY b.block
-        `)
-        .all(district, q.id) as any[];
+      const blockDemandRows: any[] = await this.prisma.$queryRawUnsafe(`
+        SELECT b.block, COUNT(DISTINCT r.beneficiary_id) as block_demand
+        FROM recommendations r
+        JOIN beneficiaries b ON r.beneficiary_id = b.id
+        WHERE b.district = $1 AND r.qualification_id = $2
+        GROUP BY b.block
+      `, district, q.id);
 
-      const blockSupplyRows = this.db
-        .prepare(`
-          SELECT block, COALESCE(SUM(total_seats), 0) as block_capacity
-          FROM local_opportunities
-          WHERE district = ? AND qualification_id = ? AND batch_status IN ('active', 'upcoming')
-          GROUP BY block
-        `)
-        .all(district, q.id) as any[];
+      const blockSupplyRows: any[] = await this.prisma.$queryRawUnsafe(`
+        SELECT block, COALESCE(SUM(total_seats), 0) as block_capacity
+        FROM local_opportunities
+        WHERE district = $1 AND qualification_id = $2 AND batch_status IN ('active', 'upcoming')
+        GROUP BY block
+      `, district, q.id);
 
       const blockBreakdown: Record<string, { demand: number; capacity: number }> = {};
       for (const b of blockDemandRows) {
-        blockBreakdown[b.block] = { demand: b.block_demand, capacity: 0 };
+        blockBreakdown[b.block] = { demand: Number(b.block_demand), capacity: 0 };
       }
       for (const s of blockSupplyRows) {
         if (!blockBreakdown[s.block]) {
-          blockBreakdown[s.block] = { demand: 0, capacity: s.block_capacity };
+          blockBreakdown[s.block] = { demand: 0, capacity: Number(s.block_capacity) };
         } else {
-          blockBreakdown[s.block].capacity = s.block_capacity;
+          blockBreakdown[s.block].capacity = Number(s.block_capacity);
         }
       }
 
@@ -185,7 +171,7 @@ export class PlanningRepository {
     };
   }
 
-  saveBrief(input: {
+  async saveBrief(input: {
     district: string;
     period: string;
     totalBeneficiaries: number;
@@ -194,77 +180,59 @@ export class PlanningRepository {
     aggregationSnapshot: PlanningBrief['aggregation_snapshot'];
     generatedNarrative: string;
     suggestedPolicyActions: string[];
-  }): PlanningBrief {
+  }): Promise<PlanningBrief> {
     const id = `pb_${uuidv4()}`;
-    const now = new Date().toISOString();
 
-    const stmt = this.db.prepare(`
-      INSERT INTO planning_briefs (
-        id, district, period, total_beneficiaries_interviewed,
-        total_verified_matches, total_supply_gaps, aggregation_snapshot,
-        generated_narrative, suggested_policy_actions, reviewer_sign_off_status,
-        signed_off_by, signed_off_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+    const brief = await this.prisma.planningBrief.create({
+      data: {
+        id,
+        district: input.district,
+        period: input.period,
+        total_beneficiaries_interviewed: input.totalBeneficiaries,
+        total_verified_matches: input.totalVerifiedMatches,
+        total_supply_gaps: input.totalSupplyGaps,
+        aggregation_snapshot: JSON.stringify(input.aggregationSnapshot),
+        generated_narrative: input.generatedNarrative,
+        suggested_policy_actions: JSON.stringify(input.suggestedPolicyActions),
+        reviewer_sign_off_status: 'draft',
+      },
+    });
 
-    stmt.run(
-      id,
-      input.district,
-      input.period,
-      input.totalBeneficiaries,
-      input.totalVerifiedMatches,
-      input.totalSupplyGaps,
-      JSON.stringify(input.aggregationSnapshot),
-      input.generatedNarrative,
-      JSON.stringify(input.suggestedPolicyActions),
-      'draft',
-      null,
-      null,
-      now,
-      now
-    );
-
-    return this.getBriefById(id)!;
+    return this.mapBriefRow(brief);
   }
 
-  getBriefById(id: string): PlanningBrief | null {
-    const stmt = this.db.prepare(`SELECT * FROM planning_briefs WHERE id = ?`);
-    const row = stmt.get(id) as any;
+  async getBriefById(id: string): Promise<PlanningBrief | null> {
+    const row = await this.prisma.planningBrief.findUnique({ where: { id } });
     if (!row) return null;
     return this.mapBriefRow(row);
   }
 
-  listBriefs(district?: string): PlanningBrief[] {
-    let query = `SELECT * FROM planning_briefs WHERE 1=1`;
-    const params: any[] = [];
-    if (district) {
-      query += ` AND district = ?`;
-      params.push(district);
-    }
-    query += ` ORDER BY created_at DESC`;
-
-    const stmt = this.db.prepare(query);
-    const rows = stmt.all(...params) as any[];
+  async listBriefs(district?: string): Promise<PlanningBrief[]> {
+    const rows = await this.prisma.planningBrief.findMany({
+      where: district ? { district } : undefined,
+      orderBy: { created_at: 'desc' },
+    });
     return rows.map(this.mapBriefRow);
   }
 
-  signOffBrief(
+  async signOffBrief(
     id: string,
     officerName: string,
     status: 'signed_off' | 'rejected'
-  ): PlanningBrief | null {
-    const brief = this.getBriefById(id);
+  ): Promise<PlanningBrief | null> {
+    const brief = await this.getBriefById(id);
     if (!brief) return null;
 
-    const now = new Date().toISOString();
-    const stmt = this.db.prepare(`
-      UPDATE planning_briefs
-      SET reviewer_sign_off_status = ?, signed_off_by = ?, signed_off_at = ?, updated_at = ?
-      WHERE id = ?
-    `);
-    stmt.run(status, officerName, now, now, id);
+    const updated = await this.prisma.planningBrief.update({
+      where: { id },
+      data: {
+        reviewer_sign_off_status: status,
+        signed_off_by: officerName,
+        signed_off_at: new Date(),
+      },
+    });
 
-    this.auditRepo.logEvent({
+    await this.auditRepo.logEvent({
       actorId: `officer_${officerName.toLowerCase().replace(/\s+/g, '_')}`,
       actorName: officerName,
       actorRole: 'district_officer',
@@ -276,7 +244,7 @@ export class PlanningRepository {
       metadata: { district: brief.district, period: brief.period },
     });
 
-    return this.getBriefById(id);
+    return this.mapBriefRow(updated);
   }
 
   private mapBriefRow(row: any): PlanningBrief {
@@ -287,14 +255,14 @@ export class PlanningRepository {
       total_beneficiaries_interviewed: row.total_beneficiaries_interviewed,
       total_verified_matches: row.total_verified_matches,
       total_supply_gaps: row.total_supply_gaps,
-      aggregation_snapshot: JSON.parse(row.aggregation_snapshot || '{}'),
+      aggregation_snapshot: typeof row.aggregation_snapshot === 'string' ? JSON.parse(row.aggregation_snapshot || '{}') : row.aggregation_snapshot,
       generated_narrative: row.generated_narrative,
-      suggested_policy_actions: JSON.parse(row.suggested_policy_actions || '[]'),
-      reviewer_sign_off_status: row.reviewer_sign_off_status,
+      suggested_policy_actions: typeof row.suggested_policy_actions === 'string' ? JSON.parse(row.suggested_policy_actions || '[]') : row.suggested_policy_actions,
+      reviewer_sign_off_status: row.reviewer_sign_off_status as any,
       signed_off_by: row.signed_off_by || undefined,
-      signed_off_at: row.signed_off_at || undefined,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
+      signed_off_at: row.signed_off_at ? row.signed_off_at.toISOString() : undefined,
+      created_at: typeof row.created_at === 'string' ? row.created_at : row.created_at.toISOString(),
+      updated_at: typeof row.updated_at === 'string' ? row.updated_at : row.updated_at.toISOString(),
     };
   }
 }
