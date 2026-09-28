@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - Backend
     paths:
       - 'backend/**'
       - '.github/workflows/azure-deploy.yml'
@@ -33,13 +34,31 @@ jobs:
         working-directory: backend
         run: npm ci || npm install
 
+      - name: Generate Prisma Client
+        working-directory: backend
+        run: npx prisma generate
+
       - name: Compile TypeScript
         working-directory: backend
         run: npm run build
 
-      - name: Run Vitest Suite (17 Tests)
+      - name: Run Vitest Suite (22 Tests)
         working-directory: backend
         run: npm test
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Run Python Backend Test Suite
+        working-directory: backend
+        run: python tests_python.py
 
   deploy:
     name: Build & Deploy to Azure
@@ -49,12 +68,24 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Verify Azure Deployment Credentials
+        id: check_creds
+        run: |
+          if [ -z "${{ secrets.AZURE_CREDENTIALS }}" ]; then
+            echo "has_creds=false" >> $GITHUB_ENV
+            echo "::notice title=Azure Deploy::AZURE_CREDENTIALS secret not configured in repository. Skipping remote cloud deployment steps."
+          else
+            echo "has_creds=true" >> $GITHUB_ENV
+          fi
+
       - name: Log in to Azure
+        if: env.has_creds == 'true'
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Build and Push Docker Image via ACR Cloud Build
+        if: env.has_creds == 'true'
         run: |
           az acr build \
             --registry ${{ env.ACR_NAME }} \
@@ -63,8 +94,17 @@ jobs:
             ./backend
 
       - name: Deploy to Azure Container Apps
+        if: env.has_creds == 'true'
         uses: azure/container-apps-deploy-action@v2
         with:
           resourceGroup: ${{ env.RESOURCE_GROUP }}
           containerAppName: ${{ env.CONTAINER_APP_NAME }}
           imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/${{ env.CONTAINER_APP_NAME }}:${{ github.sha }}
+
+      - name: Deployment Summary
+        run: |
+          if [ "${{ env.has_creds }}" = "true" ]; then
+            echo "✅ Successfully deployed backend to Azure Container App: ${{ env.CONTAINER_APP_NAME }}"
+          else
+            echo "✅ Backend tests and build succeeded with 100% green checks. Azure deployment is standby pending AZURE_CREDENTIALS secret configuration."
+          fi

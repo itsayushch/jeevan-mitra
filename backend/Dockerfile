@@ -20,9 +20,10 @@ RUN apt-get update && apt-get install -y \
 
 # Copy package manifests first to leverage Docker layer caching
 COPY package.json package-lock.json* ./
+COPY prisma/ ./prisma/
 
 # Install dependencies including devDependencies for build
-RUN npm install
+RUN npm install && npx prisma generate
 
 # Copy source code and TypeScript config
 COPY tsconfig.json ./
