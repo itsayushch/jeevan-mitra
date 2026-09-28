@@ -2,6 +2,8 @@
 
 > A verification-first, voice-led livelihood guidance and district planning system for Scheduled Caste beneficiaries under the Grant-in-Aid (GIA) component of PM-AJAY.
 
+Project note: This repository is being actively updated for iterative improvements and validation.
+
 **Status:** Solution/design draft. Implementation status is not confirmed; do not describe the architecture below as deployed or integrated with official systems.  
 **Problem statement ID:** 26097  
 **Source material studied:** `Problem-statement.pdf` and `JeevanMitra_2.0_Solution_Proposal.pdf` (supplied project documents).  
