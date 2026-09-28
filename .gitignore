@@ -11,7 +11,8 @@ dist/
 *.db-shm
 *.db-wal
 backend/data/
-data/
+/data/
+!frontend/src/data/
 
 # Environment Variables
 .env
