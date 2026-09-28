@@ -92,7 +92,7 @@ flowchart TD
 
 **What the beneficiary hears:** “This qualification matches your interest, but a local batch has not been confirmed. We can ask a field worker to check.” Only a valid worker-confirmed opportunity can expose a request-enrolment action. A request is not an admission guarantee.
 
-### Human verification sequence
+## Human verification sequence
 
 ```mermaid
 sequenceDiagram
@@ -101,22 +101,24 @@ sequenceDiagram
     participant API as Backend
     participant DB as Postgres
     actor W as Field worker
+
     B->>UI: Confirm profile and request options
     UI->>API: Submit confirmed profile
-    API->>DB: Read approved NQR records and dated opportunities
-    DB-->>API: Qualification and opportunity snapshots
-    API-->>UI: Ranked cards with honest match states
-    W->>API: Review case and verify a specific live opportunity
-    API->>DB: Authorize worker; validate evidence and expiry
-    DB->>DB: Atomic status transition and audit event
-    DB-->>API: Persisted verification result
-    API-->>UI: Refresh card from server state
-    B->>UI: Request enrolment when allowed
-    UI->>API: Create referral request
-    API->>DB: Check state, permissions, and validity again
-    DB-->>API: Tracked referral or safe rejection
-```
+    API->>DB: Read approved catalogue and opportunity data
+    DB-->>API: Return qualification and opportunity snapshots
+    API-->>UI: Show ranked cards with match states
 
+    W->>API: Review case and verify a live opportunity
+    API->>DB: Check worker permission and verification evidence
+    DB->>DB: Save verified state and audit event atomically
+    DB-->>API: Return persisted verification result
+    API-->>UI: Refresh card from server state
+
+    B->>UI: Request enrolment when permitted
+    UI->>API: Create referral request
+    API->>DB: Recheck match state and validity window
+    DB-->>API: Return tracked referral or safe rejection
+```
 ## System architecture
 
 **Proposed MVP stack:** Next.js + TypeScript for a mobile-first beneficiary web experience and worker/planner views; backend orchestration endpoints; Supabase Postgres, Auth, and private Storage. Speech-to-text (STT), text-to-speech (TTS), and LLM providers sit behind replaceable server-side adapters. Provider choice and credentials are implementation decisions, not claims of an existing integration.
