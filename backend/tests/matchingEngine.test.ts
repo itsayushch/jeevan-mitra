@@ -1,88 +1,90 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import Database from 'better-sqlite3';
-import { runMigrations } from '../src/database/migrations.js';
 import { MatchingEngine } from '../src/ai-layers/layer3-matching/matchingEngine.js';
-import { QualificationRepository } from '../src/repositories/qualificationRepository.js';
-import { OpportunityRepository } from '../src/repositories/opportunityRepository.js';
+import { Qualification, LocalOpportunity } from '../src/types/index.js';
 
 describe('Layer 3: Grounded Matching & Explanation Engine Tests', () => {
-  let db: Database.Database;
-  let qualRepo: QualificationRepository;
-  let oppRepo: OpportunityRepository;
+  let quals: Qualification[] = [];
+  let opps: LocalOpportunity[] = [];
   let matchingEngine: MatchingEngine;
 
   beforeEach(() => {
-    db = new Database(':memory:');
-    runMigrations(db);
+    quals = [
+      {
+        id: 'q_solar',
+        nqr_code: 'SGJ/Q0101',
+        title: 'Solar PV Installer',
+        sector: 'Green Energy',
+        nsqf_level: 4,
+        duration_hours: 320,
+        min_education: 'Class 10',
+        min_education_rank: 3,
+        work_type: 'wage',
+        physical_intensity: 'high',
+        skills_acquired: ['Solar Inverter', 'Mounting', 'Roof Electricals'],
+        curriculum_summary: 'Solar installations',
+        entry_criteria: '10th pass',
+        certification_body: 'SCGJ',
+        nqr_link: 'http://test',
+        verification_status: 'verified',
+        verification_date: '2026-01-01',
+      },
+      {
+        id: 'q_sewing',
+        nqr_code: 'AMH/Q0301',
+        title: 'Sewing Machine Operator',
+        sector: 'Apparel',
+        nsqf_level: 2,
+        duration_hours: 210,
+        min_education: 'Class 5',
+        min_education_rank: 1,
+        work_type: 'self_employment',
+        physical_intensity: 'light',
+        skills_acquired: ['Garment Stitching', 'Sewing Machine'],
+        curriculum_summary: 'Tailoring basics',
+        entry_criteria: '5th pass',
+        certification_body: 'AMHSSC',
+        nqr_link: 'http://test',
+        verification_status: 'verified',
+        verification_date: '2026-01-01',
+      },
+      {
+        id: 'q_bike',
+        nqr_code: 'ASC/Q1411',
+        title: 'Two-Wheeler Service Technician',
+        sector: 'Automotive',
+        nsqf_level: 4,
+        duration_hours: 400,
+        min_education: 'Class 8',
+        min_education_rank: 2,
+        work_type: 'both',
+        physical_intensity: 'medium',
+        skills_acquired: ['Engine Overhaul', 'Brake Servicing'],
+        curriculum_summary: 'Bike repair',
+        entry_criteria: '8th pass',
+        certification_body: 'ASDC',
+        nqr_link: 'http://test',
+        verification_status: 'verified',
+        verification_date: '2026-01-01',
+      },
+    ];
 
-    qualRepo = new QualificationRepository(db);
-    oppRepo = new OpportunityRepository(db);
-    matchingEngine = new MatchingEngine(qualRepo, oppRepo);
+    opps = [];
 
-    // Seed test qualifications
-    qualRepo.create({
-      id: 'q_solar',
-      nqr_code: 'SGJ/Q0101',
-      title: 'Solar PV Installer',
-      sector: 'Green Energy',
-      nsqf_level: 4,
-      duration_hours: 320,
-      min_education: 'Class 10',
-      min_education_rank: 3, // Requires 10th pass
-      work_type: 'wage',
-      physical_intensity: 'high',
-      skills_acquired: ['Solar Inverter', 'Mounting', 'Roof Electricals'],
-      curriculum_summary: 'Solar installations',
-      entry_criteria: '10th pass',
-      certification_body: 'SCGJ',
-      nqr_link: 'http://test',
-      verification_status: 'verified',
-      verification_date: '2026-01-01',
-    });
+    const mockQualRepo: any = {
+      listVerified: async () => quals,
+    };
+    const mockOppRepo: any = {
+      findLiveBatches: async (qualId: string, district: string, lat: number, lon: number, maxDist: number) => {
+        return opps
+          .filter((o) => o.qualification_id === qualId && o.district === district && o.available_seats > 0)
+          .map((o) => ({ ...o, distance_km: 2.5 }));
+      },
+    };
 
-    qualRepo.create({
-      id: 'q_sewing',
-      nqr_code: 'AMH/Q0301',
-      title: 'Sewing Machine Operator',
-      sector: 'Apparel',
-      nsqf_level: 2,
-      duration_hours: 210,
-      min_education: 'Class 5',
-      min_education_rank: 1, // Requires 5th pass
-      work_type: 'self_employment',
-      physical_intensity: 'light',
-      skills_acquired: ['Garment Stitching', 'Sewing Machine'],
-      curriculum_summary: 'Tailoring basics',
-      entry_criteria: '5th pass',
-      certification_body: 'AMHSSC',
-      nqr_link: 'http://test',
-      verification_status: 'verified',
-      verification_date: '2026-01-01',
-    });
-
-    qualRepo.create({
-      id: 'q_bike',
-      nqr_code: 'ASC/Q1411',
-      title: 'Two-Wheeler Service Technician',
-      sector: 'Automotive',
-      nsqf_level: 4,
-      duration_hours: 400,
-      min_education: 'Class 8',
-      min_education_rank: 2, // Requires 8th pass
-      work_type: 'both',
-      physical_intensity: 'medium',
-      skills_acquired: ['Engine Overhaul', 'Brake Servicing'],
-      curriculum_summary: 'Bike repair',
-      entry_criteria: '8th pass',
-      certification_body: 'ASDC',
-      nqr_link: 'http://test',
-      verification_status: 'verified',
-      verification_date: '2026-01-01',
-    });
+    matchingEngine = new MatchingEngine(mockQualRepo, mockOppRepo);
   });
 
   it('filters out qualifications when beneficiary does not meet minimum education rank', async () => {
-    // 5th pass candidate should NOT qualify for Class 10 (Solar) or Class 8 (Bike)
     const recs = await matchingEngine.match({
       beneficiaryId: 'ben_test_low_edu',
       district: 'Moradabad',
@@ -100,7 +102,6 @@ describe('Layer 3: Grounded Matching & Explanation Engine Tests', () => {
   });
 
   it('filters out high physical intensity qualifications when beneficiary requires light work', async () => {
-    // 10th pass candidate with light physical restriction
     const recs = await matchingEngine.match({
       beneficiaryId: 'ben_test_light',
       district: 'Moradabad',
@@ -114,12 +115,12 @@ describe('Layer 3: Grounded Matching & Explanation Engine Tests', () => {
     });
 
     const hasSolar = recs.some((r) => r.qualification_id === 'q_solar');
-    expect(hasSolar).toBe(false); // High intensity trade filtered out
+    expect(hasSolar).toBe(false);
   });
 
   it('assigns Verified Match when active batch with seats exists nearby', async () => {
-    // Add verified local batch for Two-Wheeler in Chhajlet
-    oppRepo.create({
+    opps.push({
+      id: 'opp_bike',
       qualification_id: 'q_bike',
       centre_or_employer_name: 'Govt ITI Chhajlet',
       type: 'training_centre',
@@ -160,7 +161,6 @@ describe('Layer 3: Grounded Matching & Explanation Engine Tests', () => {
   });
 
   it('assigns Interest Match when no verified batch exists in the area', async () => {
-    // Candidate in remote block Bahjoi where no batch exists
     const recs = await matchingEngine.match({
       beneficiaryId: 'ben_remote',
       district: 'Moradabad',

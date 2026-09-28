@@ -34,72 +34,78 @@ export class PlanningRepository {
     }>;
   }> {
     // 1. Total beneficiaries interviewed in this district
-    const totalBenRow: any[] = await this.prisma.$queryRawUnsafe(`SELECT COUNT(DISTINCT id) as cnt FROM beneficiaries WHERE district = $1`, district);
-    const totalBeneficiaries = Number(totalBenRow[0]?.cnt || 0);
+    const totalBeneficiaries = await this.prisma.beneficiary.count({
+      where: { district },
+    });
 
     // 2. Total recommendations in 'Verified Match' state in this district
-    const verifiedRow: any[] = await this.prisma.$queryRawUnsafe(`
-      SELECT COUNT(r.id) as cnt
-      FROM recommendations r
-      JOIN beneficiaries b ON r.beneficiary_id = b.id
-      WHERE b.district = $1 AND r.match_state = 'Verified Match'
-    `, district);
-    const totalVerifiedMatches = Number(verifiedRow[0]?.cnt || 0);
+    const totalVerifiedMatches = await this.prisma.recommendation.count({
+      where: {
+        match_state: 'Verified Match',
+        beneficiary: { district },
+      },
+    });
 
     // 3. Trade demand from profile_answers and recommendations
-    // Query all verified qualifications
-    const quals: any[] = await this.prisma.$queryRawUnsafe(`SELECT id, nqr_code, title, sector FROM qualifications WHERE verification_status = 'verified'`);
+    const quals = await this.prisma.qualification.findMany({
+      where: { verification_status: 'verified' },
+      select: { id: true, nqr_code: true, title: true, sector: true },
+    });
 
     const gaps: TradeDemandSupplyGap[] = [];
     let totalGapsCount = 0;
 
     for (const q of quals) {
       // Beneficiary interest count for this qualification in this district
-      const demandRow: any[] = await this.prisma.$queryRawUnsafe(`
-        SELECT COUNT(DISTINCT r.beneficiary_id) as demand
-        FROM recommendations r
-        JOIN beneficiaries b ON r.beneficiary_id = b.id
-        WHERE b.district = $1 AND r.qualification_id = $2
-      `, district, q.id);
-      const voiceDemand = Number(demandRow[0]?.demand || 0);
+      const demandRecs = await this.prisma.recommendation.findMany({
+        where: {
+          qualification_id: q.id,
+          beneficiary: { district },
+        },
+        select: {
+          beneficiary_id: true,
+          beneficiary: {
+            select: { block: true },
+          },
+        },
+      });
+
+      const uniqueBeneficiaries = new Set(demandRecs.map((r) => r.beneficiary_id));
+      const voiceDemand = uniqueBeneficiaries.size;
 
       // Sanctioned seats and active batches for this qualification in this district
-      const supplyRow: any[] = await this.prisma.$queryRawUnsafe(`
-        SELECT 
-          COALESCE(SUM(total_seats), 0) as total_sanctioned,
-          COUNT(id) as active_batches
-        FROM local_opportunities
-        WHERE district = $1 AND qualification_id = $2 AND batch_status IN ('active', 'upcoming')
-      `, district, q.id);
-      const sanctionedSeats = Number(supplyRow[0]?.total_sanctioned || 0);
-      const activeBatches = Number(supplyRow[0]?.active_batches || 0);
+      const localOpps = await this.prisma.localOpportunity.findMany({
+        where: {
+          district,
+          qualification_id: q.id,
+          batch_status: { in: ['active', 'upcoming'] },
+        },
+        select: {
+          id: true,
+          total_seats: true,
+          block: true,
+        },
+      });
+
+      const sanctionedSeats = localOpps.reduce((sum, o) => sum + (o.total_seats || 0), 0);
+      const activeBatches = localOpps.length;
 
       // Block-level breakdown
-      const blockDemandRows: any[] = await this.prisma.$queryRawUnsafe(`
-        SELECT b.block, COUNT(DISTINCT r.beneficiary_id) as block_demand
-        FROM recommendations r
-        JOIN beneficiaries b ON r.beneficiary_id = b.id
-        WHERE b.district = $1 AND r.qualification_id = $2
-        GROUP BY b.block
-      `, district, q.id);
-
-      const blockSupplyRows: any[] = await this.prisma.$queryRawUnsafe(`
-        SELECT block, COALESCE(SUM(total_seats), 0) as block_capacity
-        FROM local_opportunities
-        WHERE district = $1 AND qualification_id = $2 AND batch_status IN ('active', 'upcoming')
-        GROUP BY block
-      `, district, q.id);
-
       const blockBreakdown: Record<string, { demand: number; capacity: number }> = {};
-      for (const b of blockDemandRows) {
-        blockBreakdown[b.block] = { demand: Number(b.block_demand), capacity: 0 };
-      }
-      for (const s of blockSupplyRows) {
-        if (!blockBreakdown[s.block]) {
-          blockBreakdown[s.block] = { demand: 0, capacity: Number(s.block_capacity) };
-        } else {
-          blockBreakdown[s.block].capacity = Number(s.block_capacity);
+      for (const r of demandRecs) {
+        const blk = r.beneficiary?.block || 'Unknown';
+        if (!blockBreakdown[blk]) {
+          blockBreakdown[blk] = { demand: 0, capacity: 0 };
         }
+        blockBreakdown[blk].demand += 1;
+      }
+
+      for (const o of localOpps) {
+        const blk = o.block || 'Unknown';
+        if (!blockBreakdown[blk]) {
+          blockBreakdown[blk] = { demand: 0, capacity: 0 };
+        }
+        blockBreakdown[blk].capacity += (o.total_seats || 0);
       }
 
       const diff = voiceDemand - sanctionedSeats;
