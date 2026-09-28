@@ -1,66 +1,98 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mic, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Mic, ShieldCheck, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 export default function ConsentScreen() {
-  const [agreed, setAgreed] = useState(false);
   const navigate = useNavigate();
+  const [hasAgreed, setHasAgreed] = useState(false);
+
+  const handleStart = () => {
+    if (hasAgreed) {
+      navigate('/beneficiary/interview');
+    }
+  };
 
   return (
-    <div className="max-w-2xl mx-auto mt-10 p-8 bg-white rounded-2xl shadow-sm border border-gray-100">
-      <div className="flex justify-center mb-6">
-        <div className="bg-blue-100 p-4 rounded-full">
-          <ShieldCheck className="w-12 h-12 text-blue-600" />
+    <div className="min-h-screen flex items-center justify-center p-4 pt-10">
+      <div className="max-w-2xl w-full glass-panel rounded-3xl p-10 shadow-2xl relative overflow-hidden">
+        {/* Decorative background glow */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
+          <div className="absolute -top-20 -right-20 w-64 h-64 bg-teal-500/20 rounded-full blur-3xl"></div>
+          <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl"></div>
+        </div>
+
+        <div className="relative z-10">
+          <div className="text-center mb-10">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-teal-400 to-emerald-600 mb-6 shadow-lg shadow-teal-500/30">
+              <ShieldCheck className="text-white w-10 h-10" />
+            </div>
+            <h1 className="text-4xl font-extrabold text-white mb-4">DPDP Consent</h1>
+            <p className="text-lg text-slate-300 max-w-lg mx-auto">
+              Before we begin your voice interview, please review how we handle your data.
+            </p>
+          </div>
+
+          <div className="space-y-4 mb-10">
+            <div className="glass-card p-5 rounded-2xl flex items-start gap-4">
+              <div className="mt-1 bg-teal-500/20 p-2 rounded-full text-teal-400">
+                <Mic size={20} />
+              </div>
+              <div>
+                <h3 className="text-white font-semibold text-lg mb-1">Voice Recording</h3>
+                <p className="text-slate-400">Your voice will be recorded securely to understand your preferences and skills.</p>
+              </div>
+            </div>
+
+            <div className="glass-card p-5 rounded-2xl flex items-start gap-4">
+              <div className="mt-1 bg-indigo-500/20 p-2 rounded-full text-indigo-400">
+                <CheckCircle2 size={20} />
+              </div>
+              <div>
+                <h3 className="text-white font-semibold text-lg mb-1">Data Privacy</h3>
+                <p className="text-slate-400">Your information is solely used for matching you with PM-AJAY skilling opportunities and will never be sold.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-700/50 mb-8">
+            <label className="flex items-center gap-4 cursor-pointer group">
+              <div className="relative flex items-center justify-center">
+                <input 
+                  type="checkbox" 
+                  className="w-6 h-6 peer appearance-none rounded border-2 border-slate-500 checked:bg-teal-500 checked:border-teal-500 transition-colors"
+                  checked={hasAgreed}
+                  onChange={(e) => setHasAgreed(e.target.checked)}
+                />
+                <CheckCircle2 size={16} className="absolute text-white opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" />
+              </div>
+              <span className="text-slate-300 group-hover:text-white transition-colors">
+                I have read the notice and consent to the processing of my voice and profile data for livelihood matching.
+              </span>
+            </label>
+          </div>
+
+          <div className="flex gap-4">
+            <button 
+              onClick={() => navigate('/')} 
+              className="flex-1 py-4 px-6 rounded-xl font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-all duration-200"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleStart}
+              disabled={!hasAgreed}
+              className={`flex-1 flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-bold transition-all duration-300 ${
+                hasAgreed 
+                ? 'bg-gradient-to-r from-teal-500 to-emerald-600 text-white shadow-lg shadow-teal-500/25 hover:shadow-teal-500/40 hover:-translate-y-1' 
+                : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+              }`}
+            >
+              Start Interview
+              <ArrowRight size={20} />
+            </button>
+          </div>
         </div>
       </div>
-      
-      <h2 className="text-3xl font-bold text-center text-gray-800 mb-6">
-        Welcome to JeevanMitra
-      </h2>
-      
-      <div className="space-y-4 text-gray-600 mb-8 bg-gray-50 p-6 rounded-xl">
-        <p>
-          Namaste! I am JeevanMitra, your AI assistant to help you discover the best livelihood and skilling opportunities under the PM-AJAY scheme.
-        </p>
-        <p>
-          We will have a simple voice conversation in Hindi to understand your skills, interests, and background.
-        </p>
-        <p className="font-medium text-gray-700">
-          Please note:
-        </p>
-        <ul className="list-disc pl-5 space-y-2">
-          <li>Your audio will be recorded and transcribed for processing.</li>
-          <li>Your personal data will be kept secure and used only for livelihood matching.</li>
-          <li>You can choose to stop the interview at any time.</li>
-        </ul>
-      </div>
-
-      <label className="flex items-start space-x-3 mb-8 cursor-pointer p-4 border border-blue-100 rounded-lg bg-blue-50/50 hover:bg-blue-50 transition-colors">
-        <input 
-          type="checkbox" 
-          checked={agreed} 
-          onChange={(e) => setAgreed(e.target.checked)}
-          className="mt-1 w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-        />
-        <span className="text-gray-700 font-medium">
-          I agree to the terms and consent to using my voice for the interview.
-          (मुझे शर्तें मंजूर हैं और मैं वॉइस इंटरव्यू के लिए अपनी सहमति देता/देती हूँ।)
-        </span>
-      </label>
-
-      <button
-        disabled={!agreed}
-        onClick={() => navigate('/beneficiary/interview')}
-        className={`w-full flex items-center justify-center space-x-2 py-4 px-6 rounded-xl font-bold text-lg transition-all ${
-          agreed 
-            ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200' 
-            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-        }`}
-      >
-        <Mic className="w-6 h-6" />
-        <span>Start Voice Interview (शुरू करें)</span>
-        <ArrowRight className="w-5 h-5 ml-2" />
-      </button>
     </div>
   );
 }
