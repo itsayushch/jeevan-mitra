@@ -1,4 +1,3 @@
-import React from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import ConsentScreen from './components/Beneficiary/ConsentScreen';
 import VoiceInterview from './components/Beneficiary/VoiceInterview';
