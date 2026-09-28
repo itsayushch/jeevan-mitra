@@ -39,7 +39,13 @@ export const FlowContainer: React.FC<FlowContainerProps> = ({
   }, []);
 
   useEffect(() => {
-    if (restored) window.sessionStorage.setItem('jeevanmitra-journey', JSON.stringify({ step: currentStep, profile }));
+    if (restored) {
+      if (currentStep > 1) {
+        window.sessionStorage.setItem('jeevanmitra-journey', JSON.stringify({ step: currentStep, profile }));
+      } else {
+        window.sessionStorage.removeItem('jeevanmitra-journey');
+      }
+    }
   }, [currentStep, profile, restored]);
 
   const updateProfile = (updates: Partial<BeneficiaryProfile>) => {
