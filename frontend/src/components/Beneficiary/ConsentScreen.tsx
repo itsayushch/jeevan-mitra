@@ -1,97 +1,64 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mic, ShieldCheck, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Volume2, Shield } from 'lucide-react';
 
 export default function ConsentScreen() {
   const navigate = useNavigate();
-  const [hasAgreed, setHasAgreed] = useState(false);
-
-  const handleStart = () => {
-    if (hasAgreed) {
-      navigate('/beneficiary/interview');
-    }
-  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 pt-10">
-      <div className="max-w-2xl w-full glass-panel rounded-3xl p-10 shadow-2xl relative overflow-hidden">
-        {/* Decorative background glow */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
-          <div className="absolute -top-20 -right-20 w-64 h-64 bg-teal-500/20 rounded-full blur-3xl"></div>
-          <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl"></div>
-        </div>
+    <div className="min-h-screen bg-[#fdfbf4] flex flex-col items-center p-4 pt-12 md:pt-20 font-sans text-slate-800">
+      <div className="w-full max-w-[400px] flex flex-col items-center">
+        
+        <p className="text-sm font-semibold text-slate-500 mb-6 uppercase tracking-wider">2. Consent</p>
 
-        <div className="relative z-10">
-          <div className="text-center mb-10">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-teal-400 to-emerald-600 mb-6 shadow-lg shadow-teal-500/30">
-              <ShieldCheck className="text-white w-10 h-10" />
-            </div>
-            <h1 className="text-4xl font-extrabold text-white mb-4">DPDP Consent</h1>
-            <p className="text-lg text-slate-300 max-w-lg mx-auto">
-              Before we begin your voice interview, please review how we handle your data.
-            </p>
+        {/* Main Card */}
+        <div className="w-full bg-white rounded-3xl p-8 shadow-sm border border-slate-100 flex flex-col items-center">
+          
+          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-6 text-emerald-700">
+            <Shield className="w-8 h-8" />
           </div>
 
-          <div className="space-y-4 mb-10">
-            <div className="glass-card p-5 rounded-2xl flex items-start gap-4">
-              <div className="mt-1 bg-teal-500/20 p-2 rounded-full text-teal-400">
-                <Mic size={20} />
-              </div>
-              <div>
-                <h3 className="text-white font-semibold text-lg mb-1">Voice Recording</h3>
-                <p className="text-slate-400">Your voice will be recorded securely to understand your preferences and skills.</p>
-              </div>
-            </div>
+          <h1 className="text-2xl font-bold text-slate-900 text-center mb-1">
+            आपके डेटा की सुरक्षा.
+          </h1>
+          <h2 className="text-lg font-medium text-slate-700 text-center mb-6">
+            Our commitment to privacy.
+          </h2>
 
-            <div className="glass-card p-5 rounded-2xl flex items-start gap-4">
-              <div className="mt-1 bg-indigo-500/20 p-2 rounded-full text-indigo-400">
-                <CheckCircle2 size={20} />
-              </div>
-              <div>
-                <h3 className="text-white font-semibold text-lg mb-1">Data Privacy</h3>
-                <p className="text-slate-400">Your information is solely used for matching you with PM-AJAY skilling opportunities and will never be sold.</p>
-              </div>
-            </div>
+          <p className="text-center text-slate-600 mb-6 text-sm">
+            Plain-language privacy notice to local government, privacy notice. Your voice data is safe and only used for recommendations.
+          </p>
+
+          <button className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-6 rounded-full transition-colors mb-8">
+            <Volume2 className="w-5 h-5" />
+            Play explanation
+          </button>
+
+          <div className="w-full mb-8">
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Recording preference</label>
+            <select className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none font-medium">
+              <option>Only for guidance</option>
+              <option>Record to improve accuracy</option>
+              <option>Do not record</option>
+            </select>
           </div>
 
-          <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-700/50 mb-8">
-            <label className="flex items-center gap-4 cursor-pointer group">
-              <div className="relative flex items-center justify-center">
-                <input 
-                  type="checkbox" 
-                  className="w-6 h-6 peer appearance-none rounded border-2 border-slate-500 checked:bg-teal-500 checked:border-teal-500 transition-colors"
-                  checked={hasAgreed}
-                  onChange={(e) => setHasAgreed(e.target.checked)}
-                />
-                <CheckCircle2 size={16} className="absolute text-white opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" />
-              </div>
-              <span className="text-slate-300 group-hover:text-white transition-colors">
-                I have read the notice and consent to the processing of my voice and profile data for livelihood matching.
-              </span>
-            </label>
-          </div>
-
-          <div className="flex gap-4">
+          <div className="w-full flex flex-col gap-3">
             <button 
-              onClick={() => navigate('/')} 
-              className="flex-1 py-4 px-6 rounded-xl font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-all duration-200"
+              onClick={() => navigate('/beneficiary/interview')}
+              className="w-full bg-emerald-700 hover:bg-emerald-800 text-white rounded-full py-4 font-bold text-lg transition-colors shadow-md shadow-emerald-700/20"
             >
-              Cancel
+              Agree and Continue
             </button>
             <button 
-              onClick={handleStart}
-              disabled={!hasAgreed}
-              className={`flex-1 flex items-center justify-center gap-2 py-4 px-6 rounded-xl font-bold transition-all duration-300 ${
-                hasAgreed 
-                ? 'bg-gradient-to-r from-teal-500 to-emerald-600 text-white shadow-lg shadow-teal-500/25 hover:shadow-teal-500/40 hover:-translate-y-1' 
-                : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
-              }`}
+              onClick={() => navigate('/')}
+              className="w-full bg-transparent hover:bg-emerald-50 text-emerald-700 rounded-full py-4 font-bold text-lg transition-colors"
             >
-              Start Interview
-              <ArrowRight size={20} />
+              Request help
             </button>
           </div>
         </div>
+
       </div>
     </div>
   );

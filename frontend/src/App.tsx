@@ -1,71 +1,67 @@
-import { Routes, Route, Link } from 'react-router-dom';
+import { Routes, Route, Link, useNavigate } from 'react-router-dom';
 import ConsentScreen from './components/Beneficiary/ConsentScreen';
 import VoiceInterview from './components/Beneficiary/VoiceInterview';
-import { Mic, ShieldCheck, BarChart3, ArrowRight, Sparkles } from 'lucide-react';
+import { Mic, ShieldCheck, MapPin, Briefcase, GraduationCap, ArrowRight, Volume2 } from 'lucide-react';
 
 function Home() {
+  const navigate = useNavigate();
+
   return (
-    <div className="max-w-6xl mx-auto p-8 pt-20 space-y-16">
-      <header className="text-center space-y-6 max-w-3xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-panel text-brand-100 text-sm font-medium mb-4">
-          <Sparkles size={16} className="text-teal-400" />
-          <span>Next-Generation Skilling AI</span>
+    <div className="min-h-screen bg-[#fdfbf4] flex flex-col items-center p-4 pt-12 md:pt-20 font-sans text-slate-800">
+      <div className="w-full max-w-[400px] flex flex-col items-center">
+        {/* Branding header */}
+        <div className="w-16 h-16 bg-emerald-700 rounded-2xl flex items-center justify-center mb-6 shadow-md shadow-emerald-700/20">
+          <Mic className="text-white w-8 h-8" />
         </div>
-        <h1 className="text-6xl font-extrabold tracking-tight mb-2 text-white">
-          JeevanMitra <span className="text-gradient">2.0</span>
+        
+        <h1 className="text-3xl font-bold text-slate-900 text-center mb-2">
+          नमस्ते और स्वागत है!
         </h1>
-        <p className="text-slate-300 text-xl leading-relaxed">
-          A Verification-First, Multi-Layer Generative AI System for PM-AJAY Livelihood Matching.
-          Bridging the gap between rural ambition and verified opportunities.
-        </p>
-      </header>
+        <h2 className="text-xl font-medium text-slate-700 text-center mb-8">
+          JeevanMitra Livelihood Assistant
+        </h2>
 
-      <div className="grid md:grid-cols-3 gap-8 mt-12">
-        <Link to="/beneficiary/consent" className="block p-8 rounded-2xl glass-card group">
-          <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-teal-400 to-emerald-600 flex items-center justify-center mb-6 shadow-lg">
-            <Mic className="text-white" size={28} />
+        {/* Main Card */}
+        <div className="w-full bg-white rounded-3xl p-6 shadow-sm border border-slate-100 mb-6">
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-slate-600 mb-2">Choose your language to start.</label>
+            <select className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-lg rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none font-medium">
+              <option>Hindi (हिन्दी)</option>
+              <option>English</option>
+              <option>Tamil (தமிழ்)</option>
+            </select>
           </div>
-          <h2 className="text-2xl font-bold mb-3 text-white group-hover:text-teal-300 transition-colors">Beneficiary Flow</h2>
-          <p className="text-slate-400 mb-6 leading-relaxed">
-            Multi-dialect voice interview, AI profile extraction, and grounded PM-AJAY recommendations.
-          </p>
-          <div className="flex items-center text-teal-400 font-medium">
-            <span>Start Interview</span>
-            <ArrowRight size={18} className="ml-2 group-hover:translate-x-1 transition-transform" />
-          </div>
-        </Link>
 
-        <Link to="/field-worker" className="block p-8 rounded-2xl glass-card group">
-          <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-indigo-400 to-purple-600 flex items-center justify-center mb-6 shadow-lg">
-            <ShieldCheck className="text-white" size={28} />
-          </div>
-          <h2 className="text-2xl font-bold mb-3 text-white group-hover:text-indigo-300 transition-colors">Field Worker Portal</h2>
-          <p className="text-slate-400 mb-6 leading-relaxed">
-            Review flagged cases, correct transcripts, verify batch availability, and authorize matches.
-          </p>
-          <div className="flex items-center text-indigo-400 font-medium">
-            <span>Open Portal</span>
-            <ArrowRight size={18} className="ml-2 group-hover:translate-x-1 transition-transform" />
-          </div>
-        </Link>
+          <button 
+            onClick={() => navigate('/beneficiary/consent')}
+            className="w-full bg-emerald-700 hover:bg-emerald-800 text-white rounded-full py-4 px-6 font-bold text-lg flex items-center justify-center gap-3 transition-colors shadow-lg shadow-emerald-700/30"
+          >
+            <Mic className="w-6 h-6" />
+            Start speaking
+            <Volume2 className="w-5 h-5 ml-2 opacity-80" />
+          </button>
+        </div>
 
-        <Link to="/district-planner" className="block p-8 rounded-2xl glass-card group">
-          <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-rose-400 to-orange-600 flex items-center justify-center mb-6 shadow-lg">
-            <BarChart3 className="text-white" size={28} />
-          </div>
-          <h2 className="text-2xl font-bold mb-3 text-white group-hover:text-rose-300 transition-colors">Planning Console</h2>
-          <p className="text-slate-400 mb-6 leading-relaxed">
-            Real-time supply-gap matrices, drift monitoring, and AI-generated district narrative briefs.
-          </p>
-          <div className="flex items-center text-rose-400 font-medium">
-            <span>View Analytics</span>
-            <ArrowRight size={18} className="ml-2 group-hover:translate-x-1 transition-transform" />
-          </div>
-        </Link>
-      </div>
-      
-      <div className="mt-20 text-center text-slate-500 text-sm">
-        <p>Built for the Ministry of Social Justice and Empowerment (MoSJE)</p>
+        {/* Assisted Mode Options */}
+        <div className="w-full bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+          <h3 className="text-sm font-semibold text-slate-600 mb-4">Assisted mode options</h3>
+          
+          <Link to="/field-worker" className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-200">
+            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <span className="font-medium text-slate-700">Take with a helper</span>
+          </Link>
+          
+          <div className="w-full h-px bg-slate-100 my-2"></div>
+          
+          <Link to="/district-planner" className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-200">
+            <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-700">
+              <MapPin className="w-5 h-5" />
+            </div>
+            <span className="font-medium text-slate-700">District Dashboard</span>
+          </Link>
+        </div>
       </div>
     </div>
   );
@@ -73,17 +69,28 @@ function Home() {
 
 function FieldWorkerPortal() {
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <Link to="/" className="text-indigo-400 hover:text-indigo-300 mb-8 inline-flex items-center transition-colors">
-        &larr; <span className="ml-2">Back to Dashboard</span>
-      </Link>
-      <header className="mb-10">
-        <h1 className="text-4xl font-bold text-white mb-2">Field Worker Portal</h1>
-        <p className="text-slate-400">Secure verification and match authorization environment.</p>
-      </header>
-      <div className="glass-panel p-8 rounded-2xl">
-        <div className="flex items-center justify-center h-64 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl">
-          <p>Case Review Dashboard (Pending Integration)</p>
+    <div className="min-h-screen bg-[#fdfbf4] p-4">
+      <div className="max-w-[1000px] mx-auto">
+        <div className="flex items-center gap-4 mb-8 pt-4">
+          <Link to="/" className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-600 hover:bg-slate-50">&larr;</Link>
+          <h1 className="text-2xl font-bold text-slate-900">Field-Worker Dashboard</h1>
+        </div>
+        <div className="grid md:grid-cols-4 gap-4 mb-8">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <p className="text-sm font-semibold text-slate-500 mb-1">Cases awaiting review</p>
+            <p className="text-3xl font-bold text-slate-900">21</p>
+          </div>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <p className="text-sm font-semibold text-slate-500 mb-1">Referrals pending</p>
+            <p className="text-3xl font-bold text-slate-900">15</p>
+          </div>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <p className="text-sm font-semibold text-slate-500 mb-1">Follow-ups due</p>
+            <p className="text-3xl font-bold text-slate-900">20</p>
+          </div>
+        </div>
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 min-h-[400px]">
+          <p className="text-slate-500">Case list table goes here...</p>
         </div>
       </div>
     </div>
@@ -92,17 +99,14 @@ function FieldWorkerPortal() {
 
 function DistrictPlannerConsole() {
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <Link to="/" className="text-rose-400 hover:text-rose-300 mb-8 inline-flex items-center transition-colors">
-        &larr; <span className="ml-2">Back to Dashboard</span>
-      </Link>
-      <header className="mb-10">
-        <h1 className="text-4xl font-bold text-white mb-2">District Planning Console</h1>
-        <p className="text-slate-400">Aggregated insights and real-time gap analysis.</p>
-      </header>
-      <div className="glass-panel p-8 rounded-2xl">
-        <div className="flex items-center justify-center h-64 text-slate-500 border-2 border-dashed border-slate-700 rounded-xl">
-          <p>Demand vs Supply Metrics (Pending Integration)</p>
+    <div className="min-h-screen bg-[#fdfbf4] p-4">
+      <div className="max-w-[1000px] mx-auto">
+        <div className="flex items-center gap-4 mb-8 pt-4">
+          <Link to="/" className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-600 hover:bg-slate-50">&larr;</Link>
+          <h1 className="text-2xl font-bold text-slate-900">District Dashboard</h1>
+        </div>
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 min-h-[400px]">
+          <p className="text-slate-500">Trade Aspiration vs Training Supply Matrix goes here...</p>
         </div>
       </div>
     </div>
@@ -111,8 +115,7 @@ function DistrictPlannerConsole() {
 
 function App() {
   return (
-    <div className="min-h-screen text-slate-200 font-sans selection:bg-teal-500/30">
-      <div className="fixed inset-0 z-[-1] bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-900/20 via-[#0f172a] to-[#0f172a]"></div>
+    <div className="min-h-screen text-slate-800 font-sans selection:bg-emerald-200">
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/beneficiary/consent" element={<ConsentScreen />} />
