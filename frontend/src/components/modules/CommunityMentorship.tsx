@@ -40,10 +40,10 @@ export const CommunityMentorship: React.FC<CommunityMentorshipProps> = ({ langua
   };
 
   return (
-    <div className="w-full max-w-[460px] mx-auto bg-[#fbf9f1] border border-amber-900/10 rounded-[36px] shadow-xl p-5 text-slate-800 flex flex-col justify-between min-h-[620px]">
+    <div className="module-page community-page">
       <div>
         {/* Header */}
-        <div className="mb-4">
+        <div className="module-header mb-4">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
               Peer & Enterprise Support
@@ -74,7 +74,7 @@ export const CommunityMentorship: React.FC<CommunityMentorshipProps> = ({ langua
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="mentor-grid grid grid-cols-2 gap-3">
             {mentorsData.slice(0, 2).map((mentor) => (
               <div
                 key={mentor.id}

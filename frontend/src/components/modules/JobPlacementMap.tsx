@@ -10,8 +10,8 @@ interface JobPlacementMapProps {
 
 export const JobPlacementMap: React.FC<JobPlacementMapProps> = ({ language }) => {
   const [jobs, setJobs] = useState<JobOpportunity[]>(jobOpportunitiesData);
-  const [selectedJob, setSelectedJob] = useState<JobOpportunity>(jobOpportunitiesData[0]);
-  const [selectedLocation, setSelectedLocation] = useState<string>('Moradabad');
+  const [selectedJobId, setSelectedJobId] = useState<string>(jobOpportunitiesData[0].id);
+  const [selectedLocation, setSelectedLocation] = useState<string>('All');
   const [selectedSector, setSelectedSector] = useState<string>('All');
   const [applyingJobId, setApplyingJobId] = useState<string | null>(null);
   const [applicationSuccess, setApplicationSuccess] = useState<string | null>(null);
@@ -19,8 +19,10 @@ export const JobPlacementMap: React.FC<JobPlacementMapProps> = ({ language }) =>
 
   const filteredJobs = jobs.filter((j) => {
     const matchSector = selectedSector === 'All' || j.sector === selectedSector;
-    return matchSector;
+    const matchLocation = selectedLocation === 'All' || j.location.includes(selectedLocation);
+    return matchSector && matchLocation;
   });
+  const selectedJob = filteredJobs.find((job) => job.id === selectedJobId) ?? filteredJobs[0] ?? null;
 
   const handleApplyVoice = (job: JobOpportunity) => {
     SoundFX.playChime('start');
@@ -45,19 +47,19 @@ export const JobPlacementMap: React.FC<JobPlacementMapProps> = ({ language }) =>
 
   const handlePinClick = (job: JobOpportunity) => {
     SoundFX.playChime('click');
-    setSelectedJob(job);
+    setSelectedJobId(job.id);
   };
 
   return (
-    <div className="w-full max-w-[460px] mx-auto bg-[#fbf9f1] border border-amber-900/10 rounded-[36px] shadow-xl p-5 text-slate-800 flex flex-col min-h-[620px]">
+    <div className="module-page opportunities-page">
       {/* Top Header */}
-      <div className="mb-3">
+      <div className="module-header mb-3">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[10px] font-black uppercase tracking-wider text-teal-800 bg-teal-100 px-2.5 py-0.5 rounded-full">
             Localized Map & Listings
           </span>
           <span className="text-[11px] font-bold text-slate-400">
-            Within 5 km radius
+            Sample openings
           </span>
         </div>
 
@@ -84,7 +86,7 @@ export const JobPlacementMap: React.FC<JobPlacementMapProps> = ({ language }) =>
       </div>
 
       {/* Location & Job Type Dropdown Filter Bar */}
-      <div className="grid grid-cols-2 gap-2 mb-3">
+      <div className="job-filters grid grid-cols-2 gap-2 mb-3">
         <div>
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
             Location
@@ -94,10 +96,9 @@ export const JobPlacementMap: React.FC<JobPlacementMapProps> = ({ language }) =>
             onChange={(e) => setSelectedLocation(e.target.value)}
             className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
           >
+            <option value="All">All locations</option>
             <option value="Moradabad">Moradabad Cluster</option>
             <option value="Chhajlet">Chhajlet Village</option>
-            <option value="Bahjoi">Bahjoi Block</option>
-            <option value="Delhi">Delhi-NCR Corridor</option>
           </select>
         </div>
 
@@ -120,7 +121,7 @@ export const JobPlacementMap: React.FC<JobPlacementMapProps> = ({ language }) =>
       </div>
 
       {/* Interactive Map Canvas ("JOB LISTINGS: RETAIL & SERVICES") */}
-      <div className="relative w-full h-44 rounded-2xl bg-[#e5ede2] border-2 border-[#bdd1b8] overflow-hidden mb-4 shadow-inner">
+      <div className="job-map relative w-full h-44 rounded-2xl bg-[#e5ede2] border-2 border-[#bdd1b8] overflow-hidden mb-4 shadow-inner">
         {/* Stylized vector map lines */}
         <svg className="w-full h-full opacity-60" viewBox="0 0 400 200">
           {/* River */}
@@ -139,7 +140,7 @@ export const JobPlacementMap: React.FC<JobPlacementMapProps> = ({ language }) =>
 
         {/* Region Label */}
         <div className="absolute top-2 left-2 bg-white/90 backdrop-blur-xs px-2 py-0.5 rounded-lg border border-slate-200 text-[10px] font-extrabold text-slate-700 shadow-2xs">
-          📍 {selectedLocation} Map View
+          📍 {selectedLocation === 'All' ? 'All locations' : selectedLocation} Map View
         </div>
 
         {/* Interactive Map Pins */}
@@ -203,13 +204,14 @@ export const JobPlacementMap: React.FC<JobPlacementMapProps> = ({ language }) =>
       </div>
 
       {/* Job Opportunity Cards List */}
-      <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 max-h-[220px]">
+      <div className="job-list flex-1 overflow-y-auto space-y-2.5 pr-1 max-h-[220px]">
+        {filteredJobs.length === 0 && <p className="job-empty-state">No sample opportunities match these filters. Try another location or sector.</p>}
         {filteredJobs.map((job) => {
           const isSelected = selectedJob?.id === job.id;
           return (
             <div
               key={job.id}
-              onClick={() => setSelectedJob(job)}
+              onClick={() => setSelectedJobId(job.id)}
               className={`bg-white rounded-2xl p-3 border transition-all cursor-pointer ${
                 isSelected
                   ? 'border-emerald-500 shadow-sm ring-1 ring-emerald-400'

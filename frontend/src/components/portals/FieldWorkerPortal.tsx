@@ -32,7 +32,7 @@ export const FieldWorkerPortal: React.FC<FieldWorkerPortalProps> = ({ onBack }) 
             Field-Worker Verification Portal
           </h1>
           <p className="text-xs font-semibold text-emerald-700">
-            Claim 1: Verified Match Protocol (Outside LLM Verification)
+            Review profiles and confirm local opportunities
           </p>
         </div>
       </div>

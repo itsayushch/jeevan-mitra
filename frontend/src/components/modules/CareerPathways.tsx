@@ -21,16 +21,16 @@ export const CareerPathways: React.FC<CareerPathwaysProps> = ({ language }) => {
   };
 
   return (
-    <div className="w-full max-w-[540px] mx-auto bg-[#fbf9f1] border border-amber-900/10 rounded-[36px] shadow-xl p-5 text-slate-800 flex flex-col justify-between min-h-[620px]">
+    <div className="module-page pathways-page">
       <div>
         {/* Top Header */}
-        <div className="mb-4">
+        <div className="module-header mb-4">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
               NSQF Level 1 to 10 Progression
             </span>
             <span className="text-[11px] font-bold text-slate-400">
-              MoSJE GIA Architecture
+              Explore your learning pathway
             </span>
           </div>
 
@@ -45,7 +45,7 @@ export const CareerPathways: React.FC<CareerPathwaysProps> = ({ language }) => {
         </div>
 
         {/* Tree Container */}
-        <div className="relative bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm space-y-4">
+        <div className="pathway-tree relative bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm space-y-4">
           {/* Root: Current Skills */}
           <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
             <div className="bg-slate-800 text-white text-[11px] font-extrabold px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-1.5">

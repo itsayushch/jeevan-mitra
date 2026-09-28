@@ -40,7 +40,7 @@ export const Step7PostSkillingSupport: React.FC<Step7Props> = ({
               {language === 'hi' ? 'प्रशिक्षण उपरांत सहयोग' : 'Post-Skilling & Support.'}
             </h2>
             <p className="text-[11px] font-semibold text-emerald-700">
-              End-to-End Livelihood Guarantee Framework
+              Guidance for your next step
             </p>
           </div>
         </div>
