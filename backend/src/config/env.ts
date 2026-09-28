@@ -1,0 +1,22 @@
+import dotenv from 'dotenv';
+import path from 'path';
+import { z } from 'zod';
+
+dotenv.config();
+
+const envSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().default(4000),
+  HOST: z.string().default('0.0.0.0'),
+  DATABASE_PATH: z.string().default(path.resolve(process.cwd(), 'jeevanmitra.db')),
+  AI_PROVIDER: z.enum(['mock', 'openai', 'bhashini', 'sarvam']).default('mock'),
+  OPENAI_API_KEY: z.string().optional(),
+  BHASHINI_API_KEY: z.string().optional(),
+  SARVAM_API_KEY: z.string().optional(),
+  DEFAULT_DISTRICT: z.string().default('Moradabad'),
+  DEFAULT_STATE: z.string().default('Uttar Pradesh'),
+  CONFIDENCE_THRESHOLD: z.coerce.number().default(0.75),
+});
+
+export const env = envSchema.parse(process.env);
+export type Env = z.infer<typeof envSchema>;
