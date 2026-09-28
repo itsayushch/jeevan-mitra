@@ -80,7 +80,7 @@ export const SkillTrainingModule: React.FC<SkillTrainingModuleProps> = ({ langua
   };
 
   return (
-    <div className="w-full max-w-[460px] mx-auto bg-[#fbf9f1] border border-amber-900/10 rounded-[36px] shadow-xl p-5 text-slate-800 flex flex-col justify-between min-h-[620px]">
+    <div className="module-page training-page">
       <div>
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
@@ -120,7 +120,7 @@ export const SkillTrainingModule: React.FC<SkillTrainingModuleProps> = ({ langua
 
         {/* Tab 1: Interactive Lessons */}
         {activeTab === 'lessons' && (
-          <div className="space-y-3">
+          <div className="lesson-grid space-y-3">
             {mushroomModules.map((module) => {
               const isPlaying = playingLessonId === module.id;
               return (
@@ -189,7 +189,7 @@ export const SkillTrainingModule: React.FC<SkillTrainingModuleProps> = ({ langua
 
         {/* Tab 2: Voice Read-Aloud Quiz */}
         {activeTab === 'quiz' && (
-          <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm">
+          <div className="training-quiz bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm">
             {/* Progress overview */}
             <div className="mb-3">
               <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-1">

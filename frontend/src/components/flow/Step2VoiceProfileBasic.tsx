@@ -77,7 +77,7 @@ export const Step2VoiceProfileBasic: React.FC<Step2Props> = ({
             </button>
           </div>
           <span className="text-[10px] text-amber-700 font-semibold tracking-wide uppercase mt-1 block">
-            PM-AJAY Elder Sahayak Guide
+            JeevanMitra voice guide
           </span>
         </div>
       </div>
@@ -130,7 +130,7 @@ export const Step2VoiceProfileBasic: React.FC<Step2Props> = ({
         <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
           <span>Voice Extracted Profile</span>
           <span className="text-emerald-700 flex items-center gap-1">
-            <Check className="w-3 h-3" /> Live Verified
+            <Check className="w-3 h-3" /> Sample profile
           </span>
         </div>
 

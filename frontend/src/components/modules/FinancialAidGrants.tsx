@@ -30,10 +30,10 @@ export const FinancialAidGrants: React.FC<FinancialAidGrantsProps> = ({ language
   };
 
   return (
-    <div className="w-full max-w-[460px] mx-auto bg-[#fbf9f1] border border-amber-900/10 rounded-[36px] shadow-xl p-5 text-slate-800 flex flex-col justify-between min-h-[620px]">
+    <div className="module-page financial-page">
       <div>
         {/* Header */}
-        <div className="mb-4">
+        <div className="module-header mb-4">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
               Capital Subsidy & Micro-Credit
@@ -54,17 +54,28 @@ export const FinancialAidGrants: React.FC<FinancialAidGrantsProps> = ({ language
         </div>
 
         {/* Scheme Cards */}
-        <div className="space-y-3 mb-4">
+        <div className="scheme-grid mb-4">
           {financialSchemesData.map((scheme) => {
             const isSelected = selectedScheme.id === scheme.id;
             return (
               <div
                 key={scheme.id}
+                role="button"
+                tabIndex={0}
+                aria-pressed={isSelected}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setSelectedScheme(scheme);
+                    setApplicationSubmitted(false);
+                  }
+                }}
                 onClick={() => {
                   SoundFX.playChime('click');
                   setSelectedScheme(scheme);
+                  setApplicationSubmitted(false);
                 }}
-                className={`bg-white rounded-3xl p-4 border transition-all cursor-pointer ${
+                className={`financial-scheme w-full text-left bg-white rounded-3xl p-4 border transition-all cursor-pointer ${
                   isSelected
                     ? 'border-emerald-500 shadow-md ring-1 ring-emerald-400'
                     : 'border-slate-200/90 hover:border-slate-300'
@@ -112,7 +123,7 @@ export const FinancialAidGrants: React.FC<FinancialAidGrantsProps> = ({ language
         </div>
 
         {/* Handshake Graphic / Partnership Banner */}
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-3xl p-3.5 flex items-center justify-between gap-3 shadow-2xs mb-3">
+        <div className="dbt-banner bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-3xl p-3.5 flex items-center justify-between gap-3 shadow-2xs mb-3">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
               <Handshake className="w-5 h-5" />
@@ -130,7 +141,7 @@ export const FinancialAidGrants: React.FC<FinancialAidGrantsProps> = ({ language
       </div>
 
       {/* Action / Apply Now (Voice) */}
-      <div>
+      <div className="financial-actions">
         {applicationSubmitted ? (
           <div className="bg-emerald-50 border border-emerald-300 rounded-3xl p-3.5 text-center animate-fadeIn">
             <div className="flex items-center justify-center gap-1.5 text-emerald-800 font-black text-xs mb-1">

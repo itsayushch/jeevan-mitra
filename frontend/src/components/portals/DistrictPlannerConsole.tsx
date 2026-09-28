@@ -23,7 +23,7 @@ export const DistrictPlannerConsole: React.FC<DistrictPlannerProps> = ({ onBack 
             PM-AJAY District Planning Console
           </h1>
           <p className="text-xs font-semibold text-indigo-700">
-            Claim 2: Planning Loop (Aggregate Demand vs Local Training Supply)
+            Understand demand and gaps in local training capacity
           </p>
         </div>
         <span className="ml-auto text-xs font-bold text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-2xs">

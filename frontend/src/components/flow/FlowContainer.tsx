@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { Language, BeneficiaryProfile } from '../../types';
 import { initialProfile } from '../../data/mockData';
 import { Step1WelcomeLogin } from './Step1WelcomeLogin';
@@ -22,61 +22,49 @@ export const FlowContainer: React.FC<FlowContainerProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [profile, setProfile] = useState<BeneficiaryProfile>(initialProfile);
+  const [restored, setRestored] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = window.sessionStorage.getItem('jeevanmitra-journey');
+      if (saved) {
+        const journey = JSON.parse(saved) as { step?: number; profile?: BeneficiaryProfile };
+        if (Number.isInteger(journey.step) && journey.step! >= 1 && journey.step! <= 7) setCurrentStep(journey.step!);
+        if (journey.profile) setProfile(journey.profile);
+      }
+    } catch {
+      window.sessionStorage.removeItem('jeevanmitra-journey');
+    }
+    setRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (restored) window.sessionStorage.setItem('jeevanmitra-journey', JSON.stringify({ step: currentStep, profile }));
+  }, [currentStep, profile, restored]);
 
   const updateProfile = (updates: Partial<BeneficiaryProfile>) => {
     setProfile((prev) => ({ ...prev, ...updates }));
   };
 
   const stepTitles = [
-    'Welcome & Login',
-    'Voice Profile (Basic)',
-    'Voice Profile (Advanced)',
-    'AI Analysis',
-    'Livelihood Recommendations',
-    'Skill Training Details',
-    'Post-Skilling & Support',
+    'Welcome & consent',
+    'Your interests',
+    'Your experience',
+    'Understand your profile',
+    'Explore your matches',
+    'Training details',
+    'Your next steps',
   ];
 
   return (
-    <div className="w-full flex flex-col items-center">
-      {/* Top Flow Stepper Progress Bar */}
-      <div className="w-full max-w-[440px] px-4 pt-3 pb-1">
-        <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-1.5">
-          <span className="text-emerald-700 uppercase tracking-wider">
-            Step {currentStep} of 7: {stepTitles[currentStep - 1]}
-          </span>
-          <span className="font-semibold text-slate-400">
-            {Math.round((currentStep / 7) * 100)}%
-          </span>
-        </div>
-
-        {/* Stepper Dots & Line */}
-        <div className="flex items-center gap-1.5 w-full">
-          {stepTitles.map((_, idx) => {
-            const stepNum = idx + 1;
-            const isActive = stepNum === currentStep;
-            const isCompleted = stepNum < currentStep;
-
-            return (
-              <button
-                key={stepNum}
-                onClick={() => setCurrentStep(stepNum)}
-                title={stepTitles[idx]}
-                className={`h-2 flex-1 rounded-full transition-all duration-300 ${
-                  isActive
-                    ? 'bg-emerald-600 ring-2 ring-emerald-300 ring-offset-1'
-                    : isCompleted
-                    ? 'bg-emerald-500'
-                    : 'bg-slate-200 hover:bg-slate-300'
-                }`}
-              />
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Main Step Canvas Frame */}
-      <div className="w-full max-w-[440px] bg-[#fbf9f1] border border-amber-900/10 rounded-[36px] shadow-xl overflow-hidden my-3">
+    <div className="flow-layout">
+      <aside className="flow-progress" aria-label="Journey progress">
+        <div className="eyebrow">ONE STEP AT A TIME</div>
+        <h1>My journey</h1>
+        <p>Step {currentStep} of {stepTitles.length}</p>
+        <ol>{stepTitles.map((title, index) => <li key={title}><button disabled={index + 1 > currentStep} aria-current={index + 1 === currentStep ? 'step' : undefined} onClick={() => setCurrentStep(index + 1)} className={`flow-step ${index + 1 === currentStep ? 'current' : index + 1 < currentStep ? 'complete' : ''}`} title={title}><span>{index + 1 < currentStep ? '✓' : index + 1}</span>{title}</button></li>)}</ol>
+      </aside>
+      <div className="flow-canvas">
         {currentStep === 1 && (
           <Step1WelcomeLogin
             language={language}
@@ -136,7 +124,7 @@ export const FlowContainer: React.FC<FlowContainerProps> = ({
           <Step7PostSkillingSupport
             language={language}
             onNavigateModule={onNavigateModule}
-            onRestart={() => setCurrentStep(1)}
+            onRestart={() => { setCurrentStep(1); setProfile(initialProfile); }}
             onPrev={() => setCurrentStep(6)}
           />
         )}
