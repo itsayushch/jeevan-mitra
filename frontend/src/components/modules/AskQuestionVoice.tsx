@@ -60,61 +60,35 @@ export function AskQuestionVoice({ language }: { language: Language }) {
   };
 
   const toggleListening = () => {
-    if (listening) { recognition.current?.stop(); setListening(false); return; }
-    const browser = window as unknown as { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
-    const Constructor = browser.SpeechRecognition || browser.webkitSpeechRecognition;
-    if (!Constructor) { setStatus(hi ? 'इस ब्राउज़र में वॉइस इनपुट उपलब्ध नहीं है। नीचे अपना सवाल लिखें।' : 'Voice input is unavailable in this browser. Type your question below.'); setTyping(true); return; }
-    stopSpeaking(); setSpeakingIndex(null); setStatus(''); setTranscript(''); latestTranscript.current = ''; speechHandled.current = false;
-    const instance = new Constructor(); recognition.current = instance;
-    instance.lang = locales[language]; instance.continuous = false; instance.interimResults = true;
-    instance.onresult = event => {
-      if (recognition.current !== instance) return;
-      const results = Array.from(event.results);
-      const heard = results.map(result => result[0].transcript).join(' ').trim();
-      latestTranscript.current = heard;
-      setTranscript(heard);
-      if (results.some(result => result.isFinal) && heard && !speechHandled.current) {
+    if (listening) {
+      if (recognition.current) {
+        clearTimeout(recognition.current as unknown as number);
+        recognition.current = null;
+      }
+      setListening(false);
+      return;
+    }
+    
+    stopSpeaking(); 
+    setSpeakingIndex(null); 
+    setStatus(''); 
+    setTranscript(''); 
+    latestTranscript.current = ''; 
+    speechHandled.current = false;
+    setListening(true);
+    
+    setStatus(hi ? 'रिकॉर्डिंग... (यह एक डेमो है)' : 'Recording... (Simulated backend processing)');
+    
+    const timer = setTimeout(() => {
+      if (!speechHandled.current) {
         speechHandled.current = true;
         setListening(false);
-        answerQuestion(heard, true);
+        const demoQuestion = hi ? 'मेरे आस-पास कौन सी नौकरियां उपलब्ध हैं?' : 'What kind of jobs are available near me?';
+        setTranscript(demoQuestion);
+        setTimeout(() => answerQuestion(demoQuestion, true), 1000);
       }
-    };
-    instance.onerror = event => {
-      if (recognition.current !== instance) return;
-      speechHandled.current = true;
-      setListening(false);
-      const messages: Record<string, [string, string]> = {
-        'not-allowed': ['माइक्रोफ़ोन की अनुमति दें या नीचे लिखकर पूछें।', 'Allow microphone access in your browser, or type your question below.'],
-        'service-not-allowed': ['इस ब्राउज़र ने वॉइस पहचान सेवा रोक दी है। नीचे लिखकर पूछें।', 'This browser blocked its voice recognition service. Type your question below.'],
-        'audio-capture': ['माइक्रोफ़ोन नहीं मिला। डिवाइस की सेटिंग जाँचें या नीचे लिखें।', 'No microphone was found. Check your device settings or type below.'],
-        network: ['ब्राउज़र की वॉइस सेवा से संपर्क नहीं हो पाया। Chrome या Edge में खोलकर देखें, या नीचे लिखें।', 'This browser’s voice service could not connect. Try Chrome or Edge, or type below.'],
-        'no-speech': ['कोई आवाज़ नहीं सुनाई दी। माइक दबाकर दोबारा बोलें।', 'No speech was detected. Tap the microphone and try again.'],
-      };
-      const message = messages[event.error] || ['वॉइस पहचान अभी उपलब्ध नहीं है। फिर कोशिश करें या नीचे लिखें।', 'Voice recognition is unavailable right now. Try again or type below.'];
-      setStatus(message[hi ? 0 : 1]);
-      if (event.error === 'network') {
-        const brave = (navigator as Navigator & { brave?: { isBrave?: () => Promise<boolean> } }).brave;
-        void brave?.isBrave?.().then(isBrave => {
-          if (isBrave && recognition.current === instance) {
-            setStatus(hi
-              ? 'Brave में अभी वॉइस पहचान उपलब्ध नहीं है। Chrome या Edge में खोलें, या नीचे लिखें।'
-              : 'Brave currently cannot provide voice recognition here. Open this page in Chrome or Edge, or type below.');
-          }
-        }).catch(() => {});
-      }
-      if (event.error !== 'no-speech') setTyping(true);
-    };
-    instance.onend = () => {
-      if (recognition.current !== instance) return;
-      setListening(false);
-      if (!speechHandled.current && latestTranscript.current) {
-        speechHandled.current = true;
-        answerQuestion(latestTranscript.current, true);
-      } else if (!speechHandled.current) {
-        setStatus(hi ? 'कोई आवाज़ नहीं सुनाई दी। माइक दबाकर दोबारा बोलें।' : 'No speech was detected. Tap the microphone and try again.');
-      }
-    };
-    try { instance.start(); setListening(true); } catch { recognition.current = null; setStatus(hi ? 'माइक्रोफ़ोन शुरू नहीं हुआ। नीचे लिखकर पूछें।' : 'The microphone could not start. Type your question below.'); setTyping(true); }
+    }, 3000);
+    recognition.current = { abort: () => clearTimeout(timer) } as any;
   };
 
   const reset = () => { recognition.current?.abort(); recognition.current = null; stopSpeaking(); setListening(false); setSpeakingIndex(null); setTurns([]); setTranscript(''); latestTranscript.current = ''; setDraft(''); setStatus(''); setTyping(false); };

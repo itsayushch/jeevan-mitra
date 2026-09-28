@@ -71,3 +71,4 @@ wheels/
 *.egg
 .pytest_cache/
 
+!frontend/src/lib/

@@ -27,10 +27,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const saved = window.localStorage.getItem('jeevanmitra-language');
-    if (saved && ['en', 'hi', 'ta', 'bn', 'te'].includes(saved)) setLanguage(saved as Language);
+    if (saved && ['en', 'hi', 'ta', 'bn', 'te'].includes(saved)) {
+      setLanguage(saved as Language);
+      document.documentElement.lang = saved;
+    }
   }, []);
   const chooseLanguage = (value: Language) => {
     setLanguage(value);
+    document.documentElement.lang = value;
     window.localStorage.setItem('jeevanmitra-language', value);
   };
 
