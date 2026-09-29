@@ -6,7 +6,7 @@ from app.models import (
     UpdateReferralStatusRequest, AddCounselorNoteRequest
 )
 from app.services.referral_service import ReferralService
-from app.dependencies.auth import get_current_actor, require_counselor_or_admin, Actor
+from app.dependencies.auth import get_current_actor, require_admin_or_worker, require_counselor_or_admin, Actor
 
 router = APIRouter(tags=["Referrals"])
 
@@ -78,7 +78,10 @@ def add_case_note(
 # Legacy Referrals Endpoints (Backwards Compatibility)
 # ============================================================================
 @router.get("/referrals")
-def legacy_list_referrals(status: Optional[str] = None):
+def legacy_list_referrals(
+    status: Optional[str] = None,
+    actor: Actor = Depends(require_admin_or_worker)
+):
     with get_db() as conn:
         query = "SELECT * FROM referrals WHERE 1=1"
         params = []
@@ -90,7 +93,7 @@ def legacy_list_referrals(status: Optional[str] = None):
         return [dict(r) for r in rows]
 
 @router.get("/referrals/{referral_id}")
-def legacy_get_referral(referral_id: str):
+def legacy_get_referral(referral_id: str, actor: Actor = Depends(require_admin_or_worker)):
     with get_db() as conn:
         # Check referral_cases first
         case = conn.execute("SELECT * FROM referral_cases WHERE id = ?;", (referral_id,)).fetchone()

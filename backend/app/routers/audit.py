@@ -12,7 +12,8 @@ def list_audit_events(
     actor_role: Optional[str] = None,
     entity_type: Optional[str] = None,
     action: Optional[str] = None,
-    limit: int = Query(default=50, ge=1, le=200)
+    limit: int = Query(default=50, ge=1, le=200),
+    actor: Actor = Depends(require_admin_or_worker)
 ):
     with get_db() as conn:
         query = "SELECT * FROM audit_events WHERE 1=1"

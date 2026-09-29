@@ -1,4 +1,6 @@
-from fastapi import Header, HTTPException, Depends, Request
+from datetime import datetime, timezone
+import secrets
+from fastapi import Header, HTTPException, Depends
 from typing import Optional, Dict, Any
 from app.config import settings
 from app.database import get_db
@@ -32,69 +34,47 @@ def get_current_actor(
     """
     Identifies the caller actor based on worker API keys, session tokens, or guest session IDs.
     """
-    token = x_session_token or x_session_id
-
-    # 1. Staff authentication via worker API key
+    configured_staff_keys = (
+        (settings.WORKER_API_KEY, "field_worker", settings.WORKER_ID, settings.WORKER_NAME),
+        (settings.COUNSELOR_API_KEY, "counselor", "", "Career Counselor"),
+        (settings.ADMIN_API_KEY, "admin", "admin", "District Administrator"),
+        (settings.DISTRICT_OFFICER_API_KEY, "district_officer", "", "District Officer"),
+        (settings.ANALYST_API_KEY, "analyst", "", "District Analyst"),
+    )
     if x_worker_api_key:
-        if settings.WORKER_API_KEY and x_worker_api_key == settings.WORKER_API_KEY:
-            return Actor(
-                actor_id=settings.WORKER_ID or "worker_01",
-                actor_role="field_worker",
-                actor_name=settings.WORKER_NAME or "Field Worker",
-                session_id=token,
-                beneficiary_id=x_beneficiary_id
-            )
-        elif x_worker_api_key.startswith("admin-"):
-            return Actor(
-                actor_id="admin_01",
-                actor_role="admin",
-                actor_name="District Administrator",
-                session_id=token,
-                beneficiary_id=x_beneficiary_id
-            )
-        elif x_worker_api_key.startswith("counselor-"):
-            return Actor(
-                actor_id=x_worker_api_key.replace("-", "_"),
-                actor_role="counselor",
-                actor_name="Career Counselor",
-                session_id=token,
-                beneficiary_id=x_beneficiary_id
-            )
+        for configured_key, role, actor_id, actor_name in configured_staff_keys:
+            if configured_key and secrets.compare_digest(x_worker_api_key, configured_key):
+                return Actor(
+                    actor_id=actor_id or role,
+                    actor_role=role,
+                    actor_name=actor_name or role.replace("_", " ").title(),
+                    session_id=x_session_token,
+                )
 
-    # 2. Check token in anonymous_sessions table
-    token = x_session_token or x_session_id
-    if token:
+    # Session IDs and beneficiary IDs are public identifiers, not credentials.
+    if x_session_token:
         with get_db() as conn:
             sess = conn.execute("""
                 SELECT * FROM anonymous_sessions
-                WHERE session_token = ? OR id = ?;
-            """, (token, token)).fetchone()
+                WHERE session_token = ?;
+            """, (x_session_token,)).fetchone()
 
             if sess:
-                return Actor(
-                    actor_id=sess["id"],
-                    actor_role=sess["owner_type"],
-                    actor_name="Guest Beneficiary",
-                    session_id=sess["id"],
-                    beneficiary_id=sess["owner_id"]
-                )
+                expires_at = datetime.fromisoformat(sess["expires_at"])
+                if expires_at > datetime.now(timezone.utc):
+                    return Actor(
+                        actor_id=sess["id"],
+                        actor_role=sess["owner_type"],
+                        actor_name="Guest Beneficiary",
+                        session_id=sess["id"],
+                        beneficiary_id=sess["owner_id"]
+                    )
 
-    # 3. Fallback to explicit beneficiary ID if provided
-    if x_beneficiary_id:
-        return Actor(
-            actor_id=x_beneficiary_id,
-            actor_role="beneficiary",
-            actor_name="Beneficiary",
-            beneficiary_id=x_beneficiary_id
-        )
-
-    # 4. Anonymous Guest fallback
-    guest_id = token or "guest_anonymous"
+    # Invalid or absent credentials are anonymous; protected dependencies reject this actor.
     return Actor(
-        actor_id=guest_id,
+        actor_id="guest_anonymous",
         actor_role="anonymous",
-        actor_name="Guest Beneficiary",
-        session_id=token
+        actor_name="Guest Beneficiary"
     )
 
 def require_admin_or_worker(actor: Actor = Depends(get_current_actor)) -> Actor:

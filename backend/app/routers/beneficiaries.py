@@ -7,7 +7,7 @@ from app.models import BeneficiaryCreate, BeneficiaryUpdate, AnonymousSessionCre
 from app.services.session_service import SessionService
 from app.services.profile_service import ProfileService
 from app.services.export_service import ExportService
-from app.dependencies.auth import get_current_actor, Actor
+from app.dependencies.auth import get_current_actor, require_admin_or_worker, Actor
 
 router = APIRouter(tags=["Beneficiaries"])
 
@@ -24,7 +24,8 @@ def create_anonymous_session(
     Allows beneficiaries to complete interviews and get recommendations without an account.
     """
     with get_db() as conn:
-        return SessionService.create_session(conn, data, actor_id=actor.actor_id)
+        session_data = data if actor.is_staff() else None
+        return SessionService.create_session(conn, session_data, actor_id=actor.actor_id)
 
 @router.get("/beneficiaries/me")
 def get_my_profile(actor: Actor = Depends(get_current_actor)):
@@ -78,19 +79,23 @@ def create_beneficiary(data: BeneficiaryCreate):
         conn.execute("""
             INSERT INTO beneficiaries (
                 id, name, phone, gender, age, category, preferred_language,
-                district, block, village, contact_preference, owner_type, owner_id, created_at, updated_at
+                district, block, village, contact_preference, owner_type, owner_id,
+                created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """, (
             ben_id, data.name, data.phone, data.gender, data.age, data.category,
             data.preferred_language, data.district, data.block, data.village,
-            data.contact_preference, data.owner_type or "authenticated_user",
-            data.owner_id, now, now
+            data.contact_preference, "anonymous", None, now, now
         ))
         row = conn.execute("SELECT * FROM beneficiaries WHERE id = ?;", (ben_id,)).fetchone()
         return dict(row)
 
 @router.get("/beneficiaries")
-def list_beneficiaries(district: Optional[str] = None, block: Optional[str] = None):
+def list_beneficiaries(
+    district: Optional[str] = None,
+    block: Optional[str] = None,
+    actor: Actor = Depends(require_admin_or_worker)
+):
     with get_db() as conn:
         query = "SELECT * FROM beneficiaries WHERE 1=1"
         params = []
@@ -105,7 +110,7 @@ def list_beneficiaries(district: Optional[str] = None, block: Optional[str] = No
         return [dict(r) for r in rows]
 
 @router.get("/beneficiaries/{beneficiary_id}")
-def get_beneficiary(beneficiary_id: str):
+def get_beneficiary(beneficiary_id: str, actor: Actor = Depends(require_admin_or_worker)):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM beneficiaries WHERE id = ?;", (beneficiary_id,)).fetchone()
         if not row:
@@ -113,7 +118,11 @@ def get_beneficiary(beneficiary_id: str):
         return dict(row)
 
 @router.patch("/beneficiaries/{beneficiary_id}")
-def update_beneficiary(beneficiary_id: str, updates: BeneficiaryUpdate):
+def update_beneficiary(
+    beneficiary_id: str,
+    updates: BeneficiaryUpdate,
+    actor: Actor = Depends(require_admin_or_worker)
+):
     now = datetime.now(timezone.utc).isoformat()
     with get_db() as conn:
         existing = conn.execute("SELECT * FROM beneficiaries WHERE id = ?;", (beneficiary_id,)).fetchone()

@@ -1,10 +1,13 @@
 import os
 import tempfile
 import unittest
+import pytest
 from fastapi.testclient import TestClient
 from app.config import settings
 from app.database import get_db
 from app.main import app
+from app.dependencies.auth import get_current_actor
+from app.services.session_service import SessionService
 from app.ai_layers.layer3_matching.state_machine import MatchStateMachine, UnauthorizedStateTransitionError
 
 class TestPythonBackend(unittest.TestCase):
@@ -35,6 +38,52 @@ class TestPythonBackend(unittest.TestCase):
             settings.WORKER_ID = cls.original_worker_id
             settings.WORKER_NAME = cls.original_worker_name
             cls.database_directory.cleanup()
+
+    @pytest.mark.security
+    def test_untrusted_headers_do_not_create_privileged_or_beneficiary_actors(self):
+        for forged_key in ("admin-attacker", "counselor-attacker"):
+            with self.subTest(api_key=forged_key):
+                actor = get_current_actor(
+                    x_session_id=None,
+                    x_session_token=None,
+                    x_worker_api_key=forged_key,
+                    x_beneficiary_id=None,
+                    authorization=None
+                )
+                self.assertEqual(actor.actor_role, "anonymous")
+
+        actor = get_current_actor(
+            x_session_id=None,
+            x_session_token=None,
+            x_worker_api_key=None,
+            x_beneficiary_id="ben_rajesh_kumar",
+            authorization=None
+        )
+        self.assertEqual(actor.actor_role, "anonymous")
+
+    @pytest.mark.security
+    def test_session_id_is_not_a_session_credential(self):
+        with get_db() as conn:
+            session = SessionService.create_session(conn)
+
+        actor_from_id = get_current_actor(
+            x_session_id=session["session_id"],
+            x_session_token=None,
+            x_worker_api_key=None,
+            x_beneficiary_id=None,
+            authorization=None
+        )
+        self.assertEqual(actor_from_id.actor_role, "anonymous")
+        self.assertNotEqual(actor_from_id.actor_id, session["session_id"])
+
+        actor_from_token = get_current_actor(
+            x_session_id=None,
+            x_session_token=session["session_token"],
+            x_worker_api_key=None,
+            x_beneficiary_id=None,
+            authorization=None
+        )
+        self.assertEqual(actor_from_token.actor_id, session["session_id"])
 
     def test_health_check(self):
         res = self.client.get('/api/v1/health')
@@ -118,6 +167,7 @@ class TestPythonBackend(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    @pytest.mark.security
     def test_worker_verification_is_required_before_referral(self):
         consent = self.client.post('/api/v1/consents', json={
             'beneficiary_id': 'ben_rajesh_kumar',

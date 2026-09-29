@@ -9,26 +9,33 @@ from app.main import app
 @pytest.fixture
 def client():
     orig_db = settings.DATABASE_PATH
+    orig_counselor_key = settings.COUNSELOR_API_KEY
+    orig_admin_key = settings.ADMIN_API_KEY
     temp_dir = tempfile.TemporaryDirectory()
     settings.DATABASE_PATH = os.path.join(temp_dir.name, "test_referrals.db")
+    settings.COUNSELOR_API_KEY = "test-counselor-key"
+    settings.ADMIN_API_KEY = "test-admin-key"
     init_database()
 
     with TestClient(app) as c:
         yield c
 
     settings.DATABASE_PATH = orig_db
+    settings.COUNSELOR_API_KEY = orig_counselor_key
+    settings.ADMIN_API_KEY = orig_admin_key
     temp_dir.cleanup()
 
 def test_referral_lifecycle_and_counselor_assignment(client):
     # 1. Create session and grant consent
     sess_res = client.post("/api/v1/sessions")
     session_id = sess_res.json()["session_id"]
+    session_headers = {"X-Session-Token": sess_res.json()["session_token"]}
 
     client.post("/api/v1/consents", json={
         "session_id": session_id,
         "consent_type": "counselor_referral",
         "granted": True
-    })
+    }, headers=session_headers)
 
     # 2. Beneficiary submits referral
     ref_res = client.post("/api/v1/referrals", json={
@@ -36,7 +43,7 @@ def test_referral_lifecycle_and_counselor_assignment(client):
         "referral_reason": "complex_eligibility_query",
         "priority": "high",
         "notes": "Query regarding subsidy for SC entrepreneur"
-    }, headers={"X-Session-ID": session_id})
+    }, headers=session_headers)
     assert ref_res.status_code == 201
     ref_data = ref_res.json()
     case_id = ref_data["id"]
@@ -48,22 +55,22 @@ def test_referral_lifecycle_and_counselor_assignment(client):
     assert unauth_queue.status_code == 403
 
     # 4. Counselor views queue using counselor API key
-    counselor_headers = {"X-Worker-API-Key": "counselor-rajesh-01"}
+    counselor_headers = {"X-Worker-API-Key": settings.COUNSELOR_API_KEY}
     counselor_queue = client.get("/api/v1/counselor/referrals", headers=counselor_headers)
     assert counselor_queue.status_code == 200
     cases = counselor_queue.json()
     assert any(c["id"] == case_id for c in cases)
 
     # 5. Admin assigns counselor
-    admin_headers = {"X-Worker-API-Key": "admin-super-01"}
+    admin_headers = {"X-Worker-API-Key": settings.ADMIN_API_KEY}
     assign_res = client.patch(
         f"/api/v1/counselor/referrals/{case_id}/assign",
-        json={"counselor_id": "counselor_rajesh_01"},
+        json={"counselor_id": "counselor"},
         headers=admin_headers
     )
     assert assign_res.status_code == 200
     assert assign_res.json()["status"] == "assigned"
-    assert assign_res.json()["assigned_counselor_id"] == "counselor_rajesh_01"
+    assert assign_res.json()["assigned_counselor_id"] == "counselor"
 
     # 6. Assigned counselor updates status to in_progress
     status_res = client.patch(
@@ -84,7 +91,7 @@ def test_referral_lifecycle_and_counselor_assignment(client):
     assert "id" in note_res.json()
 
     # 8. Check audit trail recorded for referral
-    audit_res = client.get("/api/v1/audit-events?entity_type=referral_case")
+    audit_res = client.get("/api/v1/audit-events?entity_type=referral_case", headers=admin_headers)
     assert audit_res.status_code == 200
     events = audit_res.json()
     assert len(events) >= 1
