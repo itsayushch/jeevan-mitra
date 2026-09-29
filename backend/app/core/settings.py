@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     OFFICER_DISTRICT: str = ""
     AI_PROVIDER: str = "gemini"
     GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
     AI_API_KEY: str = ""
     DEFAULT_DISTRICT: str = "Moradabad"
     DEFAULT_STATE: str = "Uttar Pradesh"
