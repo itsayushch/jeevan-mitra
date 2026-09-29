@@ -1,11 +1,13 @@
 import { useRef, useState } from 'react';
 import type { Language } from '../../types';
 import { api, type RecommendationItem } from '../../lib/api';
+import { AskQuestionVoice } from '../modules/AskQuestionVoice';
 import styles from './LiveJourney.module.css';
 interface Props { language: Language; onSelectLanguage: (language: Language) => void; onNavigateModule: (key: string) => void; }
 export function FlowContainer({ language, onSelectLanguage }: Props) {
   const hi = language === 'hi';
   const [step, setStep] = useState(1);
+  const [review, setReview] = useState(false);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
@@ -15,7 +17,7 @@ export function FlowContainer({ language, onSelectLanguage }: Props) {
   const [selected, setSelected] = useState<RecommendationItem | null>(null);
   const [referralConsent, setReferralConsent] = useState(false);
   const [referralId, setReferralId] = useState('');
-  const [profile, setProfile] = useState({ district: '', block: '', education: '', interests: '', skills: '', mobility: '5', work: 'both', current_work: '', access_needs: '' });
+  const [profile, setProfile] = useState({ district: '', block: '', education: '', interests: '', skills: '', mobility: '', work: '', current_work: '', access_needs: '' });
   const labels = hi ? ['सहमति', 'आपकी जानकारी', 'आपके विकल्प'] : ['Your consent', 'Your profile', 'Your matches'];
   const field = (key: keyof typeof profile, label: string, required = true, type = 'text') => <label>{label}<input required={required} type={type} min={type === 'number' ? 1 : undefined} max={type === 'number' ? 500 : undefined} value={profile[key]} onChange={e => setProfile(p => ({ ...p, [key]: e.target.value }))} /></label>;
   async function perform(action: () => Promise<void>) {
@@ -50,12 +52,19 @@ export function FlowContainer({ language, onSelectLanguage }: Props) {
     <aside className="flow-progress"><div className="eyebrow">JEEVANMITRA</div><h1>{hi ? 'मेरी यात्रा' : 'My journey'}</h1><p>{hi ? 'आपकी पसंद से आपके अवसर तक।' : 'From your interests to your opportunities.'}</p><ol>{labels.map((label, i) => <li key={label}><span className={`flow-step ${step === i + 1 ? 'current' : ''}`} aria-current={step === i + 1 ? 'step' : undefined}><span>{i + 1}</span>{label}</span></li>)}</ol></aside>
     <div className={`flow-canvas ${styles.page}`} aria-busy={busy}>
       {error && <p role="alert" className={styles.error}>{error} {hi ? 'कृपया फिर से कोशिश करें।' : 'Your answers are still here. Please try again.'}</p>}
-      {step === 1 && <section><div className="eyebrow">LET’S BEGIN WITH YOU</div><h2>{hi ? 'आपके लिए सही रास्ता खोजें' : 'Find a path that fits you.'}</h2><p>{hi ? 'आपकी पढ़ाई, रुचि और यात्रा की सीमा के आधार पर विकल्प खोजें।' : 'Explore training pathways based on your education, interests and travel preferences.'}</p><label>{hi ? 'भाषा' : 'Language'}<select value={language} onChange={e => onSelectLanguage(e.target.value as Language)}><option value="en">English</option><option value="hi">हिन्दी</option></select></label><label className={styles.check}><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} />{hi ? 'मैं अपनी दी गई जानकारी को सुरक्षित रखने और AI आधारित सुझावों के लिए उपयोग करने की सहमति देता/देती हूँ।' : 'I agree to store the information I provide and use it for AI-assisted recommendations.'}</label><p>{hi ? 'कोई आवेदन स्वतः नहीं भेजा जाएगा।' : 'No application is submitted automatically. Counselor sharing requires separate consent.'}</p><button className="primary-button" disabled={!consent || busy} onClick={begin}>{busy ? (hi ? 'शुरू हो रहा है…' : 'Starting…') : (hi ? 'शुरू करें' : 'Get started')}</button></section>}
-      {step === 2 && <form onSubmit={e => { e.preventDefault(); void match(); }}><div className="eyebrow">YOUR PROFILE</div><h2>{hi ? 'अपनी जानकारी जाँचें' : 'Tell us what matters to you.'}</h2><p>{hi ? 'सुझाव पाने से पहले जानकारी की पुष्टि करें।' : 'Confirm these details to find your top three pathways. Separate multiple interests or skills with commas.'}</p><fieldset disabled={busy} className={styles.fields}>
+      {step === 1 && <section><div className="eyebrow">LET’S BEGIN WITH YOU</div><h2>{hi ? 'आपके लिए सही रास्ता खोजें' : 'Find a path that fits you.'}</h2><p>{hi ? 'आपकी पढ़ाई, रुचि और यात्रा की सीमा के आधार पर विकल्प खोजें।' : 'Explore training pathways based on your education, interests and travel preferences.'}</p><label>{hi ? 'भाषा' : 'Language'}<select value={language} onChange={e => onSelectLanguage(e.target.value as Language)}><option value="en">English</option><option value="hi">हिन्दी</option></select></label><label className={styles.check}><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} />{hi ? 'मैं अपनी दी गई जानकारी को सुरक्षित रखने और AI आधारित सुझावों के लिए उपयोग करने की सहमति देता/देती हूँ।' : 'I agree to store my answers and process them with the configured AI service to create my profile and recommendations.'}</label><p>{hi ? 'कोई आवेदन स्वतः नहीं भेजा जाएगा।' : 'No application is submitted automatically. Counselor sharing requires separate consent.'}</p><button className="primary-button" disabled={!consent || busy} onClick={begin}>{busy ? (hi ? 'शुरू हो रहा है…' : 'Starting…') : (hi ? 'शुरू करें' : 'Get started')}</button></section>}
+      {step === 2 && !review && <AskQuestionVoice language={language} interviewId={interviewId} onReview={p => {
+        setProfile({ district: p.district || '', block: p.block || '', education: p.education || '',
+          interests: (p.interests || []).join(', '), skills: (p.traditional_or_existing_skills || []).join(', '),
+          mobility: p.mobility == null ? '' : String(p.mobility), work: p.self_employment_or_wage_preference || '',
+          current_work: p.current_work || '', access_needs: p.access_needs || '' });
+        setReview(true);
+      }} />}
+      {step === 2 && review && <form onSubmit={e => { e.preventDefault(); void match(); }}><div className="eyebrow">YOUR PROFILE</div><h2>{hi ? 'अपनी जानकारी जाँचें' : 'Tell us what matters to you.'}</h2><p>{hi ? 'सुझाव पाने से पहले जानकारी की पुष्टि करें।' : 'Confirm these details to find your top three pathways. Separate multiple interests or skills with commas.'}</p><fieldset disabled={busy} className={styles.fields}>
         {field('district', hi ? 'जिला' : 'District')}{field('block', hi ? 'ब्लॉक' : 'Block')}
         <label>{hi ? 'पढ़ाई' : 'Education'}<select required value={profile.education} onChange={e => setProfile(p => ({ ...p, education: e.target.value }))}><option value="">{hi ? 'चुनें' : 'Choose education'}</option>{['No formal education', 'Class 5', 'Class 8', 'Class 10', 'Class 12', 'Graduate', 'Post Graduate'].map(x => <option key={x}>{x}</option>)}</select></label>
         {field('interests', hi ? 'रुचि' : 'Interests — e.g. farming, tailoring')}{field('skills', hi ? 'मौजूदा कौशल (वैकल्पिक)' : 'Existing skills (optional)', false)}{field('current_work', hi ? 'वर्तमान काम (वैकल्पिक)' : 'Current work (optional)', false)}{field('mobility', hi ? 'यात्रा की सीमा (किमी)' : 'Travel radius (km)', true, 'number')}
-        <label>{hi ? 'काम की पसंद' : 'Work preference'}<select value={profile.work} onChange={e => setProfile(p => ({ ...p, work: e.target.value }))}><option value="both">{hi ? 'दोनों' : 'Open to both'}</option><option value="wage">{hi ? 'नौकरी' : 'Wage employment'}</option><option value="self_employment">{hi ? 'स्वरोजगार' : 'Self-employment'}</option></select></label>{field('access_needs', hi ? 'पहुँच संबंधी ज़रूरतें (वैकल्पिक)' : 'Accessibility needs (optional)', false)}
+        <label>{hi ? 'काम की पसंद' : 'Work preference'}<select required value={profile.work} onChange={e => setProfile(p => ({ ...p, work: e.target.value }))}><option value="">{hi ? 'चुनें' : 'Choose preference'}</option><option value="both">{hi ? 'दोनों' : 'Open to both'}</option><option value="wage">{hi ? 'नौकरी' : 'Wage employment'}</option><option value="self_employment">{hi ? 'स्वरोजगार' : 'Self-employment'}</option></select></label>{field('access_needs', hi ? 'पहुँच संबंधी ज़रूरतें (वैकल्पिक)' : 'Accessibility needs (optional)', false)}
       </fieldset><button className="primary-button" disabled={busy} type="submit">{busy ? (hi ? 'विकल्प खोज रहे हैं…' : 'Finding your matches…') : (hi ? 'पुष्टि करें और विकल्प खोजें' : 'Confirm and find matches')}</button></form>}
       {step === 3 && <section><div className="eyebrow">YOUR NEXT CHAPTER</div><h2>{selected ? selected.qualification.title : hi ? 'आपके लिए विकल्प' : 'Your recommended pathways'}</h2><button className={styles.link} disabled={busy} onClick={() => selected ? setSelected(null) : setStep(2)}>{selected ? (hi ? 'सभी विकल्प' : 'Back to matches') : (hi ? 'जानकारी बदलें' : 'Edit my profile')}</button>
         {!recommendations.length && <p role="status">{hi ? 'अभी कोई उपयुक्त विकल्प नहीं मिला। अपनी जानकारी बदलें या सलाहकार की मदद लें।' : 'No pathways match these constraints yet. Edit your profile or request help from a counselor.'}</p>}
