@@ -2,6 +2,7 @@ import hmac
 from fastapi import Header, HTTPException, Depends
 from typing import Optional
 from app.config import settings
+from app.dependencies.auth import Actor, get_current_actor
 
 
 class PlanningActor:
@@ -34,6 +35,7 @@ def get_planning_actor(
     x_worker_api_key: Optional[str] = Header(None, alias="X-Worker-API-Key"),
     x_officer_api_key: Optional[str] = Header(None, alias="X-Officer-API-Key"),
     x_admin_api_key: Optional[str] = Header(None, alias="X-Admin-API-Key"),
+    current_actor: Actor = Depends(get_current_actor),
 ) -> PlanningActor:
     """
     Resolves the caller for planning endpoints by checking presented
@@ -42,12 +44,15 @@ def get_planning_actor(
     """
     if x_admin_api_key and settings.ADMIN_API_KEY and hmac.compare_digest(x_admin_api_key, settings.ADMIN_API_KEY):
         return PlanningActor(
-            actor_id=settings.WORKER_ID or "admin_01",
+            actor_id="admin",
             actor_role="admin",
             actor_name="District Administrator",
         )
 
-    if x_officer_api_key and settings.OFFICER_API_KEY and hmac.compare_digest(x_officer_api_key, settings.OFFICER_API_KEY):
+    if x_officer_api_key and any(
+        key and hmac.compare_digest(x_officer_api_key, key)
+        for key in (settings.DISTRICT_OFFICER_API_KEY, settings.OFFICER_API_KEY)
+    ):
         return PlanningActor(
             actor_id=settings.OFFICER_ID or "officer_01",
             actor_role="district_officer",
@@ -55,11 +60,13 @@ def get_planning_actor(
             district=settings.OFFICER_DISTRICT or None,
         )
 
-    if x_worker_api_key and settings.WORKER_API_KEY and hmac.compare_digest(x_worker_api_key, settings.WORKER_API_KEY):
+    # Preserve main's configured staff credentials and its X-Worker-API-Key contract.
+    if current_actor.is_staff():
         return PlanningActor(
-            actor_id=settings.WORKER_ID or "worker_01",
-            actor_role="field_worker",
-            actor_name=settings.WORKER_NAME or "Field Worker",
+            actor_id=current_actor.actor_id,
+            actor_role=current_actor.actor_role,
+            actor_name=current_actor.actor_name,
+            district=settings.OFFICER_DISTRICT or None,
         )
 
     return PlanningActor(

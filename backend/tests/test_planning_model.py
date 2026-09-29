@@ -141,6 +141,47 @@ def worker_headers():
     return {"X-Worker-API-Key": WORKER_KEY}
 
 
+@pytest.mark.security
+@pytest.mark.parametrize('header', ['X-Worker-API-Key', 'X-Officer-API-Key'])
+def test_main_officer_credentials_remain_valid(client, monkeypatch, header):
+    monkeypatch.setattr(settings, 'DISTRICT_OFFICER_API_KEY', 'main-officer-key')
+    res = client.get('/api/v1/planning/matrix?district=Moradabad',
+                     headers={header: 'main-officer-key'})
+    assert res.status_code == 200
+    denied = client.get('/api/v1/planning/matrix?district=Lucknow',
+                        headers={header: 'main-officer-key'})
+    assert denied.status_code == 403
+
+
+@pytest.mark.security
+def test_main_admin_credentials_remain_valid(client):
+    res = client.get('/api/v1/planning/matrix?district=Lucknow',
+                     headers={'X-Worker-API-Key': ADMIN_KEY})
+    assert res.status_code == 200
+
+
+@pytest.mark.security
+def test_brief_list_enforces_configured_district(client, monkeypatch):
+    assert client.get('/api/v1/planning/briefs?district=Lucknow',
+                      headers=officer_headers()).status_code == 403
+    monkeypatch.setattr(settings, 'OFFICER_DISTRICT', '')
+    assert client.get('/api/v1/planning/briefs', headers=officer_headers()).status_code == 403
+
+
+@pytest.mark.security
+def test_latest_analytics_consent_wins(client):
+    from app.ai_layers.layer5_planning.demand_record_service import DemandRecordService
+    session = client.post('/api/v1/sessions').json()
+    headers = {'X-Session-Token': session['session_token']}
+    for granted in (True, False):
+        response = client.post('/api/v1/consents', headers=headers, json={
+            'session_id': session['session_id'], 'consent_type': 'analytics', 'granted': granted,
+        })
+        assert response.status_code == 201
+        with get_db() as conn:
+            assert DemandRecordService.has_analytics_consent(conn, session_id=session['session_id']) == granted
+
+
 # ----------------------------------------------------------------------
 # Aggregation
 # ----------------------------------------------------------------------
@@ -466,33 +507,29 @@ def test_brief_get_and_list_are_district_scoped(fixture_db):
 # Demand record capture
 # ----------------------------------------------------------------------
 def _setup_interview(client, with_analytics_consent=True):
-    ben = client.post("/api/v1/beneficiaries", json={
-        "name": "Demand Test", "district": "Moradabad", "block": "Chhajlet",
-    })
-    ben_id = ben.json()["id"]
-
+    sess = client.post("/api/v1/sessions").json()
+    headers = {"X-Session-Token": sess["session_token"]}
     client.post("/api/v1/consents", json={
-        "beneficiary_id": ben_id, "consent_type": "ai_processing", "granted": True,
-    })
+        "session_id": sess["session_id"], "consent_type": "ai_processing", "granted": True,
+    }, headers=headers)
     if with_analytics_consent:
         client.post("/api/v1/consents", json={
-            "beneficiary_id": ben_id, "consent_type": "analytics", "granted": True,
-        })
+            "session_id": sess["session_id"], "consent_type": "analytics", "granted": True,
+        }, headers=headers)
 
-    sess = client.post("/api/v1/sessions").json()
     start = client.post("/api/v1/interviews/start", json={
-        "beneficiary_id": ben_id, "session_id": sess["session_id"],
-    }, headers={"X-Session-ID": sess["session_id"]})
+        "session_id": sess["session_id"],
+    }, headers=headers)
+    assert start.status_code == 201, start.text
     interview_id = start.json()["interview_id"]
 
     client.post(f"/api/v1/interviews/{interview_id}/confirm-profile", json={
-        "beneficiary_id": ben_id,
         "confirmed_fields": {
             "education": "Class 10", "district": "Moradabad", "block": "Chhajlet",
             "mobility": 10.0, "self_employment_or_wage_preference": "both",
         },
-    }, headers={"X-Session-ID": sess["session_id"]})
-    return ben_id, sess["session_id"], interview_id
+    }, headers=headers)
+    return None, sess["session_token"], interview_id
 
 
 def test_demand_record_written_on_recommendation_with_consent(fixture_db):
@@ -500,7 +537,7 @@ def test_demand_record_written_on_recommendation_with_consent(fixture_db):
 
     gen = fixture_db.post("/api/v1/recommendations/generate",
                           json={"interview_id": interview_id},
-                          headers={"X-Session-ID": session_id})
+                          headers={"X-Session-Token": session_id})
     assert gen.status_code == 200
 
     with get_db() as conn:
@@ -526,7 +563,7 @@ def test_no_demand_record_without_analytics_consent(fixture_db):
 
     gen = fixture_db.post("/api/v1/recommendations/generate",
                           json={"interview_id": interview_id},
-                          headers={"X-Session-ID": session_id})
+                          headers={"X-Session-Token": session_id})
     assert gen.status_code == 200
 
     with get_db() as conn:
@@ -541,12 +578,12 @@ def test_interview_completion_does_not_duplicate_demand(fixture_db):
 
     fixture_db.post("/api/v1/recommendations/generate",
                     json={"interview_id": interview_id},
-                    headers={"X-Session-ID": session_id})
+                    headers={"X-Session-Token": session_id})
     with get_db() as conn:
         before = conn.execute("SELECT COUNT(*) as c FROM demand_records;").fetchone()["c"]
 
     res = fixture_db.post(f"/api/v1/interviews/{interview_id}/complete",
-                          headers={"X-Session-ID": session_id})
+                          headers={"X-Session-Token": session_id})
     assert res.status_code == 200
 
     with get_db() as conn:

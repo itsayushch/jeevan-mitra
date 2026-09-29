@@ -187,7 +187,7 @@ def sign_off_brief(
         log_audit_event(
             conn=conn,
             actor_id=actor.actor_id,
-            actor_name=req.officer_name or actor.actor_name,
+            actor_name=actor.actor_name,
             actor_role=actor.actor_role,
             action="BRIEF_SIGNED_OFF" if req.action == "sign_off" else "BRIEF_UNDER_REVIEW",
             entity_type="planning_brief",
@@ -195,7 +195,7 @@ def sign_off_brief(
             old_values={"reviewer_sign_off_status": current_status},
             new_values={
                 "reviewer_sign_off_status": target_status,
-                "signed_off_by": req.officer_name or actor.actor_name,
+                "signed_off_by": actor.actor_name,
                 "notes": req.notes,
             },
         )
@@ -203,7 +203,7 @@ def sign_off_brief(
         return {
             "brief_id": brief_id,
             "status": target_status,
-            "signed_off_by": req.officer_name or actor.actor_name,
+            "signed_off_by": actor.actor_name,
             "timestamp": now,
         }
 
@@ -304,11 +304,13 @@ def list_briefs(
     actor: PlanningActor = Depends(require_district_officer_or_admin),
 ):
     """Lists briefs. Officers are scoped to their own district; admins may filter by any district."""
+    if actor.actor_role == 'district_officer':
+        enforce_district_scope(actor, district or actor.district or '')
     with get_db() as conn:
         query = "SELECT * FROM planning_briefs WHERE 1=1"
         params: List[Any] = []
         if actor.actor_role == "district_officer":
-            query += " AND district = ?"
+            query += " AND LOWER(district) = LOWER(?)"
             params.append(actor.district)
         elif district:
             query += " AND district = ?"

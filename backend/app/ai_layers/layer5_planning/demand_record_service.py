@@ -39,13 +39,13 @@ class DemandRecordService:
         if not beneficiary_id and not session_id:
             return False
         row = conn.execute("""
-            SELECT 1 FROM consent_records
-            WHERE consent_type = 'analytics' AND status = 'granted'
+            SELECT status FROM consent_records
+            WHERE consent_type = 'analytics'
               AND (beneficiary_id = ? OR session_id = ?)
             ORDER BY timestamp DESC, rowid DESC
             LIMIT 1;
         """, (beneficiary_id or "", session_id or "")).fetchone()
-        return row is not None
+        return row is not None and row['status'] == 'granted'
 
     @staticmethod
     def record_demand(
