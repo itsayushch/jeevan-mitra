@@ -209,9 +209,13 @@ PORT=4000
 HOST=0.0.0.0
 DEFAULT_DISTRICT=Moradabad
 DEFAULT_STATE=Uttar Pradesh
-AI_PROVIDER=gemini
-GEMINI_API_KEY=your_gemini_api_key_here
+AI_PROVIDER=mock
+WORKER_API_KEY=replace-with-a-long-random-value
+WORKER_ID=local-worker-01
+WORKER_NAME=Local Field Worker
 ```
+
+Worker routes require the `X-Worker-API-Key` header and a configured worker identity; they fail closed when these settings are missing. Use a unique secret outside local development. This shared-key setup is for the prototype and is not a replacement for production user accounts and role-based authorization.
 
 ### 3. Run the Server
 ```bash

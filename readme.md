@@ -9,6 +9,8 @@ Project note: This repository is being actively updated for iterative improvemen
 **Source material studied:** `Problem-statement.pdf` and `JeevanMitra_2.0_Solution_Proposal.pdf` (supplied project documents).  
 **Audience:** Product, design, AI, frontend, backend, and field-operations teammates.
 
+**Run locally (WSL):** In one terminal, run `cd backend`, `python3 -m venv .venv`, `source .venv/bin/activate`, `python -m pip install -r requirements.txt`, then `python run.py` (set `AI_PROVIDER=mock` in `backend/.env` for keyless local use). In a second terminal, run `cd frontend`, `npx --yes pnpm@10 install`, then `npx --yes pnpm@10 dev`. Open `http://localhost:3000` for the UI or `http://localhost:4000/docs` for the API.
+
 ## Contents
 
 1. [The problem](#the-problem)

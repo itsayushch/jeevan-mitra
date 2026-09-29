@@ -215,7 +215,28 @@ def seed_database(conn: sqlite3.Connection):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     """, answers)
 
-    # 7. Seed Referral
+    # 7. Seed Recommendation
+    conn.execute("""
+        INSERT OR IGNORE INTO recommendations (
+            id, beneficiary_id, session_id, qualification_id, local_opportunity_id,
+            rank, score, score_breakdown, match_state, explanation_text,
+            audio_explanation_script, tradeoff_summary, skill_gap_summary,
+            data_snapshot, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """, (
+        'rec_seed_01', 'ben_rajesh_kumar', 'sess_rajesh_01',
+        'qual_mushroom_07', 'opp_mushroom_chhajlet_07', 1, 0.91,
+        json.dumps({'interest': 0.95, 'skills': 0.85, 'access': 0.90, 'demand': 0.85, 'preference': 1.0}),
+        'Verified Match',
+        'Mushroom cultivation aligns with your farming interests and self-employment preference.',
+        'This mushroom cultivation pathway matches your farming interests.',
+        'The training is nearby and supports self-employment.',
+        'Practical cultivation experience may help build on your existing farming skills.',
+        json.dumps({'qualification_id': 'qual_mushroom_07', 'opportunity_id': 'opp_mushroom_chhajlet_07'}),
+        now, now
+    ))
+
+    # 8. Seed Referral
     conn.execute("""
         INSERT OR IGNORE INTO referrals (
             id, beneficiary_id, recommendation_id, local_opportunity_id, assigned_worker_id,
@@ -228,7 +249,7 @@ def seed_database(conn: sqlite3.Connection):
         '2026-10-05', now, now
     ))
 
-    # 8. Seed Planning Brief (District Moradabad)
+    # 9. Seed Planning Brief (District Moradabad)
     conn.execute("""
         INSERT OR IGNORE INTO planning_briefs (
             id, district, period, total_beneficiaries_interviewed, total_verified_matches,

@@ -11,6 +11,24 @@ from app.ai_layers.layer2_extraction.extraction_engine import ExtractionEngine
 router = APIRouter(prefix="/interview", tags=["Interview"])
 extraction_engine = ExtractionEngine()
 
+def _require_affirmative_consent(conn, beneficiary_id: str):
+    beneficiary = conn.execute(
+        "SELECT id FROM beneficiaries WHERE id = ?;",
+        (beneficiary_id,)
+    ).fetchone()
+    if not beneficiary:
+        raise HTTPException(status_code=404, detail="Beneficiary not found")
+
+    consent = conn.execute("""
+        SELECT dpdp_affirmative_consent
+        FROM consents
+        WHERE beneficiary_id = ?
+        ORDER BY timestamp DESC, rowid DESC
+        LIMIT 1;
+    """, (beneficiary_id,)).fetchone()
+    if not consent or not consent["dpdp_affirmative_consent"]:
+        raise HTTPException(status_code=403, detail="Affirmative consent is required for interview data")
+
 @router.post("/start", status_code=201)
 def start_interview(data: InterviewStartRequest):
     session_id = f"sess_{uuid.uuid4().hex[:12]}"
@@ -18,6 +36,7 @@ def start_interview(data: InterviewStartRequest):
     first_turn = DialogueManager.get_initial_turn(data.language or "hi")
 
     with get_db() as conn:
+        _require_affirmative_consent(conn, data.beneficiary_id)
         conn.execute("""
             INSERT INTO interview_sessions (
                 id, beneficiary_id, channel, status, current_question_index,
@@ -42,6 +61,7 @@ def process_turn(data: InterviewTurnRequest):
         session = conn.execute("SELECT * FROM interview_sessions WHERE id = ?;", (data.session_id,)).fetchone()
         if not session:
             raise HTTPException(status_code=404, detail="Interview session not found")
+        _require_affirmative_consent(conn, session["beneficiary_id"])
 
         current_idx = session["current_question_index"]
         history = json.loads(session["transcript_history"] or "[]")
@@ -75,6 +95,7 @@ def extract_profile(session_id: str):
         session = conn.execute("SELECT * FROM interview_sessions WHERE id = ?;", (session_id,)).fetchone()
         if not session:
             raise HTTPException(status_code=404, detail="Interview session not found")
+        _require_affirmative_consent(conn, session["beneficiary_id"])
 
         history = json.loads(session["transcript_history"] or "[]")
         ben = conn.execute("SELECT * FROM beneficiaries WHERE id = ?;", (session["beneficiary_id"],)).fetchone()
@@ -92,6 +113,16 @@ def extract_profile(session_id: str):
 def confirm_profile(data: ConfirmProfileRequest):
     now = datetime.now(timezone.utc).isoformat()
     with get_db() as conn:
+        session = conn.execute(
+            "SELECT beneficiary_id FROM interview_sessions WHERE id = ?;",
+            (data.session_id,)
+        ).fetchone()
+        if not session:
+            raise HTTPException(status_code=404, detail="Interview session not found")
+        if session["beneficiary_id"] != data.beneficiary_id:
+            raise HTTPException(status_code=403, detail="Session does not belong to beneficiary")
+        _require_affirmative_consent(conn, data.beneficiary_id)
+
         for field, val in data.confirmed_fields.items():
             ans_id = f"ans_{uuid.uuid4().hex[:10]}"
             conn.execute("""
@@ -117,6 +148,7 @@ def get_session(session_id: str):
         session = conn.execute("SELECT * FROM interview_sessions WHERE id = ?;", (session_id,)).fetchone()
         if not session:
             raise HTTPException(status_code=404, detail="Interview session not found")
+        _require_affirmative_consent(conn, session["beneficiary_id"])
         result = dict(session)
         result["transcript_history"] = json.loads(result.get("transcript_history") or "[]")
         return result

@@ -33,7 +33,11 @@ class MatchingEngine:
         # 2. Fetch local opportunities for this district
         opp_cursor = self.conn.execute("""
             SELECT * FROM local_opportunities
-            WHERE district = ? AND batch_status IN ('active', 'upcoming') AND available_seats > 0;
+                        WHERE district = ?
+                            AND batch_status IN ('active', 'upcoming')
+                            AND available_seats > 0
+                            AND verified_by_worker_id IS NOT NULL
+                            AND batch_end_date >= date('now');
         """, (district,))
         all_opps = [dict(r) for r in opp_cursor.fetchall()]
 

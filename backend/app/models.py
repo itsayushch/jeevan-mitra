@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any, Union, Literal
 from datetime import datetime
 
 # --- Beneficiary Models ---
@@ -73,18 +73,16 @@ class ProfileCorrectionRequest(BaseModel):
     correction_reason: Optional[str] = None
 
 class BatchVerificationRequest(BaseModel):
-    opportunity_id: str
-    available_seats: int
-    batch_status: str
-    notes: Optional[str] = None
+    available_seats: int = Field(ge=0)
+    batch_status: Literal['active', 'upcoming', 'full', 'completed', 'cancelled']
+    notes: str = Field(min_length=1, max_length=2000)
 
 class ApproveReferralRequest(BaseModel):
     recommendation_id: str
     local_opportunity_id: str
-    assigned_worker_id: str
-    caste_document_verified: bool = True
-    income_criteria_verified: bool = True
-    residence_proof_verified: bool = True
+    caste_document_verified: bool
+    income_criteria_verified: bool
+    residence_proof_verified: bool
     notes: Optional[str] = None
 
 # --- Planning Brief Models ---
