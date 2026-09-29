@@ -97,6 +97,11 @@ During {period}, {demand_count} anonymised demand records were collected across 
         """
         allowed = set()
 
+        # Digits in the template's own static text (section numbers etc.)
+        # are code, not LLM output, so they are always legal.
+        for seq in re.findall(r"\d+", NarrativeEngine.TEMPLATE):
+            allowed.add(seq)
+
         def add_value(v: Any) -> None:
             if isinstance(v, bool):
                 return
@@ -189,7 +194,12 @@ During {period}, {demand_count} anonymised demand records were collected across 
         validation = "not_requested"
         final_text = raw_template
 
+        from app.core.settings import settings
+
         rewrite_fn = llm_rewrite or NarrativeEngine._default_llm_rewrite
+        using_mock_default = llm_rewrite is None and (
+            settings.AI_PROVIDER == "mock" or not settings.AI_API_KEY
+        )
         try:
             candidate = rewrite_fn(raw_template)
             ok, reason = NarrativeEngine.validate_llm_output(candidate, brief_data)
@@ -197,7 +207,7 @@ During {period}, {demand_count} anonymised demand records were collected across 
                 final_text = candidate
                 rewritten = candidate != raw_template
                 validation = "passed"
-                provider = "llm"
+                provider = "mock" if using_mock_default else "llm"
             else:
                 validation = f"fallback:{reason}"
                 logger.warning(f"LLM brief rejected ({reason}); using template.")

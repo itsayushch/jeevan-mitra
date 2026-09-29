@@ -8,7 +8,7 @@ import sys
 # Add backend dir to path for imports
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from app.database import get_connection
+from app.database import get_connection, init_database
 
 def seed_demand_records(conn, now):
     """
@@ -66,6 +66,7 @@ def seed_demand_records(conn, now):
     return len(records)
 
 def seed_demo_data():
+    init_database()
     conn = get_connection()
     now = datetime.now(timezone.utc)
     

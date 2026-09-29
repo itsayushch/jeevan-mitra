@@ -88,14 +88,95 @@ export interface SummaryExport {
   generated_at: string;
 }
 
+export interface PlanningMatrixCell {
+  block: string;
+  qualification_id: string;
+  qualification_title: string;
+  nqr_code: string;
+  demand_count: number | null;
+  verified_seats: number | null;
+  total_seats: number | null;
+  gap: number | null;
+  nearest_verified_centre_km: number | null;
+  nearest_verified_centre_name: string | null;
+  share_of_demand_with_no_verified_batch: number | null;
+  coverage: number | null;
+  severity_score: number | null;
+  suppressed: boolean;
+  suppression_reason: string | null;
+  source: {
+    query_id: string;
+    demand_row_ids: string[];
+    supply_batch_ids: string[];
+  };
+}
+
+export interface PlanningMatrix {
+  district: string;
+  period: string | null;
+  generated_at: string;
+  status: 'ok' | 'insufficient_data';
+  message?: string;
+  query_id: string;
+  data_basis: {
+    demand_records_total: number;
+    supply_batches_considered: number;
+    supply_eligibility_filter: string;
+    k_anonymity_threshold: number;
+    distance_cap_km: number;
+  };
+  gap_scoring: {
+    formula: string;
+    distance_cap_km: number;
+    k_anonymity_threshold: number;
+  };
+  matrix: PlanningMatrixCell[];
+  metrics: {
+    total_demand_records: number;
+    demand_with_verified_match_count: number;
+    demand_with_verified_match_share: number;
+    blocks_with_demand: number;
+    qualifications_demanded: number;
+    suppressed_cell_count: number;
+    supply_batches_considered: number;
+    total_unmet_demand: number;
+  };
+}
+
+export interface PlanningBrief {
+  brief_id: string;
+  district: string;
+  period: string;
+  status: string;
+  generated_at: string;
+  generated_narrative: string;
+  narrative_meta: {
+    provider: string;
+    rewritten_by_llm: boolean;
+    validation: string;
+    template_first: boolean;
+  };
+  top_gaps: {
+    block: string;
+    qualification_title: string;
+    demand_count: number;
+    verified_seats: number;
+    gap: number;
+    severity_score: number;
+  }[];
+  suggested_policy_actions: string[];
+}
+
 class ApiService {
   private sessionToken: string | null = null;
   private sessionId: string | null = null;
+  private officerKey: string | null = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
       this.sessionToken = window.sessionStorage.getItem('jm_session_token');
       this.sessionId = window.sessionStorage.getItem('jm_session_id');
+      this.officerKey = window.sessionStorage.getItem('jm_officer_key');
     }
   }
 
@@ -107,6 +188,107 @@ class ApiService {
       headers['X-Session-Token'] = this.sessionToken;
     }
     return headers;
+  }
+
+  private getOfficerHeaders(): Record<string, string> {
+    return {
+      'Content-Type': 'application/json',
+      'X-Officer-API-Key': this.officerKey || '',
+    };
+  }
+
+  public setOfficerKey(key: string) {
+    this.officerKey = key;
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('jm_officer_key', key);
+    }
+  }
+
+  public getOfficerKey(): string | null {
+    return this.officerKey;
+  }
+
+  /**
+   * Layer 5: District demand vs verified-supply matrix (district_officer/admin)
+   */
+  async getPlanningMatrix(district: string, period?: string): Promise<PlanningMatrix> {
+    const params = new URLSearchParams({ district });
+    if (period) params.set('period', period);
+    const res = await fetch(`${API_BASE}/planning/matrix?${params.toString()}`, {
+      headers: this.getOfficerHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch planning matrix: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Layer 5: Generate a planning brief (aggregation snapshot + narrative)
+   */
+  async generatePlanningBrief(district: string, period: string): Promise<PlanningBrief> {
+    const res = await fetch(`${API_BASE}/planning/briefs/generate`, {
+      method: 'POST',
+      headers: this.getOfficerHeaders(),
+      body: JSON.stringify({ district, period }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.detail?.message || `Brief generation failed: ${res.statusText}`);
+    }
+    return res.json();
+  }
+
+  /**
+   * Layer 5: Fetch a stored brief
+   */
+  async getPlanningBrief(briefId: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/planning/briefs/${briefId}`, {
+      headers: this.getOfficerHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch brief: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Layer 5: Sign-off lifecycle (submit_for_review / sign_off)
+   */
+  async signOffBrief(
+    briefId: string,
+    officerName: string,
+    action: 'submit_for_review' | 'sign_off' = 'sign_off'
+  ): Promise<{ brief_id: string; status: string; signed_off_by: string; timestamp: string }> {
+    const res = await fetch(`${API_BASE}/planning/briefs/${briefId}/sign-off`, {
+      method: 'POST',
+      headers: this.getOfficerHeaders(),
+      body: JSON.stringify({ officer_name: officerName, action }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.detail?.message || `Sign-off failed: ${res.statusText}`);
+    }
+    return res.json();
+  }
+
+  /**
+   * Layer 5: Export a signed-off brief (CSV download or PDF-ready JSON)
+   */
+  async exportBrief(briefId: string, format: 'csv' | 'json' = 'csv'): Promise<any> {
+    const res = await fetch(
+      `${API_BASE}/planning/briefs/${briefId}/export?format=${format}`,
+      { headers: this.getOfficerHeaders() }
+    );
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.detail?.message || `Export failed: ${res.statusText}`);
+    }
+    if (format === 'json') return res.json();
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `planning_brief_${briefId}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    return { downloaded: true };
   }
 
   public setSession(token: string, id: string) {
