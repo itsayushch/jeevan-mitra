@@ -71,17 +71,34 @@ export function AskQuestionVoice({ language, interviewId, onReview }: Props) {
     instance.onend = () => { if (mounted.current) setListening(false); };
     try { instance.start(); setListening(true); } catch { setListening(false); setError('Could not start the microphone. Please type below.'); }
   }
-  return <section className="voice-experience has-conversation" aria-label={hi ? 'एआई सहायक' : 'AI Assistant'}>
-    <header className="voice-header"><div><span className="voice-eyebrow">JEEVANMITRA</span><h2>{hi ? 'आइए बात करें' : 'Let’s find your next step.'}</h2><p>{hi ? 'बोलें या लिखें। सुझावों से पहले जानकारी की पुष्टि करेंगे।' : 'Speak or type. You will review your details before getting matches.'}</p></div></header>
+  const hasConversation = turns.length > 0;
+  return <section className={`voice-experience ${hasConversation ? 'has-conversation' : ''}`} aria-label={hi ? 'एआई सहायक' : 'AI Assistant'}>
+    <header className="voice-header"><div><span className="voice-eyebrow">JEEVANMITRA</span><h2>{hasConversation ? (hi ? 'आइए बात करें' : 'Let’s find your next step.') : (hi ? 'अपनी आवाज़ से पूछें' : 'Ask with your voice')}</h2><p>{hasConversation ? (hi ? 'बोलें या लिखें। सुझावों से पहले जानकारी की पुष्टि करेंगे।' : 'Speak or type. You will review your details before getting matches.') : (hi ? 'स्वाभाविक रूप से बोलें। हम सुनने के लिए यहाँ हैं।' : 'Speak naturally. We’re here to listen.')}</p></div></header>
     {provider === 'guided' && <p role="status" className="voice-note">{hi ? 'सरल प्रश्नों वाला मोड सक्रिय है। जो जानकारी समझ नहीं आई, उसे जाँच में भरें।' : 'Guided mode is active. You can fill in anything we miss during review.'}</p>}
-    <div className="voice-conversation" role="log" aria-live="polite">
-      <div className="voice-assistant-message"><div className="voice-assistant-copy"><p>{greeting}</p></div></div>
-      {turns.map((turn, index) => <div className="voice-exchange" key={index}><div className="voice-user-message"><span>{hi ? 'आप' : 'You'}</span><p>{turn.user}</p></div><div className="voice-assistant-message"><div className="voice-assistant-copy"><span>{hi ? 'सहायक' : 'Assistant'}</span><p>{turn.answer}</p><button type="button" className="voice-replay" onClick={() => speakText(turn.answer, hi ? 'hi' : 'en')}><Volume2 size={16}/>{hi ? 'सुनें' : 'Listen'}</button></div></div></div>)}
-      {busy && <p role="status">{hi ? 'आपकी जानकारी समझ रहे हैं…' : 'Understanding your answer…'}</p>}<div ref={end}/>
-    </div>
+    
+    {hasConversation ? (
+      <div className="voice-conversation" role="log" aria-live="polite">
+        <div className="voice-assistant-message"><div className="voice-assistant-copy"><p>{greeting}</p></div></div>
+        {turns.map((turn, index) => <div className="voice-exchange" key={index}><div className="voice-user-message"><span>{hi ? 'आप' : 'You'}</span><p>{turn.user}</p></div><div className="voice-assistant-message"><div className="voice-assistant-copy"><span>{hi ? 'सहायक' : 'Assistant'}</span><p>{turn.answer}</p><button type="button" className="voice-replay" onClick={() => speakText(turn.answer, hi ? 'hi' : 'en')}><Volume2 size={16}/>{hi ? 'सुनें' : 'Listen'}</button></div></div></div>)}
+        {busy && <p role="status">{hi ? 'आपकी जानकारी समझ रहे हैं…' : 'Understanding your answer…'}</p>}<div ref={end}/>
+      </div>
+    ) : (
+      <div className="voice-stage">
+        <div className="voice-visual">
+          <div className="voice-rings" aria-hidden="true"><span/><span/><span/></div>
+          <div className={`voice-orb ${listening ? 'is-listening' : ''} ${busy ? 'is-speaking' : ''}`}>
+            <button type="button" onClick={microphone} aria-label={listening ? (hi ? 'सुनना बंद करें' : 'Stop listening') : (hi ? 'बोलना शुरू करें' : 'Start speaking')} aria-pressed={listening}>{listening ? <Square size={35} fill="currentColor"/> : <Mic size={43} strokeWidth={1.8}/>}</button>
+          </div>
+        </div>
+        <div className="voice-wave" aria-hidden="true">{Array.from({length:19},(_,index)=><span key={index} style={{height: `${8 + ((index * 7) % 17)}px`, animationDelay: `${index * 55}ms`}}/>)}</div>
+        <h2 aria-live="polite">{listening ? (hi ? 'सुन रहे हैं…' : 'Listening…') : busy ? (hi ? 'आपकी जानकारी समझ रहे हैं…' : 'Understanding…') : (hi ? 'बोलने के लिए माइक्रोफ़ोन दबाएँ' : 'Tap the microphone to speak')}</h2>
+        <p className="voice-stage-hint">{listening ? (hi ? 'अपना जवाब बोलें।' : 'Speak your answer.') : (hi ? 'कोई फॉर्म नहीं भरना है' : 'No forms to fill in')}</p>
+      </div>
+    )}
+
     <div className="voice-composer-wrap">
       {error && <p role="alert" className="voice-composer-feedback has-error">{error}</p>}
-      {listening && <p role="status">{hi ? 'सुन रहे हैं…' : 'Listening…'}</p>}
+      {listening && hasConversation && <p role="status">{hi ? 'सुन रहे हैं…' : 'Listening…'}</p>}
       <form className="voice-composer" onSubmit={e => { e.preventDefault(); void send(); }}>
         <input value={draft} maxLength={4000} disabled={busy} onChange={e => setDraft(e.target.value)} aria-label={hi ? 'अपना जवाब लिखें' : 'Your answer'} placeholder={hi ? 'यहाँ बोलें या लिखें…' : 'Speak or type your answer…'}/>
         <button type="button" className="voice-composer-mic" disabled={busy} onClick={microphone} aria-pressed={listening} aria-label={listening ? 'Stop listening' : 'Start microphone'}>{listening ? <Square size={19}/> : <Mic size={21}/>}</button>
