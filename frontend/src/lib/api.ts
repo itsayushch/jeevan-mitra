@@ -183,13 +183,36 @@ export interface PlanningBrief {
 class ApiService {
   private sessionToken: string | null = null;
   private sessionId: string | null = null;
+  private jwtToken: string | null = null;
   private officerKey: string | null = null;
+  private workerKey: string | null = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
       this.sessionToken = window.sessionStorage.getItem('jm_session_token');
       this.sessionId = window.sessionStorage.getItem('jm_session_id');
+      this.jwtToken = window.sessionStorage.getItem('jm_jwt_token');
       this.officerKey = window.sessionStorage.getItem('jm_officer_key');
+      this.workerKey = window.sessionStorage.getItem('jm_worker_key') || 'test-worker-key';
+    }
+  }
+
+  public async login(username: string, password: string = 'password123'): Promise<any> {
+    const res = await fetch(`${API_BASE}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    if (!res.ok) throw new Error('Login failed');
+    const data = await res.json();
+    this.setJwtToken(data.access_token);
+    return data;
+  }
+
+  public setJwtToken(token: string) {
+    this.jwtToken = token;
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('jm_jwt_token', token);
     }
   }
 
@@ -197,6 +220,9 @@ class ApiService {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
+    if (this.jwtToken) {
+      headers['Authorization'] = `Bearer ${this.jwtToken}`;
+    }
     if (this.sessionToken) {
       headers['X-Session-Token'] = this.sessionToken;
     }
@@ -204,9 +230,18 @@ class ApiService {
   }
 
   private getOfficerHeaders(): Record<string, string> {
+    if (this.jwtToken) return this.getHeaders();
     return {
       'Content-Type': 'application/json',
       'X-Officer-API-Key': this.officerKey || '',
+    };
+  }
+
+  private getWorkerHeaders(): Record<string, string> {
+    if (this.jwtToken) return this.getHeaders();
+    return {
+      'Content-Type': 'application/json',
+      'X-Worker-API-Key': this.workerKey || '',
     };
   }
 
@@ -219,6 +254,17 @@ class ApiService {
 
   public getOfficerKey(): string | null {
     return this.officerKey;
+  }
+
+  public setWorkerKey(key: string) {
+    this.workerKey = key;
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('jm_worker_key', key);
+    }
+  }
+
+  public getWorkerKey(): string | null {
+    return this.workerKey;
   }
 
   /**
@@ -506,6 +552,96 @@ class ApiService {
   async getOpportunities(district: string = 'Moradabad'): Promise<any> {
     const res = await fetch(`${API_BASE}/catalogue/opportunities?district=${encodeURIComponent(district)}`);
     if (!res.ok) throw new Error(`Failed to fetch opportunities: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * RAG: Ask questions about NQR curriculum
+   */
+  async askNqrQuestion(query: string): Promise<{ query: string, answer: string }> {
+    const res = await fetch(`${API_BASE}/catalogue/nqr/ask?query=${encodeURIComponent(query)}`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to ask NQR question: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Worker API: Get all cases
+   */
+  async getWorkerCases(): Promise<any> {
+    const res = await fetch(`${API_BASE}/worker/cases`, {
+      headers: this.getWorkerHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch worker cases: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Worker API: Get case details
+   */
+  async getWorkerCaseDetails(beneficiaryId: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/worker/cases/${beneficiaryId}`, {
+      headers: this.getWorkerHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch worker case details: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Worker API: Verify opportunity
+   */
+  async verifyOpportunity(opportunityId: string, payload: { batch_status: string, available_seats: number, notes: string }): Promise<any> {
+    const res = await fetch(`${API_BASE}/worker/opportunities/${opportunityId}/verify`, {
+      method: 'POST',
+      headers: this.getWorkerHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`Failed to verify opportunity: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Worker API: Approve referral
+   */
+  async approveReferral(beneficiaryId: string, payload: { recommendation_id: string, local_opportunity_id: string, notes: string, caste_document_verified: boolean, income_criteria_verified: boolean, residence_proof_verified: boolean }): Promise<any> {
+    const res = await fetch(`${API_BASE}/worker/cases/${beneficiaryId}/referral`, {
+      method: 'POST',
+      headers: this.getWorkerHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.detail || `Failed to approve referral: ${res.statusText}`);
+    }
+    return res.json();
+  }
+
+  /**
+   * Update Referral Status (Outcome Workflow)
+   */
+  async updateReferralStatus(referralId: string, payload: { status: string, outcome?: string, notes?: string }): Promise<any> {
+    const res = await fetch(`${API_BASE}/counselor/referrals/${referralId}/status`, {
+      method: 'PATCH',
+      headers: this.getOfficerHeaders(), // counselor is officer/admin
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.detail || `Failed to update status: ${res.statusText}`);
+    }
+    return res.json();
+  }
+
+  /**
+   * Get Counselor Referrals
+   */
+  async getCounselorReferrals(): Promise<any> {
+    const res = await fetch(`${API_BASE}/counselor/referrals`, {
+      headers: this.getOfficerHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch counselor referrals: ${res.statusText}`);
     return res.json();
   }
 }

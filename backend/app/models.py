@@ -246,7 +246,7 @@ class AssignCounselorRequest(BaseModel):
     counselor_id: str
 
 class UpdateReferralStatusRequest(BaseModel):
-    status: Literal['new', 'assigned', 'contacted', 'in_progress', 'resolved', 'closed']
+    status: Literal['new', 'assigned', 'contacted', 'documents_verified', 'enrolled', 'in_progress', 'completed', 'dropped_out']
     outcome: Optional[str] = None
     notes: Optional[str] = None
 

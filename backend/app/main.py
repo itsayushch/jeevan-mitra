@@ -21,7 +21,8 @@ from app.routers import (
     catalogue,
     chat,
     journey,
-    admin_catalogue
+    admin_catalogue,
+    auth
 )
 
 @asynccontextmanager
@@ -138,6 +139,7 @@ app.add_middleware(
 
 # Include API routers under both /api/v1 and /api prefixes for full frontend & test compatibility
 api_routers = [
+    auth.router,
     health.router,
     beneficiaries.router,
     consents.router,

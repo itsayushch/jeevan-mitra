@@ -37,6 +37,12 @@ def list_opportunities(
             "opportunities": opps
         }
 
+@router.post("/catalogue/nqr/ask")
+def ask_nqr_question(query: str = Query(..., min_length=3, max_length=500)):
+    from app.services.nqr_rag_service import nqr_rag_service
+    answer = nqr_rag_service.ask(query)
+    return {"query": query, "answer": answer}
+
 # ============================================================================
 # Protected Admin / Worker Catalogue Management Endpoints (A4)
 # ============================================================================

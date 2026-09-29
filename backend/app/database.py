@@ -8,15 +8,101 @@ from typing import Generator
 from app.config import settings
 from app.utils.logger import logger
 
-def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(settings.DATABASE_PATH, timeout=10.0)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON;")
-    conn.execute("PRAGMA journal_mode = WAL;")
-    return conn
+class PostgresWrapper:
+    def __init__(self, conn):
+        self.conn = conn
+        self.is_postgres = True
+
+    def execute(self, query, params=None):
+        cursor = self.conn.cursor()
+        if "INSERT OR IGNORE INTO" in query:
+            query = query.replace("INSERT OR IGNORE INTO", "INSERT INTO")
+            query = query.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING;"
+        
+        # Postgres does not have rowid, remove it from tie-breaker sorts
+        if ", rowid DESC" in query:
+            query = query.replace(", rowid DESC", "")
+        if ", rowid ASC" in query:
+            query = query.replace(", rowid ASC", "")
+            
+        if "?" in query:
+            query = query.replace("?", "%s")
+        if params is not None:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
+        return cursor
+
+    def executemany(self, query, params_list):
+        cursor = self.conn.cursor()
+        if "INSERT OR IGNORE INTO" in query:
+            query = query.replace("INSERT OR IGNORE INTO", "INSERT INTO")
+            query = query.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING;"
+        
+        # Postgres does not have rowid, remove it from tie-breaker sorts
+        if ", rowid DESC" in query:
+            query = query.replace(", rowid DESC", "")
+        if ", rowid ASC" in query:
+            query = query.replace(", rowid ASC", "")
+            
+        if "?" in query:
+            query = query.replace("?", "%s")
+        cursor.executemany(query, params_list)
+        return cursor
+        
+    def executescript(self, sql_script):
+        cursor = self.conn.cursor()
+        
+        # Remove SQL comments before splitting
+        import re
+        sql_script = re.sub(r'--.*', '', sql_script)
+        
+        statements = sql_script.split(";")
+        for stmt in statements:
+            stmt = stmt.strip()
+            if not stmt or stmt.startswith("PRAGMA"):
+                continue
+            try:
+                # Use a savepoint to prevent the entire transaction from aborting
+                cursor.execute("SAVEPOINT pg_wrapper_sp")
+                cursor.execute(stmt)
+                cursor.execute("RELEASE SAVEPOINT pg_wrapper_sp")
+            except Exception as e:
+                # Rollback to savepoint so we can continue executing other statements
+                cursor.execute("ROLLBACK TO SAVEPOINT pg_wrapper_sp")
+                if "already exists" in str(e) or "pg_type_typname_nsp_index" in str(e):
+                    import logging
+                    logging.getLogger("jeevanmitra").debug(f"Ignoring expected IF NOT EXISTS conflict: {e}")
+                    continue
+                raise
+        return cursor
+
+    def commit(self):
+        self.conn.commit()
+
+    def rollback(self):
+        self.conn.rollback()
+
+    def close(self):
+        self.conn.close()
+
+def get_connection():
+    if settings.DATABASE_URL:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+        conn = psycopg2.connect(settings.DATABASE_URL, cursor_factory=RealDictCursor)
+        return PostgresWrapper(conn)
+    else:
+        conn = sqlite3.connect(settings.DATABASE_PATH, timeout=10.0)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON;")
+        conn.execute("PRAGMA journal_mode = WAL;")
+        return conn
+
+from typing import Generator, Any
 
 @contextmanager
-def get_db() -> Generator[sqlite3.Connection, None, None]:
+def get_db() -> Generator[Any, None, None]:
     conn = get_connection()
     try:
         yield conn
@@ -27,7 +113,7 @@ def get_db() -> Generator[sqlite3.Connection, None, None]:
     finally:
         conn.close()
 
-def get_db_session() -> Generator[sqlite3.Connection, None, None]:
+def get_db_session() -> Generator[Any, None, None]:
     """Dependency for FastAPI"""
     conn = get_connection()
     try:
@@ -39,19 +125,32 @@ def get_db_session() -> Generator[sqlite3.Connection, None, None]:
     finally:
         conn.close()
 
-def _add_column_if_missing(conn: sqlite3.Connection, table: str, column_def: str, col_name: str):
-    table_check = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (table,)).fetchone()
-    if not table_check:
-        return
-    cursor = conn.execute(f"PRAGMA table_info({table});")
-    existing_cols = [row["name"] for row in cursor.fetchall()]
-    if col_name not in existing_cols:
-        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column_def};")
+def _add_column_if_missing(conn, table: str, column_def: str, col_name: str):
+    if hasattr(conn, "is_postgres"):
+        check = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name=%s AND column_name=%s", (table, col_name)).fetchone()
+        if not check:
+            try:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column_def};")
+            except Exception as e:
+                logger.warning(f"Could not add column {col_name} to {table}: {e}")
+    else:
+        table_check = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (table,)).fetchone()
+        if not table_check:
+            return
+        cursor = conn.execute(f"PRAGMA table_info({table});")
+        existing_cols = [row["name"] for row in cursor.fetchall()]
+        if col_name not in existing_cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column_def};")
 
-def _create_table_if_missing(conn: sqlite3.Connection, table_name: str, create_sql: str):
-    table_check = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (table_name,)).fetchone()
-    if not table_check:
-        conn.execute(create_sql)
+def _create_table_if_missing(conn, table_name: str, create_sql: str):
+    if hasattr(conn, "is_postgres"):
+        check = conn.execute("SELECT table_name FROM information_schema.tables WHERE table_name=%s", (table_name,)).fetchone()
+        if not check:
+            conn.execute(create_sql)
+    else:
+        table_check = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (table_name,)).fetchone()
+        if not table_check:
+            conn.execute(create_sql)
 
 def run_migrations(conn: sqlite3.Connection):
     """Run incremental column migrations on existing tables."""
@@ -115,14 +214,14 @@ def init_database():
     schema_path = next((p for p in schema_paths if p.exists()), None)
 
     with get_db() as conn:
-        run_migrations(conn)
         if schema_path and schema_path.exists():
             with open(schema_path, "r", encoding="utf-8") as f:
                 schema_sql = f.read()
             conn.executescript(schema_sql)
-            run_migrations(conn)
         else:
             logger.warning("schema.sql not found, skipping migration execution")
+
+        run_migrations(conn)
 
         # Check if already seeded
         cursor = conn.execute("SELECT count(*) as count FROM qualifications;")

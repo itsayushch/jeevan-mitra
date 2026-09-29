@@ -11,5 +11,14 @@ const nextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: '/demo-video',
+        destination: 'https://youtube.com', // Change this URL later
+        permanent: false,
+      },
+    ];
+  },
 };
 export default nextConfig;

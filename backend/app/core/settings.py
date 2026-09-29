@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     PORT: int = 4000
     HOST: str = "0.0.0.0"
     DATABASE_PATH: str = str(Path(__file__).resolve().parent.parent.parent / "jeevanmitra.db")
+    DATABASE_URL: str = ""
     JWT_SECRET: str = "supersecret_jwt_key_for_dev_only"
     WORKER_API_KEY: str = ""
     WORKER_ID: str = ""
@@ -22,7 +23,9 @@ class Settings(BaseSettings):
     OFFICER_DISTRICT: str = ""
     AI_PROVIDER: str = "gemini"
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_MODEL: str = "gemini-3.8-flash"
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
     AI_API_KEY: str = ""
     DEFAULT_DISTRICT: str = "Moradabad"
     DEFAULT_STATE: str = "Uttar Pradesh"

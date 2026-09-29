@@ -1,7 +1,10 @@
+'use client';
 import { useRef, useState } from 'react';
 import Link from 'next/link';
-import { Menu, X, Sprout, LayoutDashboard, Route, Mic, BriefcaseBusiness, GraduationCap, TrendingUp, HandCoins, Users, ShieldCheck, ChartNoAxesCombined, PanelLeftClose } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Menu, X, Sprout, LayoutDashboard, Route, Mic, BriefcaseBusiness, GraduationCap, TrendingUp, HandCoins, Users, ShieldCheck, ChartNoAxesCombined, PanelLeftClose, LogOut } from 'lucide-react';
 import { LanguagePicker } from './LanguagePicker';
+import { api } from '../lib/api';
 import { pathForSection } from '../lib/routes';
 import type { Language } from '../types';
 
@@ -15,7 +18,6 @@ interface NavigationProps {
 const items = [
   { id: 'home', label: 'Overview', hi: 'होम', icon: LayoutDashboard },
   { id: 'journey', label: 'My journey', hi: 'मेरी यात्रा', icon: Route },
-  { id: 'voice-ask', label: 'AI Assistant', hi: 'एआई सहायक', icon: Mic },
   { id: 'jobs-map', label: 'Local opportunities', hi: 'स्थानीय अवसर', icon: BriefcaseBusiness },
   { id: 'training-quiz', label: 'Skill training', hi: 'कौशल प्रशिक्षण', icon: GraduationCap },
   { id: 'career-pathways', label: 'Career pathways', hi: 'करियर के रास्ते', icon: TrendingUp },
@@ -26,10 +28,23 @@ const items = [
 export function Navigation({ currentTab, language, onSelectLanguage, viewMode, onToggleViewMode }: NavigationProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
+  const router = useRouter();
+
   const closeMenu = () => {
     setMenuOpen(false);
     if (window.matchMedia('(max-width: 640px)').matches) menuButton.current?.focus();
   };
+
+  const handleLogout = () => {
+    api.setJwtToken('');
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem('jm_jwt_token');
+      window.sessionStorage.removeItem('jm_worker_key');
+      window.sessionStorage.removeItem('jm_officer_key');
+    }
+    router.push('/login');
+  };
+
   return <aside className="sidebar" onKeyDown={event => {
     if (event.key === 'Escape' && menuOpen) { setMenuOpen(false); menuButton.current?.focus(); }
   }}>
@@ -40,7 +55,7 @@ export function Navigation({ currentTab, language, onSelectLanguage, viewMode, o
       <div className="sidebar-label">YOUR NEXT CHAPTER</div>
       <nav aria-label="Main navigation" className="primary-nav">{items.map(({ id, label, hi, icon: Icon }) => <Link key={id} href={pathForSection(id)} onClick={closeMenu} className={currentTab === id ? 'nav-item active' : 'nav-item'} aria-current={currentTab === id ? 'page' : undefined}><Icon size={19}/><span>{language === 'hi' ? hi : label}</span>{currentTab === id && <span className="active-dot"/>}</Link>)}</nav>
       <div className="staff-nav"><div className="sidebar-label">FOR FACILITATORS</div><Link className={`nav-item ${currentTab === 'field-worker' ? 'active' : ''}`} href="/field-worker" onClick={closeMenu} aria-current={currentTab === 'field-worker' ? 'page' : undefined}><ShieldCheck size={19}/>Field worker portal</Link><Link className={`nav-item ${currentTab === 'district-planner' ? 'active' : ''}`} href="/district-planner" onClick={closeMenu} aria-current={currentTab === 'district-planner' ? 'page' : undefined}><ChartNoAxesCombined size={19}/>District planning</Link></div>
-      <div className="sidebar-bottom"><div className="sidebar-help"><span className="help-icon"><Mic size={20}/></span><strong>A little guidance goes a long way.</strong><p>Ask a question, in your own words.</p><Link href="/voice-assistant" onClick={closeMenu}>Let’s talk <span aria-hidden="true">↗</span></Link></div>
+      <div className="sidebar-bottom">
         <LanguagePicker language={language} onChange={onSelectLanguage} />
         {currentTab === 'journey' && <button className="view-toggle" onClick={onToggleViewMode}><PanelLeftClose size={16}/>{viewMode === 'full' ? 'Compact journey view' : 'Expand journey view'}</button>}
       </div>

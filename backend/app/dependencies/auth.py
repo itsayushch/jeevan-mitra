@@ -41,6 +41,20 @@ def get_current_actor(
         (settings.DISTRICT_OFFICER_API_KEY, "district_officer", "", "District Officer"),
         (settings.ANALYST_API_KEY, "analyst", "", "District Analyst"),
     )
+    if authorization and authorization.startswith("Bearer "):
+        try:
+            import jwt
+            token = authorization.split(" ")[1]
+            payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
+            return Actor(
+                actor_id=payload.get("sub", "unknown"),
+                actor_role=payload.get("role", "anonymous"),
+                actor_name=payload.get("name", "Authenticated User"),
+                session_id=x_session_token
+            )
+        except Exception:
+            pass
+
     if x_worker_api_key:
         for configured_key, role, actor_id, actor_name in configured_staff_keys:
             if configured_key and secrets.compare_digest(x_worker_api_key, configured_key):
