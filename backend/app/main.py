@@ -1,4 +1,4 @@
-from contextlib import asynccontextmanager
+﻿from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -19,7 +19,9 @@ from app.routers import (
     channels,
     audit,
     catalogue,
-    chat
+    chat,
+    journey,
+    admin_catalogue
 )
 
 @asynccontextmanager
@@ -148,7 +150,9 @@ api_routers = [
     channels.router,
     audit.router,
     catalogue.router,
-    chat.router
+    chat.router,
+    journey.router,
+    admin_catalogue.router
 ]
 
 for prefix in ["/api/v1", "/api"]:

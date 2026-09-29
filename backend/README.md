@@ -124,28 +124,26 @@ The database runs on SQLite with Write-Ahead Logging (WAL) and foreign keys enab
 ## 5. Development & Testing Commands
 
 ### Prerequisites
-* Node.js v18+ (tested on Node.js v25)
-* npm v9+
+* Python 3.10+ (tested on Python 3.11.9)
 
 ### Quick Start
 ```bash
+# Create and activate virtual environment
+python -m venv .venv
+# On Windows: .venv\Scripts\activate
+# On macOS/Linux: source .venv/bin/activate
+
 # Install dependencies
-npm install
-
-# Build TypeScript to dist/
-npm run build
-
-# Seed database with realistic NQR catalog & Moradabad district batches
-npm run seed
+pip install -r requirements.txt
 
 # Start server
-npm start
+python run.py
 # Server starts on http://localhost:4000
 ```
 
 ### Running Test Suite
 ```bash
-npm test
+pytest tests/
 ```
 ### Plan A — Trust, Consent, and Recommendation Capabilities (`/api/v1/` & `/api/`)
 

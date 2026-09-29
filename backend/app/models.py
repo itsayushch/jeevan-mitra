@@ -1,3 +1,4 @@
+from enum import Enum
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Union, Literal
 from datetime import datetime
@@ -292,3 +293,47 @@ class ChatRequest(BaseModel):
     message: str
     beneficiary_id: Optional[str] = None
     language: Optional[str] = "hi"
+# ============================================================================
+# 10. Journey Models
+# ============================================================================
+class JourneyState(str, Enum):
+    CREATED = 'created'
+    AWAITING_CONSENT = 'awaiting_consent'
+    COLLECTING_PROFILE = 'collecting_profile'
+    CLARIFICATION_REQUIRED = 'clarification_required'
+    PROFILE_REVIEW = 'profile_review'
+    READY_FOR_RECOMMENDATIONS = 'ready_for_recommendations'
+    RECOMMENDATIONS_READY = 'recommendations_ready'
+    REFERRAL_REQUESTED = 'referral_requested'
+    COMPLETED = 'completed'
+    DELETED = 'deleted'
+
+class JourneyResponse(BaseModel):
+    id: str
+    session_id: str
+    actor_id: Optional[str] = None
+    actor_role: Optional[str] = None
+    state: JourneyState
+    ai_processing_consent: bool
+    storage_consent: bool
+    referral_consent: bool
+    profile_confirmed: bool
+    created_at: str
+    updated_at: str
+
+class JourneyStartRequest(BaseModel):
+    actor_id: Optional[str] = None
+    actor_role: Optional[str] = None
+
+class JourneyConsentRequest(BaseModel):
+    ai_processing_consent: bool = False
+    storage_consent: bool = False
+    referral_consent: bool = False
+
+class JourneyRespondRequest(BaseModel):
+    message: str
+    language: Optional[str] = "hi"
+
+class JourneyConfirmProfileRequest(BaseModel):
+    confirm: bool
+

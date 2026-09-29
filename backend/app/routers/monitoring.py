@@ -17,3 +17,13 @@ def get_advisories(district: str = "Moradabad"):
         "district": district,
         "advisories": AdvisoryQueue.list_open_advisories(district)
     }
+
+from app.services.system_status_service import SystemStatusService
+
+@router.get("/admin/system/status")
+def get_admin_system_status():
+    return SystemStatusService.get_system_status()
+
+@router.get("/admin/system/quality-summary")
+def get_admin_quality_summary():
+    return SystemStatusService.get_quality_summary()

@@ -23,34 +23,12 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'npm'
-          cache-dependency-path: backend/package.json
-
-      - name: Install Dependencies
-        working-directory: backend
-        run: npm ci || npm install
-
-      - name: Generate Prisma Client
-        working-directory: backend
-        run: npx prisma generate
-
-      - name: Compile TypeScript
-        working-directory: backend
-        run: npm run build
-
-      - name: Run Vitest Suite (22 Tests)
-        working-directory: backend
-        run: npm test
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
+          cache-dependency-path: 'backend/requirements.txt'
 
       - name: Install Python Dependencies
         working-directory: backend
@@ -58,7 +36,9 @@ jobs:
 
       - name: Run Python Backend Test Suite
         working-directory: backend
-        run: python tests_python.py
+        run: |
+          export PYTHONPATH=$(pwd)
+          pytest tests/
 
   deploy:
     name: Build & Deploy to Azure

@@ -28,6 +28,9 @@ def get_db() -> Generator[sqlite3.Connection, None, None]:
         conn.close()
 
 def _add_column_if_missing(conn: sqlite3.Connection, table: str, column_def: str, col_name: str):
+    table_check = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (table,)).fetchone()
+    if not table_check:
+        return
     cursor = conn.execute(f"PRAGMA table_info({table});")
     existing_cols = [row["name"] for row in cursor.fetchall()]
     if col_name not in existing_cols:
@@ -61,6 +64,8 @@ def run_migrations(conn: sqlite3.Connection):
 
     # interview_sessions
     _add_column_if_missing(conn, "interview_sessions", "session_id TEXT", "session_id")
+    _add_column_if_missing(conn, "consent_records", "session_id TEXT", "session_id")
+    _add_column_if_missing(conn, "referral_cases", "session_id TEXT", "session_id")
 
 def init_database():
     """Ensure database schema is created, migrated, and seeded."""
@@ -74,6 +79,7 @@ def init_database():
     schema_path = next((p for p in schema_paths if p.exists()), None)
 
     with get_db() as conn:
+        run_migrations(conn)
         if schema_path and schema_path.exists():
             with open(schema_path, "r", encoding="utf-8") as f:
                 schema_sql = f.read()
@@ -152,6 +158,46 @@ def seed_database(conn: sqlite3.Connection):
             'Commercial production of button and oyster mushrooms using climate-controlled spawn bags.',
             'Class 8th pass with farming interest', 'Agriculture Skill Council of India (ASCI)',
             'https://nqr.gov.in/qualifications/AGR-Q7803', 'verified', '2026-02-25'
+        ),
+        (
+            'qual_plumber_08', 'PSC/Q0104', 'General Plumber', 'Plumbing', 3, 240,
+            'Class 8', 2, 'both', 'medium_high',
+            json.dumps(['Pipe Cutting & Threading', 'Sanitary Fixture Installation', 'Drainage Maintenance', 'Leak Detection']),
+            'Installation and maintenance of domestic and commercial piping systems and sanitary fixtures.',
+            'Class 8th standard pass', 'Plumbing Sector Skill Council',
+            'https://nqr.gov.in/qualifications/PSC-Q0104', 'verified', '2026-02-28'
+        ),
+        (
+            'qual_gda_09', 'HSS/Q5101', 'General Duty Assistant (GDA)', 'Healthcare', 4, 360,
+            'Class 10', 3, 'wage', 'medium',
+            json.dumps(['Patient Vital Monitoring', 'Infection Control', 'Bedside Care & Hygiene', 'Emergency Response']),
+            'Patient support services under nursing supervision in hospitals, clinics, and eldercare centres.',
+            'Class 10th standard pass', 'Healthcare Sector Skill Council',
+            'https://nqr.gov.in/qualifications/HSS-Q5101', 'verified', '2026-03-01'
+        ),
+        (
+            'qual_dataentry_10', 'SSC/Q2212', 'Domestic Data Entry Operator', 'IT-ITeS', 4, 200,
+            'Class 10', 3, 'wage', 'light',
+            json.dumps(['Touch Typing (30 WPM)', 'MS Excel & Office Basics', 'Data Confidentiality', 'Quality Verification']),
+            'Accurate alphabetic and numeric data entry, documentation, and digital record keeping.',
+            'Class 10th standard pass', 'IT-ITeS SSC (NASSCOM)',
+            'https://nqr.gov.in/qualifications/SSC-Q2212', 'verified', '2026-03-05'
+        ),
+        (
+            'qual_beauty_11', 'BWS/Q0102', 'Assistant Beauty Therapist', 'Beauty & Wellness', 3, 220,
+            'Class 8', 2, 'both', 'light',
+            json.dumps(['Skin Care & Cleansing', 'Manicure & Pedicure', 'Basic Makeup Application', 'Salon Hygiene']),
+            'Basic skincare, beauty treatments, and customer care in salons or home visits.',
+            'Class 8th standard pass', 'Beauty & Wellness Sector Skill Council',
+            'https://nqr.gov.in/qualifications/BWS-Q0102', 'verified', '2026-03-10'
+        ),
+        (
+            'qual_welder_12', 'CSC/Q0204', 'Manual Metal Arc Welder (SMAW)', 'Capital Goods', 3, 300,
+            'Class 8', 2, 'wage', 'high',
+            json.dumps(['SMAW Welding Joints', 'Safety & PPE Usage', 'Gas Cutting Basics', 'Weld Defect Inspection']),
+            'Structural and pipe welding using shielded metal arc welding techniques.',
+            'Class 8th standard pass', 'Capital Goods Skill Council',
+            'https://nqr.gov.in/qualifications/CSC-Q0204', 'verified', '2026-03-12'
         )
     ]
 
@@ -190,6 +236,21 @@ def seed_database(conn: sqlite3.Connection):
             'opp_mushroom_chhajlet_07', 'qual_mushroom_07', 'Krishi Vigyan Kendra Mushroom Training Unit', 'training_centre',
             'Moradabad', 'Chhajlet', 'KVK Campus, Chhajlet-Kanth Road, Moradabad', 28.9870, 78.6850,
             '2026-10-10', '2027-01-10', 25, 9, 8, 'active', 0, 1500, 1, 'pm_ajay_portal', 'worker_sunita_01', '2026-09-14', now
+        ),
+        (
+            'opp_gda_moradabad_09', 'qual_gda_09', 'District Hospital Allied Healthcare Training Cell', 'training_centre',
+            'Moradabad', 'Moradabad Urban', 'Civil Hospital Road, Moradabad', 28.8350, 78.7750,
+            '2026-10-25', '2027-02-25', 20, 10, 8, 'upcoming', 1, 2000, 1, 'pm_ajay_portal', 'worker_sunita_01', '2026-09-20', now
+        ),
+        (
+            'opp_plumber_moradabad_08', 'qual_plumber_08', 'Jan Shikshan Sansthan Moradabad', 'training_centre',
+            'Moradabad', 'Moradabad Rural', 'Pakbara Highway, Moradabad', 28.8200, 78.7200,
+            '2026-10-12', '2026-12-20', 25, 7, 7, 'active', 0, 1200, 1, 'pm_ajay_portal', 'worker_amit_02', '2026-09-18', now
+        ),
+        (
+            'opp_dataentry_ghaziabad_10', 'qual_dataentry_10', 'Ghaziabad Skill Development Center', 'training_centre',
+            'Ghaziabad', 'Ghaziabad Urban', 'RDC Raj Nagar, Ghaziabad', 28.6700, 77.4400,
+            '2026-10-15', '2026-12-15', 30, 15, 10, 'upcoming', 0, 1500, 0, 'pm_ajay_portal', 'worker_amit_02', '2026-09-19', now
         )
     ]
 
