@@ -40,6 +40,7 @@ export interface InterviewTurnResponse {
 export interface RecommendationItem {
   recommendation_id: string;
   score: number;
+  ranking_factors?: { ml_score?: number; ml_training_data?: string };
   qualification: {
     id: string;
     nqr_code: string;
@@ -68,6 +69,8 @@ export interface RecommendationsResponse {
   count: number;
   recommendations: RecommendationItem[];
   counselor_handoff_recommended?: boolean;
+  ranking_method?: string;
+  no_result_reason?: string;
 }
 
 export interface ReferralResponse {
@@ -435,7 +438,8 @@ class ApiService {
       }),
     });
     if (!res.ok) throw new Error(`Referral request failed: ${res.statusText}`);
-    return res.json();
+    const data = await res.json();
+    return { ...data, referral_id: data.referral_id || data.id };
   }
 
   /**
