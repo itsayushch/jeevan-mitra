@@ -50,7 +50,19 @@ class PostgresWrapper:
             stmt = stmt.strip()
             if not stmt or stmt.startswith("PRAGMA"):
                 continue
-            cursor.execute(stmt)
+            try:
+                # Use a savepoint to prevent the entire transaction from aborting
+                cursor.execute("SAVEPOINT pg_wrapper_sp")
+                cursor.execute(stmt)
+                cursor.execute("RELEASE SAVEPOINT pg_wrapper_sp")
+            except Exception as e:
+                # Rollback to savepoint so we can continue executing other statements
+                cursor.execute("ROLLBACK TO SAVEPOINT pg_wrapper_sp")
+                if "already exists" in str(e) or "pg_type_typname_nsp_index" in str(e):
+                    import logging
+                    logging.getLogger("jeevanmitra").debug(f"Ignoring expected IF NOT EXISTS conflict: {e}")
+                    continue
+                raise
         return cursor
 
     def commit(self):
