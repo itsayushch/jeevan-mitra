@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     AI_PROVIDER: str = "gemini"
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.5-flash"
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
     AI_API_KEY: str = ""
     DEFAULT_DISTRICT: str = "Moradabad"
     DEFAULT_STATE: str = "Uttar Pradesh"
