@@ -1,5 +1,6 @@
 import sqlite3
 import json
+import random
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sys
@@ -7,9 +8,65 @@ import sys
 # Add backend dir to path for imports
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from app.database import get_connection
+from app.database import get_connection, init_database
+
+def seed_demand_records(conn, now):
+    """
+    Layer 5 demo data: ~200 synthetic ANONYMISED demand records across 5
+    blocks of Moradabad. No name, contact, or free text - only qualification
+    interest, block, mobility radius, work preference, and Verified Match
+    outcome. Includes one clear planning gap: Bahjoi has 80 expressions of
+    interest (incl. 38 for Mushroom Cultivation) but zero worker-verified
+    batches; the nearest verified mushroom centre (KVK Chhajlet) is ~65 km away.
+    """
+    random.seed(42)
+
+    # (block, qualification_id, count, had_verified_match)
+    plan = [
+        # Bahjoi: NO verified supply at all -> clear gap, nearest centre 40+ km
+        ("Bahjoi", "qual_mushroom_07", 38, 0),
+        ("Bahjoi", "qual_solar_01", 24, 0),
+        ("Bahjoi", "qual_sewing_02", 18, 0),
+        # Chhajlet: verified supply exists (mushroom 9, sewing 8, food 11 seats)
+        ("Chhajlet", "qual_mushroom_07", 22, 1),
+        ("Chhajlet", "qual_sewing_02", 16, 1),
+        ("Chhajlet", "qual_food_04", 12, 1),
+        # Moradabad Rural: verified supply exists (solar 14, retail 12, plumber 7 seats)
+        ("Moradabad Rural", "qual_solar_01", 18, 1),
+        ("Moradabad Rural", "qual_retail_06", 13, 1),
+        ("Moradabad Rural", "qual_plumber_08", 7, 1),
+        # Bilari: no verified supply
+        ("Bilari", "qual_gda_09", 10, 0),
+        ("Bilari", "qual_retail_06", 7, 0),
+        # Kundarki: no verified supply
+        ("Kundarki", "qual_sewing_02", 12, 0),
+        ("Kundarki", "qual_food_04", 3, 0),
+    ]
+
+    work_preferences = ["wage", "self_employment", "both"]
+    records = []
+    for block, qual_id, count, had_match in plan:
+        for _ in range(count):
+            period = "FY 2026-27" if random.random() < 0.9 else "FY 2025-26"
+            created = now - timedelta(days=random.randint(5, 360))
+            records.append((
+                f"syn_dem_{len(records):04d}", qual_id, "Moradabad", block,
+                round(random.uniform(5.0, 30.0), 1),
+                random.choice(work_preferences), had_match, period,
+                created.isoformat(),
+            ))
+
+    conn.execute("DELETE FROM demand_records WHERE id LIKE 'syn_dem_%';")
+    conn.executemany("""
+        INSERT OR REPLACE INTO demand_records (
+            id, qualification_id, district, block, mobility_radius_km,
+            work_preference, had_verified_match, period, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """, records)
+    return len(records)
 
 def seed_demo_data():
+    init_database()
     conn = get_connection()
     now = datetime.now(timezone.utc)
     
@@ -78,11 +135,14 @@ def seed_demo_data():
     except sqlite3.OperationalError as e:
         print(f"Error inserting opps: {e}")
 
+    demand_count = seed_demand_records(conn, now)
+
     conn.commit()
     conn.close()
     print("Seed complete:")
     print(f"- Qualifications created: {len(quals)}")
     print(f"- Opportunities created: {len(opps)}")
+    print(f"- Anonymised demand records created: {demand_count}")
 
 if __name__ == '__main__':
     seed_demo_data()

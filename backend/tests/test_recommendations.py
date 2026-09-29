@@ -136,3 +136,49 @@ def test_no_result_scenario_returns_counselor_handoff(client):
     assert data["count"] == 0
     assert data["counselor_referral_suggested"] is True
     assert "referral_reason" in data
+
+def test_live_model_journey_and_referral(client, monkeypatch):
+    pytest.importorskip('sklearn')
+    monkeypatch.setattr(settings, 'ML_RANKING_ENABLED', True)
+    session = client.post('/api/v1/sessions').json()
+    headers = {'X-Session-Token': session['session_token']}
+    for consent in ('ai_processing', 'profile_storage'):
+        assert client.post('/api/v1/consents', headers=headers, json={
+            'session_id': session['session_id'], 'consent_type': consent, 'granted': True
+        }).status_code < 300
+    interview = client.post('/api/v1/interviews/start', headers=headers, json={
+        'session_id': session['session_id'], 'language': 'en'
+    }).json()['interview_id']
+    endpoint = '/api/v1/recommendations/generate'
+    assert client.post(endpoint, headers=headers, json={'interview_id': interview}).status_code == 409
+    assert client.post(f'/api/v1/interviews/{interview}/confirm-profile', headers=headers, json={
+        'confirmed_fields': {'district': 'Moradabad', 'block': 'Chhajlet', 'education': 'Class 10',
+            'interests': ['farming'], 'traditional_or_existing_skills': ['farming'], 'mobility': 10,
+            'language': 'en', 'self_employment_or_wage_preference': 'both'}
+    }).status_code == 200
+    response = client.post(endpoint, headers=headers, json={'interview_id': interview})
+    assert response.status_code == 200
+    result = response.json()
+    assert result['ranking_method'] == 'ml_blended'
+    assert result['count'] == 3
+    for rec in result['recommendations']:
+        assert 0 <= rec['ranking_factors']['ml_score'] <= 1
+        assert isinstance(rec['qualification']['nsqf_level'], (int, float))
+        assert rec['qualification']['nqr_code']
+        stored = client.get('/api/v1/recommendations/' + rec['recommendation_id']).json()
+        assert stored['ranking_factors'] == rec['ranking_factors']
+        assert stored['qualification'] == {k:v for k,v in rec['qualification'].items() if k != 'internal_id'}
+    assert client.post(endpoint, json={'interview_id': interview}).status_code == 403
+    assert client.post(f'/api/v1/interviews/{interview}/confirm-profile', json={'confirmed_fields': {'education': 'Graduate'}}).status_code == 403
+    referral = {'interview_id': interview, 'referral_reason': 'user_requested_human_help',
+                'recommendation_id': result['recommendations'][0]['recommendation_id']}
+    assert client.post('/api/v1/referrals', headers=headers, json=referral).status_code == 403
+    client.post('/api/v1/consents', headers=headers, json={
+        'session_id': session['session_id'], 'consent_type': 'counselor_referral', 'granted': True})
+    response = client.post('/api/v1/referrals', headers=headers, json=referral)
+    assert response.status_code < 300
+    assert response.json()['id']
+    monkeypatch.setattr(settings, 'ML_RANKING_ENABLED', False)
+    fallback = client.post(endpoint, headers=headers, json={'interview_id': interview}).json()
+    assert fallback['ranking_method'] == 'rules'
+    assert all('ml_score' not in rec['ranking_factors'] for rec in fallback['recommendations'])

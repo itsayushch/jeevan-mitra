@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     ADMIN_API_KEY: str = ""
     DISTRICT_OFFICER_API_KEY: str = ""
     ANALYST_API_KEY: str = ""
+    OFFICER_API_KEY: str = ""
+    OFFICER_ID: str = ""
+    OFFICER_NAME: str = ""
+    OFFICER_DISTRICT: str = ""
     AI_PROVIDER: str = "gemini"
     GEMINI_API_KEY: str = ""
     AI_API_KEY: str = ""
@@ -28,6 +32,8 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     QUALIFICATION_REVIEW_DAYS: int = 180
     OPPORTUNITY_REVIEW_DAYS: int = 30
+    # Synthetic-trained ranking aid; verified catalogue constraints remain authoritative.
+    ML_RANKING_ENABLED: bool = True
 
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).resolve().parent.parent.parent / '.env'),

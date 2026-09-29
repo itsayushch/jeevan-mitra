@@ -48,8 +48,32 @@ def _add_column_if_missing(conn: sqlite3.Connection, table: str, column_def: str
     if col_name not in existing_cols:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column_def};")
 
+def _create_table_if_missing(conn: sqlite3.Connection, table_name: str, create_sql: str):
+    table_check = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (table_name,)).fetchone()
+    if not table_check:
+        conn.execute(create_sql)
+
 def run_migrations(conn: sqlite3.Connection):
     """Run incremental column migrations on existing tables."""
+    # demand_records (Layer 5) - created via migration so existing DBs get the table
+    _create_table_if_missing(conn, "demand_records", """
+        CREATE TABLE demand_records (
+          id TEXT PRIMARY KEY,
+          qualification_id TEXT NOT NULL,
+          district TEXT NOT NULL,
+          block TEXT NOT NULL,
+          mobility_radius_km REAL,
+          work_preference TEXT,
+          had_verified_match INTEGER NOT NULL DEFAULT 0,
+          period TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (qualification_id) REFERENCES qualifications(id) ON DELETE CASCADE
+        );
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_demand_records_district ON demand_records(district, period);")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_demand_records_block ON demand_records(district, block, qualification_id);")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_demand_records_qual ON demand_records(qualification_id);")
+
     # local_opportunities
     _add_column_if_missing(conn, "local_opportunities", "state TEXT NOT NULL DEFAULT 'Uttar Pradesh'", "state")
     _add_column_if_missing(conn, "local_opportunities", "availability TEXT DEFAULT 'verified_open'", "availability")

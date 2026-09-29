@@ -10,6 +10,9 @@ from app.ai_layers.layer3_matching.explanation_generator import ExplanationGener
 from app.services.catalogue_service import CatalogueService
 from app.utils.audit_events import log_audit_event
 from app.utils.errors import EntityNotFoundException
+from app.ai_layers.layer5_planning.demand_record_service import DemandRecordService, current_period_label
+from app.utils.logger import logger
+from app.ai_layers.layer3_matching.ml_adapter import rerank_candidates
 
 class RecommendationService:
     @staticmethod
@@ -225,8 +228,9 @@ class RecommendationService:
                 "qualification": {
                     "id": qual["nqr_code"],
                     "internal_id": qual["id"],
+                    "nqr_code": qual["nqr_code"],
                     "title": qual_title,
-                    "nsqf_level": f"Level {qual['nsqf_level']}",
+                    "nsqf_level": qual["nsqf_level"],
                     "sector": qual["sector"],
                     "official_url": qual.get("official_source_url") or qual.get("nqr_link"),
                     "duration_hours": qual.get("duration_hours")
@@ -253,6 +257,7 @@ class RecommendationService:
             })
 
         # Rank descending by score
+        rerank_candidates(candidate_list, confirmed_profile, {q['id']: q for q in quals})
         candidate_list.sort(key=lambda x: x["score"], reverse=True)
         top_candidates = candidate_list[:3]
 
@@ -327,8 +332,33 @@ class RecommendationService:
             metadata={"count": len(saved_recs), "district": district}
         )
 
+        # Layer 5: write an anonymised demand record for the rank-1 trade
+        # interest (only when analytics consent is on file). Never affects
+        # the matching result.
+        try:
+            if top_candidates:
+                interview_sess = conn.execute(
+                    "SELECT session_id FROM interview_sessions WHERE id = ?;",
+                    (target_interview_id,),
+                ).fetchone() if target_interview_id else None
+                DemandRecordService.record_demand(
+                    conn=conn,
+                    qualification_id=top_candidates[0]["qualification"]["internal_id"],
+                    district=district,
+                    block=block,
+                    mobility_radius_km=mobility_radius,
+                    work_preference=work_pref if work_pref in ("wage", "self_employment", "both") else None,
+                    had_verified_match=any(r["match_state"] == "Verified Match" for r in top_candidates),
+                    period=current_period_label(),
+                    beneficiary_id=target_ben_id,
+                    session_id=interview_sess["session_id"] if interview_sess else None,
+                )
+        except Exception as e:
+            logger.warning(f"Demand record write failed (non-blocking): {e}")
+
         return {
             "count": len(saved_recs),
+            "ranking_method": "ml_blended" if any("ml_score" in r["ranking_factors"] for r in saved_recs) else "rules",
             "recommendations": saved_recs,
             "counselor_referral_suggested": any(r["local_availability"]["status"] == "unknown" for r in saved_recs),
             "counselor_handoff_recommended": any(r["local_availability"]["status"] == "unknown" for r in saved_recs)
@@ -344,20 +374,28 @@ class RecommendationService:
         qual_row = conn.execute("SELECT * FROM qualifications WHERE id = ?;", (d["qualification_id"],)).fetchone()
         opp_row = conn.execute("SELECT * FROM local_opportunities WHERE id = ?;", (d["local_opportunity_id"],)).fetchone() if d.get("local_opportunity_id") else None
 
+        qual_row = dict(qual_row) if qual_row else None
+        opp_row = dict(opp_row) if opp_row else None
         qual_info = {
             "id": qual_row["nqr_code"] if qual_row else d["qualification_id"],
+            "nqr_code": qual_row["nqr_code"] if qual_row else "",
+            "sector": qual_row["sector"] if qual_row else "",
+            "duration_hours": qual_row["duration_hours"] if qual_row else None,
             "title": qual_row["title"] if qual_row else "Qualification",
-            "nsqf_level": f"Level {qual_row['nsqf_level']}" if qual_row else "",
+            "nsqf_level": qual_row["nsqf_level"] if qual_row else None,
             "official_url": (qual_row.get("official_source_url") or qual_row.get("nqr_link")) if qual_row else ""
         }
 
         return {
             "recommendation_id": d["id"],
             "qualification": qual_info,
+            "ranking_factors": json.loads(d.get("ranking_factors") or "{}"),
+            "why_recommended": [d["explanation_text"]] if d.get("explanation_text") else [],
             "matched_skills": json.loads(d.get("matched_skills") or "[]"),
             "skill_gaps": json.loads(d.get("skill_gaps") or "[]"),
             "local_availability": {
                 "status": d.get("local_opportunity_status") or "unknown",
+                "centre_name": opp_row.get("centre_or_employer_name") if opp_row else None,
                 "district": opp_row["district"] if opp_row else None,
                 "source_url": opp_row.get("source_url") if opp_row else None,
                 "last_verified_at": opp_row.get("verified_at") if opp_row else None

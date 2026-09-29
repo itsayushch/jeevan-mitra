@@ -1,7 +1,7 @@
 # ==============================================================================
 # JEEVAN-MITRA 2.0 - PYTHON FASTAPI DOCKERFILE
 # ==============================================================================
-FROM python:3.11-slim AS builder
+FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
@@ -13,12 +13,16 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements
 COPY requirements.txt ./
+COPY ml_model/requirements-inference.txt ./ml_model/requirements-inference.txt
 
 # Install python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code
 COPY app/ ./app/
+COPY ml_model/__init__.py ./ml_model/
+COPY ml_model/src/ ./ml_model/src/
+COPY ml_model/models/ ./ml_model/models/
 COPY run.py ./
 
 # Create persistent data directory and assign ownership

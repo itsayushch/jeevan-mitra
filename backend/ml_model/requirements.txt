@@ -1,0 +1,21 @@
+# PM-AJAY / JeevanMitra 2.0 - NSQ Course Recommendation System
+# Python >= 3.9
+
+# Core data science
+-r requirements-inference.txt
+
+# Gradient boosting
+xgboost>=2.0
+lightgbm>=4.0
+
+# Visualization
+matplotlib>=3.7
+seaborn>=0.12
+
+# Explainability
+shap>=0.42
+
+# Configuration
+pyyaml>=6.0
+
+# Serialization

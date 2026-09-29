@@ -4,6 +4,9 @@
 
 Project note: This repository is being actively updated for iterative improvements and validation.
 
+Branch consolidation, ML activation and validation results are documented in
+[the branch integration audit](docs/branch-integration.md).
+
 **Status:** Solution/design draft. Implementation status is not confirmed; do not describe the architecture below as deployed or integrated with official systems.  
 **Problem statement ID:** 26097  
 **Source material studied:** `Problem-statement.pdf` and `JeevanMitra_2.0_Solution_Proposal.pdf` (supplied project documents).  

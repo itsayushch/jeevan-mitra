@@ -291,6 +291,7 @@ class GenerateBriefRequest(BaseModel):
 class SignOffRequest(BaseModel):
     officer_name: str
     notes: Optional[str] = None
+    action: Optional[Literal['submit_for_review', 'sign_off']] = 'sign_off'
 
 class ChatRequest(BaseModel):
     message: str
