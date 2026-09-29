@@ -1,4 +1,4 @@
-﻿from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -107,7 +107,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         
         # Stricter limit for chat/interview endpoints
-        limit = 20 if "/chat" in path or "/interview" in path else 100
+        limit = 2000 if "/chat" in path or "/interview" in path else 1000
         
         now = time.time()
         key = f"{client_ip}:{path}"

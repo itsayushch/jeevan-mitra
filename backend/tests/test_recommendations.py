@@ -126,7 +126,7 @@ def test_no_result_scenario_returns_counselor_handoff(client):
     gen_res = client.post("/api/v1/recommendations/generate", json={
         "district": "NonExistentDistrict",
         "mobility_radius_km": 0.01,
-        "do_not_recommend": ["solar", "apparel", "agriculture", "electronics", "food", "retail"]
+        "do_not_recommend": ["solar", "apparel", "agriculture", "electronics", "food", "retail", "plumb", "health", "data", "beauty", "weld"]
     })
     assert gen_res.status_code == 200
     data = gen_res.json()

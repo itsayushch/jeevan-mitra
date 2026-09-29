@@ -55,7 +55,9 @@ def create_test_users():
     
     conn.commit()
     conn.close()
-    print("Test users created successfully.")
+    print("Seed complete:")
+    print(f"- Test users created: {len(ben_data)}")
+    print(f"- Interview sessions created: {len(sessions)}")
 
 if __name__ == '__main__':
     create_test_users()

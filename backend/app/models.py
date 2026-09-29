@@ -97,6 +97,9 @@ class InterviewTurnRequest(BaseModel):
     audio_input_base64: Optional[str] = None
     text_input: Optional[str] = None
     message: Optional[str] = None
+    text: Optional[str] = None
+    speaker: Optional[str] = None
+    mode: Optional[str] = "standard"
     language: Optional[str] = "hi"
 
 class InterviewFieldUpdateRequest(BaseModel):

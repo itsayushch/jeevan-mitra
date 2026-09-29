@@ -27,7 +27,7 @@ REQUIRED_PROFILE_FIELDS = [
 
 def _check_ai_consent(conn, beneficiary_id: Optional[str], session_id: Optional[str]):
     latest_c = None
-    if beneficiary_id:
+    if beneficiary_id and beneficiary_id.startswith("ben_"):
         ben = conn.execute("SELECT id FROM beneficiaries WHERE id = ?;", (beneficiary_id,)).fetchone()
         if not ben:
             raise HTTPException(status_code=404, detail="Beneficiary not found")
@@ -56,8 +56,8 @@ def start_interview(data: InterviewStartRequest, actor: Actor = Depends(get_curr
     interview_id = f"int_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc).isoformat()
     lang = data.language or "hi"
-    target_ben_id = data.beneficiary_id or actor.beneficiary_id
     target_session_id = data.session_id or actor.session_id or interview_id
+    target_ben_id = data.beneficiary_id or actor.beneficiary_id
 
     with get_db() as conn:
         _check_ai_consent(conn, target_ben_id, target_session_id)
@@ -67,7 +67,7 @@ def start_interview(data: InterviewStartRequest, actor: Actor = Depends(get_curr
             INSERT INTO interview_sessions (
                 id, beneficiary_id, session_id, channel, status, current_question_index,
                 last_question, language, transcript_history, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, 'collecting', ?, ?, ?, ?, ?, ?);
+            ) VALUES (?, ?, ?, ?, 'in_progress', ?, ?, ?, ?, ?, ?);
         """, (
             interview_id, target_ben_id, target_session_id, data.channel or "web_app",
             first_turn["question_index"], first_turn["question"], lang,
@@ -113,17 +113,52 @@ def process_interview_turn(
 
         target_ben_id = sess["beneficiary_id"] or actor.beneficiary_id
         target_session_id = sess["session_id"] or actor.session_id
-        _check_ai_consent(conn, target_ben_id, target_session_id)
 
         current_idx = sess["current_question_index"]
         history = json.loads(sess["transcript_history"] or "[]")
         lang = data.language or sess["language"] or "hi"
 
-        user_text = data.message or data.text_input
+        user_text = data.message or data.text_input or getattr(data, "text", None)
         if not user_text and data.audio_input_base64:
             user_text = SpeechAdapter.transcribe(data.audio_input_base64, None, lang)
         if not user_text:
             user_text = "..."
+
+        # If guided fallback mode is explicitly requested, bypass AI consent check and AI extraction
+        if getattr(data, "mode", None) == "guided_fallback":
+            fallback_turn = DialogueManager.get_fallback_turn(current_idx + 1, language=lang)
+            user_turn_id = f"turn_{uuid.uuid4().hex[:10]}"
+            conn.execute("""
+                INSERT INTO interview_turns (id, interview_id, turn_index, speaker, text, mode, created_at)
+                VALUES (?, ?, ?, 'user', ?, 'guided_fallback', ?);
+            """, (user_turn_id, interview_id, current_idx + 1, user_text, now))
+
+            ai_turn_id = f"turn_{uuid.uuid4().hex[:10]}"
+            conn.execute("""
+                INSERT INTO interview_turns (id, interview_id, turn_index, speaker, text, mode, extracted_fields, created_at)
+                VALUES (?, ?, ?, 'ai', ?, 'guided_fallback', '{}', ?);
+            """, (ai_turn_id, interview_id, fallback_turn["question_index"], fallback_turn["question"], now))
+
+            history.append({"speaker": "user", "text": user_text})
+            history.append({"speaker": "ai", "text": fallback_turn["question"]})
+
+            conn.execute("""
+                UPDATE interview_sessions
+                SET current_question_index = ?, last_question = ?, transcript_history = ?, updated_at = ?
+                WHERE id = ?;
+            """, (fallback_turn["question_index"], fallback_turn["question"], json.dumps(history), now, interview_id))
+
+            return {
+                "interview_id": interview_id,
+                "question": fallback_turn["question"],
+                "question_index": fallback_turn["question_index"],
+                "mode": "guided_fallback",
+                "extracted_fields": {},
+                "is_final": fallback_turn.get("is_final", False),
+                "status": "collecting"
+            }
+
+        _check_ai_consent(conn, target_ben_id, target_session_id)
 
         # Record user turn in DB
         user_turn_id = f"turn_{uuid.uuid4().hex[:10]}"
@@ -149,6 +184,9 @@ def process_interview_turn(
             language=lang,
             clarification_prompt=clarification_needed
         )
+
+        if getattr(data, "mode", None) == "guided_fallback":
+            next_turn["mode"] = "guided_fallback"
 
         # Record AI turn in DB
         ai_turn_id = f"turn_{uuid.uuid4().hex[:10]}"

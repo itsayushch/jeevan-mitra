@@ -72,7 +72,15 @@ class RecommendationService:
         try:
             mobility_radius = float(mobility_raw)
         except Exception:
-            mobility_radius = 5.0
+            m_str = str(mobility_raw).lower()
+            if "local" in m_str:
+                mobility_radius = 10.0
+            elif "district" in m_str:
+                mobility_radius = 45.0
+            elif "state" in m_str:
+                mobility_radius = 250.0
+            else:
+                mobility_radius = 5.0
 
         work_pref = req.work_preference or confirmed_profile.get("self_employment_or_wage_preference") or confirmed_profile.get("work_preference") or "both"
         access_needs = str(confirmed_profile.get("access_needs", "none")).lower()
@@ -184,10 +192,10 @@ class RecommendationService:
             if best_opp and local_status == "verified_open":
                 dist_km = best_opp["distance_km"]
                 access_score = max(10.0, 25.0 - (dist_km * 2.0))
-                why_reasons.append(f"Active training verified within {dist_km:.1f} km at {best_opp.get('centre_or_employer_name')}")
+                why_reasons.append(f"Fits your mobility preference: verified training centre within {dist_km:.1f} km at {best_opp.get('centre_or_employer_name')}")
             else:
                 access_score = 5.0
-                why_reasons.append("National qualification pathway available (local batch verification pending)")
+                why_reasons.append("National qualification pathway available within your mobility preference (local batch verification pending)")
 
             # 4. Work preference fit (15 pts)
             if work_pref == "both" or qual_work_type == "both" or qual_work_type == work_pref:
@@ -255,6 +263,7 @@ class RecommendationService:
                 "count": 0,
                 "no_result_reason": "All available qualifications were excluded by constraints (education, mobility, or preferences).",
                 "counselor_referral_suggested": True,
+                "counselor_handoff_recommended": True,
                 "referral_reason": "no_verified_local_option",
                 "message": "We could not find an immediate local match for your exact constraints. We recommend requesting a human counselor referral for customized assistance."
             }
@@ -293,6 +302,7 @@ class RecommendationService:
                 "matched_skills": item["matched_skills"],
                 "skill_gaps": item["skill_gaps"],
                 "local_availability": item["local_availability"],
+                "ranking_factors": item["ranking_factors"],
                 "caveat": item["caveat"],
                 "score": item["score"]
             }
@@ -320,7 +330,8 @@ class RecommendationService:
         return {
             "count": len(saved_recs),
             "recommendations": saved_recs,
-            "counselor_referral_suggested": any(r["local_availability"]["status"] == "unknown" for r in saved_recs)
+            "counselor_referral_suggested": any(r["local_availability"]["status"] == "unknown" for r in saved_recs),
+            "counselor_handoff_recommended": any(r["local_availability"]["status"] == "unknown" for r in saved_recs)
         }
 
     @staticmethod

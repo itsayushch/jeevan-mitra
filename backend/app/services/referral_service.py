@@ -25,7 +25,7 @@ class ReferralService:
         target_interview_id = data.interview_id or actor.session_id
 
         # Mandatory Consent Check: Counselor referral consent is strictly required
-        verify_consent(conn, "counselor_referral", target_ben_id, target_interview_id)
+        verify_consent(conn, "counselor_referral", target_ben_id, actor.session_id or target_interview_id)
 
         if data.referral_reason not in ReferralService.ALLOWED_REASONS:
             raise ValidationException(f"Invalid referral reason '{data.referral_reason}'. Must be one of {ReferralService.ALLOWED_REASONS}")

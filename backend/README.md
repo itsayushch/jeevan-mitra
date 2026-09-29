@@ -297,3 +297,22 @@ uvicorn app.main:app --host 0.0.0.0 --port 4000 --reload
 - **Swagger UI:** [http://localhost:4000/docs](http://localhost:4000/docs)
 - **ReDoc:** [http://localhost:4000/redoc](http://localhost:4000/redoc)
 - **Health Check:** [http://localhost:4000/api/health](http://localhost:4000/api/health)
+
+# Setup
+
+## Related Documentation
+- [Frontend API Handoff Document](docs/FRONTEND_API_HANDOFF.md)
+- [Backend Release Checklist](docs/BACKEND_RELEASE_CHECKLIST.md)
+- [API Changelog](docs/API_CHANGELOG.md)
+
+### Installation and Execution
+```bash
+cd backend
+python -m venv .venv
+# On Windows:
+.venv\Scripts\activate
+# On macOS/Linux:
+# source .venv/bin/activate
+pip install -r requirements.txt
+python run.py
+```

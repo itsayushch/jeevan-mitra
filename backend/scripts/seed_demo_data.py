@@ -80,7 +80,9 @@ def seed_demo_data():
 
     conn.commit()
     conn.close()
-    print("Seed demo data inserted successfully.")
+    print("Seed complete:")
+    print(f"- Qualifications created: {len(quals)}")
+    print(f"- Opportunities created: {len(opps)}")
 
 if __name__ == '__main__':
     seed_demo_data()
