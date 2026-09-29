@@ -57,7 +57,7 @@ export function AskQuestionVoice({ language, interviewId, onReview }: Props) {
       if (result.next_question) {
           const idx = turns.length;
           setSpeakingIndex(idx);
-          speakText(result.next_question, hi ? 'hi' : 'en').finally(() => {
+          speakText(result.next_question, hi ? 'hi' : 'en', () => {
               if (mounted.current) setSpeakingIndex(null);
           });
       }
@@ -145,7 +145,7 @@ export function AskQuestionVoice({ language, interviewId, onReview }: Props) {
               <p>{turn.answer}</p>
               <button type="button" className="voice-replay" onClick={() => {
                   if (speakingIndex === index) { stopSpeaking(); setSpeakingIndex(null); }
-                  else { setSpeakingIndex(index); speakText(turn.answer, hi ? 'hi' : 'en').finally(() => { if (mounted.current) setSpeakingIndex(null); }); }
+                  else { setSpeakingIndex(index); speakText(turn.answer, hi ? 'hi' : 'en', () => { if (mounted.current) setSpeakingIndex(null); }); }
               }}><Volume2 size={16}/>{speakingIndex === index ? (hi ? 'ऑडियो रोकें' : 'Stop audio') : (hi ? 'जवाब सुनें' : 'Listen to answer')}</button>
             </div>
           </div>
