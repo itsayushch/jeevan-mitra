@@ -440,3 +440,19 @@ CREATE TABLE IF NOT EXISTS drift_advisories (
 );
 
 CREATE INDEX IF NOT EXISTS idx_drift_district ON drift_advisories(district);
+CREATE TABLE IF NOT EXISTS journeys (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  actor_id TEXT,
+  actor_role TEXT,
+  state TEXT CHECK(state IN ('created', 'awaiting_consent', 'collecting_profile', 'clarification_required', 'profile_review', 'ready_for_recommendations', 'recommendations_ready', 'referral_requested', 'completed', 'deleted')) NOT NULL DEFAULT 'created',
+  ai_processing_consent INTEGER NOT NULL DEFAULT 0,
+  storage_consent INTEGER NOT NULL DEFAULT 0,
+  referral_consent INTEGER NOT NULL DEFAULT 0,
+  profile_confirmed INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (session_id) REFERENCES interview_sessions(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_journeys_session ON journeys(session_id);
+CREATE INDEX IF NOT EXISTS idx_journeys_state ON journeys(state);

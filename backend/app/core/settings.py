@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
+    QUALIFICATION_REVIEW_DAYS: int = 180
+    OPPORTUNITY_REVIEW_DAYS: int = 30
 
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).resolve().parent.parent.parent / '.env'),

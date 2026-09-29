@@ -58,10 +58,19 @@ class EntityNotFoundException(AppError):
             details={"entity_type": entity_type, "entity_id": entity_id}
         )
 
+class NotFoundException(AppError):
+    def __init__(self, message: str = "Resource not found", details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="NOT_FOUND",
+            message=message,
+            details=details or {}
+        )
+
 class ValidationException(AppError):
     def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
         super().__init__(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=422,
             code="VALIDATION_ERROR",
             message=message,
             details=details or {}

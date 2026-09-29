@@ -124,36 +124,103 @@ The database runs on SQLite with Write-Ahead Logging (WAL) and foreign keys enab
 ## 5. Development & Testing Commands
 
 ### Prerequisites
-* Node.js v18+ (tested on Node.js v25)
-* npm v9+
+* Python 3.10+ (tested on Python 3.11.9)
 
 ### Quick Start
 ```bash
+# Create and activate virtual environment
+python -m venv .venv
+# On Windows: .venv\Scripts\activate
+# On macOS/Linux: source .venv/bin/activate
+
 # Install dependencies
-npm install
-
-# Build TypeScript to dist/
-npm run build
-
-# Seed database with realistic NQR catalog & Moradabad district batches
-npm run seed
+pip install -r requirements.txt
 
 # Start server
-npm start
+python run.py
 # Server starts on http://localhost:4000
 ```
 
 ### Running Test Suite
 ```bash
-npm test
+pytest tests/
 ```
-The test suite validates:
-* **State Machine Invariant:** Blocks AI layers from upgrading Interest Match to Verified Match.
-* **Grounded Matching:** Verifies deterministic hard education & physical filters and 5-factor scoring.
-* **Extraction Engine:** Validates confidence thresholds (<0.75 triggers read-back confirmation).
-* **Planning Loop:** Guarantees every number in narrative briefs matches raw SQL aggregation.
-* **Drift Detector:** Verifies gender skew and unconfirmed spike flagging.
-* **E2E REST API Integration:** Tests the complete beneficiary, worker, planning, and channel endpoints.
+### Plan A — Trust, Consent, and Recommendation Capabilities (`/api/v1/` & `/api/`)
+
+#### 1. Versioned Consent Enforcement (A1)
+* `POST /api/v1/consents` — Records versioned consent records under DPDP Act requirements (`ai_processing`, `profile_storage`, `counselor_referral`, `analytics`, `export_summary`).
+* `GET /api/v1/consents/{session_or_beneficiary_id}` — Lists all granted and revoked consents for an anonymous session or beneficiary.
+* `POST /api/v1/consents/{consent_id}/revoke` — Revokes consent, stopping protected operations immediately. Revocation triggers post-revocation cascade:
+  - `ai_processing`: future user messages fallback to guided questions.
+  - `profile_storage`: saved beneficiary details anonymized/deleted.
+  - `counselor_referral`: active open referral cases are paused/closed.
+
+#### 2. Anonymous Sessions & Beneficiary Lifecycle (A2)
+* `POST /api/v1/sessions` — Generates a signed, short-lived anonymous session token (24h TTL) allowing guest users to complete an interview and get recommendations without creating an account.
+* `GET /api/v1/beneficiaries/me` — Fetches current caller profile (works for anonymous session or authenticated beneficiary).
+* `PATCH /api/v1/beneficiaries/me` — Updates profile fields for the active caller.
+* `DELETE /api/v1/beneficiaries/me` — **DPDP Right to Erasure:** Permanently purges all interview turns, extracted profile fields, recommendations, referrals, and consents, logging only a minimal non-identifying audit event.
+* `POST /api/v1/beneficiaries/me/export-summary` — Generates a clean, privacy-safe printable summary.
+
+#### 3. Interview State Machine & Provenance Engine (A3)
+* **Lifecycle States:** `not_started` ➔ `collecting` ➔ `awaiting_confirmation` ➔ `ready_for_matching` ➔ `recommendations_generated` ➔ `referred` ➔ `completed`.
+* **Field Provenance:** Every collected field stores `value`, `source` (`user`, `ai_inferred`, `counselor`, `system`), `confidence`, `user_confirmed` boolean, and version history.
+* **Confirmation Rule:** Deterministic matching will **only** execute hard constraints against `user_confirmed` fields.
+* `POST /api/v1/interviews/start` — Starts stateful interview under active session.
+* `POST /api/v1/interviews/{interview_id}/turns` — Submits interview turns with multi-field extraction and low-confidence clarification detection.
+* `GET /api/v1/interviews/{interview_id}` — Returns transcript history, turns, and field provenance state.
+* `POST /api/v1/interviews/{interview_id}/confirm-profile` — Locks confirmed profile values and transitions state to `ready_for_matching`.
+* `PATCH /api/v1/interviews/{interview_id}/fields/{field_name}` — Allows individual field corrections with version tracking.
+* `POST /api/v1/interviews/{interview_id}/complete` — Marks interview completed.
+* `POST /api/v1/interviews/{interview_id}/summary` — Exports printable summary.
+
+#### 4. Verified Catalog & Opportunity Separation (A4)
+* **Separation of Concerns:** Official NQR Qualifications (curriculum, NSQF level, eligibility) are separated from Local Opportunities (active batches, centres, seats, dates).
+* **Stale-Data Rule:** If an opportunity's `last_verified_at` exceeds 90 days, its availability is automatically reported as `unknown` or `expired`.
+* `GET /api/v1/catalogue/qualifications` — Public verified qualification pathways.
+* `GET /api/v1/catalogue/qualifications/{qualification_id}` — Detail view with active verified batches.
+* `GET /api/v1/catalogue/opportunities?district=...` — Lists verified local opportunities.
+* `POST /api/v1/admin/catalogue/qualifications` — Admin endpoint to register official NQR qualifications.
+* `PATCH /api/v1/admin/catalogue/qualifications/{id}` — Admin update of qualification metadata.
+* `POST /api/v1/admin/catalogue/opportunities` — Admin/Worker registration of local batches.
+* `PATCH /api/v1/admin/catalogue/opportunities/{id}` — Admin/Worker batch update.
+* `POST /api/v1/admin/catalogue/opportunities/{id}/archive` — Archives an opportunity rather than deleting it.
+
+#### 5. Deterministic Recommendations & Explainability (A5)
+* **Matching Pipeline:** `Confirmed Profile` ➔ `Hard Constraints Filter` ➔ `5-Factor Weighted Score` ➔ `Local Opportunity Enrichment` ➔ `Explanation Generator`.
+* **Zero Hallucination Guarantee:** If no verified local batch exists, the qualification pathway is returned with `local_availability.status = "unknown"`, an admission caveat, and a counselor referral recommendation.
+* `POST /api/v1/recommendations/generate` — Computes deterministic recommendations based on confirmed profile.
+* `GET /api/v1/recommendations/{recommendation_id}` — Retrieves recommendation record with audit snapshot.
+* `GET /api/v1/interviews/{interview_id}/recommendations` — Lists recommendations for an interview.
+
+#### 6. Counselor Referral & Human Handoff Workflow (A7)
+* **Referral Lifecycle:** `new` ➔ `assigned` ➔ `contacted` ➔ `in_progress` ➔ `resolved` ➔ `closed`.
+* `POST /api/v1/referrals` — Submits referral case (requires `counselor_referral` consent).
+* `GET /api/v1/referrals/me` — Beneficiary view of active referral cases.
+* `GET /api/v1/counselor/referrals` — Counselor queue (restricted to counselors and administrators).
+* `PATCH /api/v1/counselor/referrals/{id}/assign` — Assigns counselor to case.
+* `PATCH /api/v1/counselor/referrals/{id}/status` — Counselor updates case status.
+* `POST /api/v1/counselor/referrals/{id}/notes` — Adds case progression notes.
+
+---
+
+## 5. Automated Test Suite
+
+Run the full automated test suite using `pytest`:
+```bash
+cd backend
+python -m pytest tests/ -v
+```
+
+The test suite covers:
+* `test_consents.py`: Versioned consent enforcement, missing consent denial, revocation cascade, and counselor referral consent.
+* `test_interviews.py`: Anonymous session start, multi-turn interview, field extraction, unconfirmed vs user-confirmed state, and profile editing.
+* `test_catalogue.py`: Qualification and opportunity separation, entry validation, 90-day staleness rule, and archiving.
+* `test_recommendations.py`: Hard constraint filtering (education rank, wheelchair/accessibility, wage preference), no-hallucination guarantees, and no-result counselor handoff.
+* `test_referrals.py`: Human handoff workflow, role-based authorization, assignment, status transitions, and notes.
+* `test_profile_deletion.py`: DPDP full profile erasure, cascading purges, and immutable non-identifying audit event recording.
+* `test_ai_fallback.py`: Safe AI extraction validation, bounds checking, and guided fallback mode when AI is unavailable.
+* `test_api_integration.py`: End-to-end integration across all routers and state invariants.
 
 ---
 
