@@ -1,78 +1,30 @@
 # ==============================================================================
-# JEEVAN-MITRA 2.0 - PRODUCTION MULTI-STAGE DOCKERFILE
-# Optimized for Microsoft Azure (Container Apps, App Service, AKS)
+# JEEVAN-MITRA 2.0 - PYTHON FASTAPI DOCKERFILE
 # ==============================================================================
-
-# ------------------------------------------------------------------------------
-# Stage 1: Build Stage
-# ------------------------------------------------------------------------------
-FROM node:22-bookworm-slim AS builder
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Install native compilation dependencies for better-sqlite3
+# Install native compilation dependencies
 RUN apt-get update && apt-get install -y \
-    python3 \
-    make \
-    g++ \
-    --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy package manifests first to leverage Docker layer caching
-COPY package.json package-lock.json* ./
-COPY prisma/ ./prisma/
-
-# Install dependencies including devDependencies for build
-RUN npm install && npx prisma generate
-
-# Copy source code and TypeScript config
-COPY tsconfig.json ./
-COPY src/ ./src/
-
-# Compile TypeScript to dist/ and copy schema.sql
-RUN npm run build
-
-# ------------------------------------------------------------------------------
-# Stage 2: Production Runtime Stage
-# ------------------------------------------------------------------------------
-FROM node:22-bookworm-slim AS runner
-
-WORKDIR /app
-
-# Install curl for healthcheck
-RUN apt-get update && apt-get install -y \
+    build-essential \
     curl \
-    python3 \
-    make \
-    g++ \
-    --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy package manifests
-COPY package.json package-lock.json* ./
+# Copy requirements
+COPY requirements.txt ./
 
-# Install only production dependencies
-RUN npm install --omit=dev && \
-    apt-get purge -y python3 make g++ && \
-    apt-get autoremove -y && \
-    rm -rf /var/lib/apt/lists/*
+# Install python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy compiled artifacts from builder stage
-COPY --from=builder /app/dist ./dist
+# Copy source code
+COPY app/ ./app/
+COPY run.py ./
 
-# Copy SQL schema into both dist and src fallback locations
-COPY src/database/schema.sql ./dist/database/schema.sql
-COPY src/database/schema.sql ./src/database/schema.sql
+# Create persistent data directory and assign ownership
+RUN mkdir -p /app/data && groupadd -r jeevanmitra && useradd -r -g jeevanmitra jeevanmitra && chown -R jeevanmitra:jeevanmitra /app
 
-# Copy entrypoint script
-COPY docker-entrypoint.sh ./docker-entrypoint.sh
-RUN chmod +x ./docker-entrypoint.sh
-
-# Create persistent data directory and assign ownership to node user
-RUN mkdir -p /app/data && chown -R node:node /app
-
-# Azure enterprise security compliance: Run as non-root user
-USER node
+USER jeevanmitra
 
 # Production Environment Variables
 ENV NODE_ENV=production \
@@ -82,14 +34,13 @@ ENV NODE_ENV=production \
     DEFAULT_DISTRICT=Moradabad \
     DEFAULT_STATE="Uttar Pradesh" \
     AI_PROVIDER=mock \
-    CONFIDENCE_THRESHOLD=0.75
+    CONFIDENCE_THRESHOLD=0.75 \
+    API_PREFIX=/api/v1 \
+    PYTHONPATH=/app
 
-# Expose HTTP port (Azure App Service / Container Apps standard)
 EXPOSE 4000
 
-# Azure Health Probe & Container Healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:4000/api/health || exit 1
+  CMD curl -f http://localhost:4000/api/v1/health || exit 1
 
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
-CMD ["node", "dist/index.js"]
+CMD ["python", "run.py"]

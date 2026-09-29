@@ -4,25 +4,19 @@ import uuid
 import json
 from fastapi import APIRouter, Depends, Header, HTTPException
 from app.database import get_db
-from app.config import settings
+from app.core.settings import settings
 from app.models import ProfileCorrectionRequest, BatchVerificationRequest, ApproveReferralRequest
 from app.ai_layers.layer3_matching.state_machine import MatchStateMachine
+from app.dependencies.auth import require_admin_or_worker, Actor
 
-def require_worker_auth(x_worker_api_key: str | None = Header(default=None)):
-    if not settings.WORKER_API_KEY or not settings.WORKER_ID or not settings.WORKER_NAME:
-        raise HTTPException(status_code=503, detail="Field-worker authentication is not configured")
-    if not x_worker_api_key or not secrets.compare_digest(x_worker_api_key, settings.WORKER_API_KEY):
-        raise HTTPException(status_code=401, detail="Invalid field-worker credentials")
-    return {"id": settings.WORKER_ID, "name": settings.WORKER_NAME}
-
-def _record_worker_audit(conn, worker, action, entity_type, entity_id, old_values=None, new_values=None, metadata=None):
+def _record_worker_audit(conn, worker: Actor, action, entity_type, entity_id, old_values=None, new_values=None, metadata=None):
     conn.execute("""
         INSERT INTO audit_events (
             id, actor_id, actor_name, actor_role, action, entity_type,
             entity_id, old_values, new_values, metadata, timestamp
         ) VALUES (?, ?, ?, 'field_worker', ?, ?, ?, ?, ?, ?, ?);
     """, (
-        f"aud_{uuid.uuid4().hex[:8]}", worker["id"], worker["name"], action,
+        f"aud_{uuid.uuid4().hex[:8]}", worker.actor_id, worker.actor_role, action,
         entity_type, entity_id,
         json.dumps(old_values) if old_values is not None else None,
         json.dumps(new_values) if new_values is not None else None,
@@ -33,7 +27,7 @@ def _record_worker_audit(conn, worker, action, entity_type, entity_id, old_value
 router = APIRouter(
     prefix="/worker",
     tags=["Field-Worker"],
-    dependencies=[Depends(require_worker_auth)]
+    dependencies=[Depends(require_admin_or_worker)]
 )
 
 @router.get("/cases")
@@ -84,7 +78,7 @@ def get_case_detail(beneficiary_id: str):
 def correct_profile(
     beneficiary_id: str,
     req: ProfileCorrectionRequest,
-    worker: dict = Depends(require_worker_auth)
+    worker: Actor = Depends(require_admin_or_worker)
 ):
     now = datetime.now(timezone.utc).isoformat()
     with get_db() as conn:
@@ -110,7 +104,7 @@ def correct_profile(
 def verify_opportunity(
     opportunity_id: str,
     req: BatchVerificationRequest,
-    worker: dict = Depends(require_worker_auth)
+    worker: Actor = Depends(require_admin_or_worker)
 ):
     now = datetime.now(timezone.utc)
     today = now.date().isoformat()
@@ -141,7 +135,7 @@ def verify_opportunity(
             and req.available_seats > 0
             and opportunity["batch_end_date"] >= today
         )
-        verified_by = worker["id"] if is_verified else None
+        verified_by = worker.actor_id if is_verified else None
         conn.execute("""
             UPDATE local_opportunities
             SET available_seats = ?, batch_status = ?, verified_by_worker_id = ?, verified_at = ?
@@ -195,7 +189,7 @@ def verify_opportunity(
 def approve_referral(
     beneficiary_id: str,
     req: ApproveReferralRequest,
-    worker: dict = Depends(require_worker_auth)
+    worker: Actor = Depends(require_admin_or_worker)
 ):
     now = datetime.now(timezone.utc)
     today = now.date().isoformat()
@@ -256,7 +250,7 @@ def approve_referral(
             ) VALUES (?, ?, ?, ?, ?, 'documents_verified', ?, 1, 1, 1, 0, 0, ?, ?, ?);
         """, (
             ref_id, beneficiary_id, req.recommendation_id, req.local_opportunity_id,
-            worker["id"], req.notes, next_follow_up, now.isoformat(), now.isoformat()
+            worker.actor_id, req.notes, next_follow_up, now.isoformat(), now.isoformat()
         ))
         _record_worker_audit(
             conn, worker, "referral_created", "referrals", ref_id,
