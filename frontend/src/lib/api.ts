@@ -183,6 +183,7 @@ export interface PlanningBrief {
 class ApiService {
   private sessionToken: string | null = null;
   private sessionId: string | null = null;
+  private jwtToken: string | null = null;
   private officerKey: string | null = null;
   private workerKey: string | null = null;
 
@@ -190,8 +191,28 @@ class ApiService {
     if (typeof window !== 'undefined') {
       this.sessionToken = window.sessionStorage.getItem('jm_session_token');
       this.sessionId = window.sessionStorage.getItem('jm_session_id');
+      this.jwtToken = window.sessionStorage.getItem('jm_jwt_token');
       this.officerKey = window.sessionStorage.getItem('jm_officer_key');
       this.workerKey = window.sessionStorage.getItem('jm_worker_key') || 'test-worker-key';
+    }
+  }
+
+  public async login(username: string, password: string = 'password123'): Promise<any> {
+    const res = await fetch(`${API_BASE}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    if (!res.ok) throw new Error('Login failed');
+    const data = await res.json();
+    this.setJwtToken(data.access_token);
+    return data;
+  }
+
+  public setJwtToken(token: string) {
+    this.jwtToken = token;
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('jm_jwt_token', token);
     }
   }
 
@@ -199,6 +220,9 @@ class ApiService {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
+    if (this.jwtToken) {
+      headers['Authorization'] = `Bearer ${this.jwtToken}`;
+    }
     if (this.sessionToken) {
       headers['X-Session-Token'] = this.sessionToken;
     }
@@ -206,6 +230,7 @@ class ApiService {
   }
 
   private getOfficerHeaders(): Record<string, string> {
+    if (this.jwtToken) return this.getHeaders();
     return {
       'Content-Type': 'application/json',
       'X-Officer-API-Key': this.officerKey || '',
@@ -213,6 +238,7 @@ class ApiService {
   }
 
   private getWorkerHeaders(): Record<string, string> {
+    if (this.jwtToken) return this.getHeaders();
     return {
       'Content-Type': 'application/json',
       'X-Worker-API-Key': this.workerKey || '',
