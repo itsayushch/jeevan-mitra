@@ -13,12 +13,18 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements
 COPY requirements.txt ./
+COPY ml_model/requirements-inference.txt ./ml_model/requirements-inference.txt
+ARG INSTALL_ML=false
 
 # Install python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+RUN if [ "$INSTALL_ML" = "true" ]; then pip install --no-cache-dir -r ml_model/requirements-inference.txt; fi
 
 # Copy source code
 COPY app/ ./app/
+COPY ml_model/__init__.py ./ml_model/
+COPY ml_model/src/ ./ml_model/src/
+COPY ml_model/models/ ./ml_model/models/
 COPY run.py ./
 
 # Create persistent data directory and assign ownership
