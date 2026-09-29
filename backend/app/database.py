@@ -40,10 +40,15 @@ class PostgresWrapper:
         
     def executescript(self, sql_script):
         cursor = self.conn.cursor()
+        
+        # Remove SQL comments before splitting
+        import re
+        sql_script = re.sub(r'--.*', '', sql_script)
+        
         statements = sql_script.split(";")
         for stmt in statements:
             stmt = stmt.strip()
-            if not stmt or stmt.startswith("PRAGMA") or stmt.startswith("--"):
+            if not stmt or stmt.startswith("PRAGMA"):
                 continue
             cursor.execute(stmt)
         return cursor
@@ -185,14 +190,14 @@ def init_database():
     schema_path = next((p for p in schema_paths if p.exists()), None)
 
     with get_db() as conn:
-        run_migrations(conn)
         if schema_path and schema_path.exists():
             with open(schema_path, "r", encoding="utf-8") as f:
                 schema_sql = f.read()
             conn.executescript(schema_sql)
-            run_migrations(conn)
         else:
             logger.warning("schema.sql not found, skipping migration execution")
+
+        run_migrations(conn)
 
         # Check if already seeded
         cursor = conn.execute("SELECT count(*) as count FROM qualifications;")
