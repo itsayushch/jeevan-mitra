@@ -1,6 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from app.ai_layers.layer6_monitoring.drift_detector import DriftDetector
 from app.ai_layers.layer6_monitoring.advisory_queue import AdvisoryQueue
+from app.dependencies.auth import Actor, require_admin_or_worker
 
 router = APIRouter(prefix="/monitoring", tags=["Monitoring"])
 
@@ -21,9 +22,9 @@ def get_advisories(district: str = "Moradabad"):
 from app.services.system_status_service import SystemStatusService
 
 @router.get("/admin/system/status")
-def get_admin_system_status():
+def get_admin_system_status(actor: Actor = Depends(require_admin_or_worker)):
     return SystemStatusService.get_system_status()
 
 @router.get("/admin/system/quality-summary")
-def get_admin_quality_summary():
+def get_admin_quality_summary(actor: Actor = Depends(require_admin_or_worker)):
     return SystemStatusService.get_quality_summary()

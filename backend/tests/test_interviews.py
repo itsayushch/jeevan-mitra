@@ -24,18 +24,19 @@ def test_interview_lifecycle_and_provenance(client):
     sess_res = client.post("/api/v1/sessions")
     assert sess_res.status_code == 201
     session_id = sess_res.json()["session_id"]
+    session_headers = {"X-Session-Token": sess_res.json()["session_token"]}
 
     client.post("/api/v1/consents", json={
         "session_id": session_id,
         "consent_type": "ai_processing",
         "granted": True
-    })
+    }, headers=session_headers)
 
     # 2. Start interview
     start_res = client.post("/api/v1/interviews/start", json={
         "session_id": session_id,
         "language": "hi"
-    })
+    }, headers=session_headers)
     assert start_res.status_code == 201
     start_data = start_res.json()
     interview_id = start_data["interview_id"]
@@ -44,13 +45,13 @@ def test_interview_lifecycle_and_provenance(client):
     # 3. User message extracting multiple fields (education + interest + mobility)
     turn_res = client.post(f"/api/v1/interviews/{interview_id}/turns", json={
         "message": "मैंने 10वीं पास की है और मुझे सोलर व बिजली रिपेयर में रुचि है। मैं 3 किमी तक जा सकता हूँ।"
-    }, headers={"X-Session-ID": session_id})
+    }, headers=session_headers)
     assert turn_res.status_code == 200
     turn_data = turn_res.json()
     assert turn_data["status"] == "collecting"
 
     # 4. Verify AI-inferred fields exist but are unconfirmed
-    int_detail = client.get(f"/api/v1/interviews/{interview_id}", headers={"X-Session-ID": session_id})
+    int_detail = client.get(f"/api/v1/interviews/{interview_id}", headers=session_headers)
     assert int_detail.status_code == 200
     fields = int_detail.json()["fields"]
     assert "education" in fields
@@ -67,12 +68,12 @@ def test_interview_lifecycle_and_provenance(client):
             "district": "Moradabad",
             "block": "Chhajlet"
         }
-    }, headers={"X-Session-ID": session_id})
+    }, headers=session_headers)
     assert confirm_res.status_code == 200
     assert confirm_res.json()["status"] == "ready_for_matching"
 
     # 6. Verify confirmed fields updated to user-confirmed
-    int_after = client.get(f"/api/v1/interviews/{interview_id}", headers={"X-Session-ID": session_id})
+    int_after = client.get(f"/api/v1/interviews/{interview_id}", headers=session_headers)
     confirmed_fields = int_after.json()["fields"]
     assert confirmed_fields["education"]["user_confirmed"] is True
     assert confirmed_fields["education"]["source"] == "user"
@@ -81,12 +82,12 @@ def test_interview_lifecycle_and_provenance(client):
     patch_res = client.patch(
         f"/api/v1/interviews/{interview_id}/fields/mobility",
         json={"value": 10.0, "source": "user"},
-        headers={"X-Session-ID": session_id}
+        headers=session_headers
     )
     assert patch_res.status_code == 200
     assert patch_res.json()["new_value"] == 10.0
 
     # 8. Resume incomplete interview check
-    resume_get = client.get(f"/api/v1/interviews/{interview_id}", headers={"X-Session-ID": session_id})
+    resume_get = client.get(f"/api/v1/interviews/{interview_id}", headers=session_headers)
     assert resume_get.status_code == 200
     assert resume_get.json()["fields"]["mobility"]["value"] == 10.0

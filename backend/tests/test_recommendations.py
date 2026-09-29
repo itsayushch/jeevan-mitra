@@ -23,14 +23,15 @@ def test_hard_filters_enforce_education_and_accessibility(client):
     # Setup interview with confirmed Class 5 education and limited mobility (wheelchair)
     sess_res = client.post("/api/v1/sessions")
     session_id = sess_res.json()["session_id"]
+    session_headers = {"X-Session-Token": sess_res.json()["session_token"]}
 
     client.post("/api/v1/consents", json={
         "session_id": session_id,
         "consent_type": "ai_processing",
         "granted": True
-    })
+    }, headers=session_headers)
 
-    start_res = client.post("/api/v1/interviews/start", json={"session_id": session_id})
+    start_res = client.post("/api/v1/interviews/start", json={"session_id": session_id}, headers=session_headers)
     interview_id = start_res.json()["interview_id"]
 
     # Confirm profile with Class 5 education
@@ -43,12 +44,12 @@ def test_hard_filters_enforce_education_and_accessibility(client):
             "district": "Moradabad",
             "block": "Chhajlet"
         }
-    }, headers={"X-Session-ID": session_id})
+    }, headers=session_headers)
 
     # Generate recommendations
     gen_res = client.post("/api/v1/recommendations/generate", json={
         "interview_id": interview_id
-    }, headers={"X-Session-ID": session_id})
+    }, headers=session_headers)
     assert gen_res.status_code == 200
     data = gen_res.json()
     recs = data["recommendations"]
@@ -60,9 +61,10 @@ def test_hard_filters_enforce_education_and_accessibility(client):
 def test_work_preference_filtering(client):
     sess_res = client.post("/api/v1/sessions")
     session_id = sess_res.json()["session_id"]
-    client.post("/api/v1/consents", json={"session_id": session_id, "consent_type": "ai_processing", "granted": True})
+    session_headers = {"X-Session-Token": sess_res.json()["session_token"]}
+    client.post("/api/v1/consents", json={"session_id": session_id, "consent_type": "ai_processing", "granted": True}, headers=session_headers)
 
-    start_res = client.post("/api/v1/interviews/start", json={"session_id": session_id})
+    start_res = client.post("/api/v1/interviews/start", json={"session_id": session_id}, headers=session_headers)
     interview_id = start_res.json()["interview_id"]
 
     # User confirms wage-only preference
@@ -74,11 +76,11 @@ def test_work_preference_filtering(client):
             "district": "Moradabad",
             "block": "Chhajlet"
         }
-    }, headers={"X-Session-ID": session_id})
+    }, headers=session_headers)
 
     gen_res = client.post("/api/v1/recommendations/generate", json={
         "interview_id": interview_id
-    }, headers={"X-Session-ID": session_id})
+    }, headers=session_headers)
     assert gen_res.status_code == 200
     recs = gen_res.json()["recommendations"]
 
@@ -89,9 +91,10 @@ def test_work_preference_filtering(client):
 def test_no_local_option_returns_status_unknown_without_hallucination(client):
     sess_res = client.post("/api/v1/sessions")
     session_id = sess_res.json()["session_id"]
-    client.post("/api/v1/consents", json={"session_id": session_id, "consent_type": "ai_processing", "granted": True})
+    session_headers = {"X-Session-Token": sess_res.json()["session_token"]}
+    client.post("/api/v1/consents", json={"session_id": session_id, "consent_type": "ai_processing", "granted": True}, headers=session_headers)
 
-    start_res = client.post("/api/v1/interviews/start", json={"session_id": session_id})
+    start_res = client.post("/api/v1/interviews/start", json={"session_id": session_id}, headers=session_headers)
     interview_id = start_res.json()["interview_id"]
 
     # District with no verified opportunities (e.g., Lucknow)
@@ -102,12 +105,12 @@ def test_no_local_option_returns_status_unknown_without_hallucination(client):
             "district": "Lucknow",
             "block": "Bakshi Ka Talab"
         }
-    }, headers={"X-Session-ID": session_id})
+    }, headers=session_headers)
 
     gen_res = client.post("/api/v1/recommendations/generate", json={
         "interview_id": interview_id,
         "district": "Lucknow"
-    }, headers={"X-Session-ID": session_id})
+    }, headers=session_headers)
     assert gen_res.status_code == 200
     data = gen_res.json()
     recs = data["recommendations"]

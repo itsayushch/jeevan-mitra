@@ -3,13 +3,17 @@ import pytest
 from fastapi.testclient import TestClient
 from datetime import datetime, timezone, timedelta
 import json
+from app.config import settings
 from app.main import app
 from app.database import get_db, init_database
 
 @pytest.fixture(autouse=True)
 def setup_test_db():
+    original_admin_key = settings.ADMIN_API_KEY
+    settings.ADMIN_API_KEY = "admin-key-01"
     init_database()
     yield
+    settings.ADMIN_API_KEY = original_admin_key
 
 client = TestClient(app)
 
