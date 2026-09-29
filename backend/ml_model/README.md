@@ -1,6 +1,12 @@
 # PM-AJAY / JeevanMitra 2.0 — NSQ Course Recommendation System
 
 ## 1. Overview
+Backend integration and optional model activation are documented in
+[`docs/branch-integration.md`](../../docs/branch-integration.md). Run this package
+from `backend/` with `python -m ml_model.main --step predict`, or use
+`python main.py --step predict` from this directory. Live matching supplies its
+own verified catalogue; the CSV catalogue below is synthetic research data.
+
 This project implements the PM-AJAY / JeevanMitra 2.0 NSQ Course Recommendation ML Pipeline. It matches beneficiaries with NSQF-aligned training courses using pointwise learning-to-rank, considering profile characteristics, course requirements, and historical interactions.
 
 ## 2. ⚠️ Disclaimer

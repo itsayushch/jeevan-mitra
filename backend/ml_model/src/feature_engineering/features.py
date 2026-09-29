@@ -2,6 +2,15 @@ import os
 import numpy as np
 import pandas as pd
 import math
+from ml_model.src.ranking.eligibility import normalize_education
+
+
+def _skill_value(value):
+    try:
+        number = float(value)
+        return number / 10.0 if math.isfinite(number) else 0.0
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def compute_pair_features(beneficiary_row, course_row) -> dict:
@@ -13,11 +22,11 @@ def compute_pair_features(beneficiary_row, course_row) -> dict:
     # ==========================================================
 
     b_skills = {
-        'digital': float(beneficiary_row.get('digital_literacy', 0) or 0) / 10.0,
-        'communication': float(beneficiary_row.get('communication_skill', 0) or 0) / 10.0,
-        'numerical': float(beneficiary_row.get('numerical_skill', 0) or 0) / 10.0,
-        'technical': float(beneficiary_row.get('technical_skill', 0) or 0) / 10.0,
-        'entrepreneurial': float(beneficiary_row.get('entrepreneurial_skill', 0) or 0) / 10.0
+        'digital': _skill_value(beneficiary_row.get('digital_literacy')),
+        'communication': _skill_value(beneficiary_row.get('communication_skill')),
+        'numerical': _skill_value(beneficiary_row.get('numerical_skill')),
+        'technical': _skill_value(beneficiary_row.get('technical_skill')),
+        'entrepreneurial': _skill_value(beneficiary_row.get('entrepreneurial_skill'))
     }
 
     sector = str(course_row.get('sector', '')).strip()
@@ -131,13 +140,13 @@ def compute_pair_features(beneficiary_row, course_row) -> dict:
         beneficiary_row.get('education_level', 'Middle')
     ).strip()
 
-    b_edu_val = edu_map.get(b_edu, 2)
+    b_edu_val = edu_map.get(normalize_education(b_edu), 0)
 
     c_edu = str(
         course_row.get('minimum_education', 'No_Formal')
     ).strip()
 
-    c_edu_val = edu_map.get(c_edu, 0)
+    c_edu_val = edu_map.get(normalize_education(c_edu), 0)
 
     features['education_eligibility'] = (
         1 if b_edu_val >= c_edu_val else 0

@@ -1,6 +1,6 @@
 import pandas as pd
-from src.ranking.eligibility import filter_eligible_courses
-from src.feature_engineering.features import compute_pair_features
+from ml_model.src.ranking.eligibility import filter_eligible_courses
+from ml_model.src.feature_engineering.features import compute_pair_features
 
 def content_based_recommend(beneficiary: dict, courses_df: pd.DataFrame, top_k: int = 5) -> list:
     """

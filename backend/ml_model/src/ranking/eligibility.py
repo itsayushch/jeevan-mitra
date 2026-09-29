@@ -21,6 +21,16 @@ SKILL_ORDINAL = {
     'Expert': 3
 }
 
+def normalize_education(value):
+    aliases = {
+        'no formal education': 'No_Formal', 'class 5': 'Primary',
+        'class 8': 'Middle', 'class 10': 'Secondary', 'class 12': 'Senior_Secondary',
+        'iti / diploma': 'Senior_Secondary', 'post graduate': 'Post_Graduate',
+    }
+    value = str(value).strip()
+    return aliases.get(value.lower(), next(
+        (level for level in EDUCATION_ORDINAL if level.lower() == value.lower()), 'Unknown'))
+
 def filter_eligible_courses(beneficiary: dict, courses_df: pd.DataFrame) -> pd.DataFrame:
     """
     Apply hard eligibility constraints to filter courses a beneficiary can actually join.
@@ -43,12 +53,12 @@ def filter_eligible_courses(beneficiary: dict, courses_df: pd.DataFrame) -> pd.D
         ]
         
     # 2. Education Filter
-    ben_edu = beneficiary.get('education_level', 'Unknown')
+    ben_edu = normalize_education(beneficiary.get('education_level', 'Unknown'))
     ben_edu_val = EDUCATION_ORDINAL.get(ben_edu, -1)
     
     if ben_edu_val != -1:
         # map course min education
-        course_edu_vals = filtered_df['minimum_education'].map(EDUCATION_ORDINAL).fillna(-1)
+        course_edu_vals = filtered_df['minimum_education'].map(normalize_education).map(EDUCATION_ORDINAL).fillna(-1)
         # Keep courses where required education is <= beneficiary's education, or required is unknown
         filtered_df = filtered_df[(course_edu_vals <= ben_edu_val) | (course_edu_vals == -1)]
 

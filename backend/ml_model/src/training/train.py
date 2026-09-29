@@ -77,26 +77,7 @@ BINARY_FEATURES = [
     'language_match', 'age_eligibility', 'training_mode_match'
 ]
 
-class FrequencyEncoder(BaseEstimator, TransformerMixin):
-    def __init__(self):
-        pass
-        
-    def fit(self, X, y=None):
-        X = pd.DataFrame(X)
-        self.mapping_ = {}
-        for col in X.columns:
-            freq = X[col].value_counts(normalize=True).to_dict()
-            self.mapping_[col] = freq
-        return self
-        
-    def transform(self, X):
-        X = pd.DataFrame(X).copy()
-        for col in X.columns:
-            if hasattr(self, 'mapping_') and col in self.mapping_:
-                X[col] = X[col].map(self.mapping_[col]).fillna(0)
-            else:
-                X[col] = 0
-        return X.values
+from ml_model.src.feature_engineering.encoders import FrequencyEncoder
 
 def compute_ranking_metrics(y_true, y_scores, beneficiary_ids, course_ids, k_values=[3, 5, 10]):
     """Compute ranking metrics per beneficiary, then average."""

@@ -2,6 +2,8 @@ import os
 import pandas as pd
 import numpy as np
 import joblib
+from joblib.numpy_pickle import NumpyUnpickler
+from ml_model.src.feature_engineering.encoders import FrequencyEncoder
 from functools import lru_cache
 try:
     import shap
@@ -9,14 +11,24 @@ try:
 except ImportError:
     HAS_SHAP = False
 
-from src.ranking.eligibility import filter_eligible_courses
-from src.feature_engineering.features import compute_pair_features
+from ml_model.src.ranking.eligibility import filter_eligible_courses
+from ml_model.src.feature_engineering.features import compute_pair_features
 
 @lru_cache(maxsize=1)
 def load_model(model_path: str):
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model file not found: {model_path}")
-    return joblib.load(model_path)
+    # The contributed artifact refers to its old standalone training module.
+    # Remap only that transformer without importing plotting/training libraries
+    # or registering a global 'src' package that collides with backend code.
+    class PortableUnpickler(NumpyUnpickler):
+        def find_class(self, module, name):
+            if module in ('src.training.train', '__main__') and name == 'FrequencyEncoder':
+                return FrequencyEncoder
+            return super().find_class(module, name)
+
+    with open(model_path, 'rb') as handle:
+        return PortableUnpickler(model_path, handle, ensure_native_byte_order=True).load()
 
 def get_shap_explanations(model, preprocessor, feature_df, top_n_features=5):
     """Get SHAP values for the top features driving the prediction."""

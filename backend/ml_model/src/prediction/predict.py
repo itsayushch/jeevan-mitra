@@ -2,10 +2,11 @@ import os
 import json
 import numpy as np
 import pandas as pd
-from src.ranking.ranker import rank_courses
-from src.ranking.fallback import content_based_recommend
+from ml_model.src.ranking.ranker import rank_courses
+from ml_model.src.ranking.fallback import content_based_recommend
 
-def predict(beneficiary_profile: dict, top_k: int = 5, use_fallback: bool = False) -> dict:
+def predict(beneficiary_profile: dict, top_k: int = 5, use_fallback: bool = False,
+            courses_df: pd.DataFrame = None) -> dict:
     """
     Main inference function.
     
@@ -18,10 +19,15 @@ def predict(beneficiary_profile: dict, top_k: int = 5, use_fallback: bool = Fals
     model_path = os.path.join(project_root, 'models', 'best_model.pkl')
     courses_path = os.path.join(project_root, 'data', 'reference', 'courses.csv')
     
-    try:
-        courses_df = pd.read_csv(courses_path)
-    except FileNotFoundError:
-        courses_df = pd.DataFrame()
+    if top_k < 1:
+        raise ValueError('top_k must be positive')
+    # Only CLI/demo callers use synthetic CSVs. Live callers supply their
+    # already-eligible, verified catalogue rows explicitly.
+    if courses_df is None:
+        try:
+            courses_df = pd.read_csv(courses_path)
+        except FileNotFoundError:
+            courses_df = pd.DataFrame()
         
     ben_id = beneficiary_profile.get('beneficiary_id', 'UNKNOWN_BEN')
     
@@ -44,6 +50,9 @@ def predict(beneficiary_profile: dict, top_k: int = 5, use_fallback: bool = Fals
     }
     full_profile.update(beneficiary_profile)
     
+    if courses_df.empty:
+        return {'beneficiary_id': ben_id, 'method': 'no_candidates',
+                'top_k': top_k, 'recommendations': []}
     if use_fallback or not os.path.exists(model_path):
         method = 'content_based_fallback'
         recs = content_based_recommend(full_profile, courses_df, top_k)

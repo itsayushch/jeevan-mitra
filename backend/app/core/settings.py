@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     QUALIFICATION_REVIEW_DAYS: int = 180
     OPPORTUNITY_REVIEW_DAYS: int = 30
+    # Synthetic-trained model: opt in after validation against real data.
+    ML_RANKING_ENABLED: bool = False
 
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).resolve().parent.parent.parent / '.env'),

@@ -3,6 +3,10 @@ import sys
 import os
 import time
 
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+if __package__ in (None, ''):
+    sys.path.insert(0, os.path.dirname(PROJECT_ROOT))
+
 def main():
     parser = argparse.ArgumentParser(description='PM-AJAY NSQ Course Recommendation Pipeline')
     parser.add_argument('--step', type=str, default='all',
@@ -18,9 +22,9 @@ def main():
         print('STEP 1: Generating synthetic data...')
         print('=' * 60)
         try:
-            from src.data_generation.generate_courses import generate_courses
-            from src.data_generation.generate_beneficiaries import generate_beneficiaries
-            from src.data_generation.generate_interactions import generate_interactions
+            from ml_model.src.data_generation.generate_courses import generate_courses
+            from ml_model.src.data_generation.generate_beneficiaries import generate_beneficiaries
+            from ml_model.src.data_generation.generate_interactions import generate_interactions
             
             generate_courses()
             generate_beneficiaries()
@@ -33,7 +37,7 @@ def main():
         print('STEP 2: Cleaning data...')
         print('=' * 60)
         try:
-            from src.preprocessing.clean import clean_beneficiary_data
+            from ml_model.src.preprocessing.clean import clean_beneficiary_data
             clean_beneficiary_data()
         except ImportError as e:
             print(f"Error importing cleaning module: {e}")
@@ -43,7 +47,7 @@ def main():
         print('STEP 3: Running EDA...')
         print('=' * 60)
         try:
-            from src.eda.run_eda import run_eda
+            from ml_model.src.eda.run_eda import run_eda
             run_eda()
         except ImportError as e:
             print(f"Error importing EDA module: {e}")
@@ -54,10 +58,10 @@ def main():
         print('=' * 60)
         try:
             import pandas as pd
-            from src.feature_engineering.features import create_training_dataset
-            beneficiaries = pd.read_csv(os.path.join('data', 'cleaned', 'cleaned_beneficiary_data.csv'))
-            courses = pd.read_csv(os.path.join('data', 'reference', 'courses.csv'))
-            interactions = pd.read_csv(os.path.join('data', 'raw', 'historical_interactions.csv'))
+            from ml_model.src.feature_engineering.features import create_training_dataset
+            beneficiaries = pd.read_csv(os.path.join(PROJECT_ROOT, 'data', 'cleaned', 'cleaned_beneficiary_data.csv'))
+            courses = pd.read_csv(os.path.join(PROJECT_ROOT, 'data', 'reference', 'courses.csv'))
+            interactions = pd.read_csv(os.path.join(PROJECT_ROOT, 'data', 'raw', 'historical_interactions.csv'))
             create_training_dataset(beneficiaries, courses, interactions, negative_ratio=3, seed=42)
             print("Feature dataset created successfully.")
         except Exception as e:
@@ -67,7 +71,7 @@ def main():
         print('STEP 5: Training models...')
         print('=' * 60)
         try:
-            from src.training.train import train_models
+            from ml_model.src.training.train import train_models
             train_models()
         except Exception as e:
             print(f"Error importing/executing training module: {e}")
@@ -77,7 +81,7 @@ def main():
         print('STEP 5: Running sample predictions...')
         print('=' * 60)
         try:
-            from src.prediction.predict import run_sample_predictions
+            from ml_model.src.prediction.predict import run_sample_predictions
             run_sample_predictions()
         except ImportError as e:
             print(f"Error importing prediction module: {e}")
@@ -87,7 +91,7 @@ def main():
         print('Running fallback predictions...')
         print('=' * 60)
         try:
-            from src.prediction.predict import run_sample_predictions_fallback
+            from ml_model.src.prediction.predict import run_sample_predictions_fallback
             run_sample_predictions_fallback()
         except ImportError as e:
             print(f"Error importing prediction module: {e}")

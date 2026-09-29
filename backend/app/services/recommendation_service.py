@@ -12,6 +12,7 @@ from app.utils.audit_events import log_audit_event
 from app.utils.errors import EntityNotFoundException
 from app.ai_layers.layer5_planning.demand_record_service import DemandRecordService, current_period_label
 from app.utils.logger import logger
+from app.ai_layers.layer3_matching.ml_adapter import rerank_candidates
 
 class RecommendationService:
     @staticmethod
@@ -255,6 +256,7 @@ class RecommendationService:
             })
 
         # Rank descending by score
+        rerank_candidates(candidate_list, confirmed_profile, {q['id']: q for q in quals})
         candidate_list.sort(key=lambda x: x["score"], reverse=True)
         top_candidates = candidate_list[:3]
 
