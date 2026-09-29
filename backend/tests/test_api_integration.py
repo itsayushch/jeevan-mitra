@@ -15,12 +15,16 @@ class TestPythonBackend(unittest.TestCase):
         cls.original_worker_api_key = settings.WORKER_API_KEY
         cls.original_worker_id = settings.WORKER_ID
         cls.original_worker_name = settings.WORKER_NAME
+        cls.original_officer_api_key = settings.OFFICER_API_KEY
+        cls.original_officer_district = settings.OFFICER_DISTRICT
         cls.database_directory = tempfile.TemporaryDirectory()
         settings.DATABASE_PATH = os.path.join(cls.database_directory.name, 'test.db')
         settings.AI_PROVIDER = 'mock'
         settings.WORKER_API_KEY = 'test-worker-api-key'
         settings.WORKER_ID = 'test-worker-01'
         settings.WORKER_NAME = 'Test Field Worker'
+        settings.OFFICER_API_KEY = 'test-officer-api-key'
+        settings.OFFICER_DISTRICT = 'Moradabad'
         cls.client = TestClient(app, headers={'X-Worker-API-Key': settings.WORKER_API_KEY})
         cls.client.__enter__()
 
@@ -34,6 +38,8 @@ class TestPythonBackend(unittest.TestCase):
             settings.WORKER_API_KEY = cls.original_worker_api_key
             settings.WORKER_ID = cls.original_worker_id
             settings.WORKER_NAME = cls.original_worker_name
+            settings.OFFICER_API_KEY = cls.original_officer_api_key
+            settings.OFFICER_DISTRICT = cls.original_officer_district
             cls.database_directory.cleanup()
 
     def test_health_check(self):
@@ -210,12 +216,28 @@ class TestPythonBackend(unittest.TestCase):
         ))
 
     def test_planning_matrix(self):
-        res = self.client.get('/api/v1/planning/supply-gap-matrix?district=Moradabad')
+        # Seed anonymised demand records so the matrix has real query data
+        with get_db() as conn:
+            conn.executemany("""
+                INSERT OR REPLACE INTO demand_records
+                (id, qualification_id, district, block, mobility_radius_km,
+                 work_preference, had_verified_match, period, created_at)
+                VALUES (?, 'qual_mushroom_07', 'Moradabad', 'Chhajlet', 10.0, 'both', 1, 'FY 2026-27', ?);
+            """, [(f"it_dem_{i}", "2026-09-01T00:00:00+00:00") for i in range(6)])
+
+        res = self.client.get('/api/v1/planning/supply-gap-matrix?district=Moradabad',
+                              headers={'X-Officer-API-Key': 'test-officer-api-key'})
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertIn('matrix', data)
         self.assertIn('metrics', data)
-        self.assertGreater(data['metrics']['beneficiaries_interviewed'], 0)
+        self.assertEqual(data['status'], 'ok')
+        self.assertEqual(data['metrics']['total_demand_records'], 6)
+        self.assertTrue(data['gap_scoring']['formula'])
+
+        # Unauthenticated call is rejected
+        anon = self.client.get('/api/v1/planning/supply-gap-matrix?district=Moradabad')
+        self.assertEqual(anon.status_code, 403)
 
     def test_chat_endpoint(self):
         res = self.client.post('/api/v1/chat', json={'message': 'hello sahayak', 'language': 'en'})

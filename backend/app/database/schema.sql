@@ -456,3 +456,25 @@ CREATE TABLE IF NOT EXISTS journeys (
 );
 CREATE INDEX IF NOT EXISTS idx_journeys_session ON journeys(session_id);
 CREATE INDEX IF NOT EXISTS idx_journeys_state ON journeys(state);
+
+-- 19. Anonymised Demand Records (Layer 5 - District Planning)
+-- Deliberately separate from PII tables (beneficiaries, interview_turns, profile_*).
+-- No name, contact, audio, or free-text columns, and NO join keys back to PII
+-- tables - the id is an opaque random token. Written only when the
+-- beneficiary has granted analytics consent (consent_records.analytics = granted).
+CREATE TABLE IF NOT EXISTS demand_records (
+  id TEXT PRIMARY KEY,
+  qualification_id TEXT NOT NULL,
+  district TEXT NOT NULL,
+  block TEXT NOT NULL,
+  mobility_radius_km REAL,
+  work_preference TEXT,
+  had_verified_match INTEGER NOT NULL DEFAULT 0,
+  period TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (qualification_id) REFERENCES qualifications(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_demand_records_district ON demand_records(district, period);
+CREATE INDEX IF NOT EXISTS idx_demand_records_block ON demand_records(district, block, qualification_id);
+CREATE INDEX IF NOT EXISTS idx_demand_records_qual ON demand_records(qualification_id);
