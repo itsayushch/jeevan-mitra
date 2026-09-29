@@ -54,7 +54,7 @@ def get_current_actor(
             )
         elif x_worker_api_key.startswith("counselor-"):
             return Actor(
-                actor_id=x_worker_api_key.replace("counselor-", "counselor_"),
+                actor_id=x_worker_api_key.replace("-", "_"),
                 actor_role="counselor",
                 actor_name="Career Counselor",
                 session_id=token,

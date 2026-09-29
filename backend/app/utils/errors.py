@@ -61,7 +61,7 @@ class EntityNotFoundException(AppError):
 class ValidationException(AppError):
     def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
         super().__init__(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=422,
             code="VALIDATION_ERROR",
             message=message,
             details=details or {}
