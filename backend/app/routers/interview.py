@@ -111,6 +111,12 @@ def process_interview_turn(
         if not sess:
             raise EntityNotFoundException("InterviewSession", interview_id)
 
+        if not actor.is_staff() and not (
+            (actor.session_id and actor.session_id == sess["session_id"])
+            or (actor.beneficiary_id and actor.beneficiary_id == sess["beneficiary_id"])
+        ):
+            raise HTTPException(403, "This interview belongs to another session")
+
         target_ben_id = sess["beneficiary_id"] or actor.beneficiary_id
         target_session_id = sess["session_id"] or actor.session_id
 
@@ -290,6 +296,8 @@ def confirm_interview_profile(
         sess = conn.execute("SELECT * FROM interview_sessions WHERE id = ?;", (interview_id,)).fetchone()
         if not sess:
             raise EntityNotFoundException("InterviewSession", interview_id)
+        if not actor.is_staff() and not (actor.session_id and actor.session_id == sess["session_id"]):
+            raise HTTPException(403, "This interview belongs to another session")
         target_ben_id = data.beneficiary_id or sess["beneficiary_id"] or actor.beneficiary_id
         target_session_id = sess["session_id"] or actor.session_id or interview_id
         _check_ai_consent(conn, target_ben_id, target_session_id)
@@ -375,6 +383,12 @@ def update_interview_field(
         sess = conn.execute("SELECT * FROM interview_sessions WHERE id = ?;", (interview_id,)).fetchone()
         if not sess:
             raise EntityNotFoundException("InterviewSession", interview_id)
+
+        if not actor.is_staff() and not (
+            (actor.session_id and actor.session_id == sess["session_id"])
+            or (actor.beneficiary_id and actor.beneficiary_id == sess["beneficiary_id"])
+        ):
+            raise HTTPException(403, "This interview belongs to another session")
 
         target_ben_id = sess["beneficiary_id"] or actor.beneficiary_id
 

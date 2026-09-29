@@ -5,6 +5,7 @@ from app.models import GenerateRecommendationsRequest, RecommendationMatchReques
 from app.services.recommendation_service import RecommendationService
 from app.ai_layers.layer3_matching.matching_engine import MatchingEngine
 from app.dependencies.auth import get_current_actor, Actor
+from app.dependencies.consent import verify_consent
 import uuid
 import json
 from datetime import datetime, timezone
@@ -23,6 +24,19 @@ def generate_recommendations(
     Deterministic matching and recommendation engine based on verified catalog and confirmed profile answers.
     """
     with get_db() as conn:
+        interview_id = req.interview_id or req.session_id
+        if interview_id:
+            interview = conn.execute("SELECT * FROM interview_sessions WHERE id = ?", (interview_id,)).fetchone()
+            if not interview:
+                raise HTTPException(404, "Interview not found")
+            if not actor.is_staff() and not (
+                actor.session_id and actor.session_id == interview["session_id"]
+            ):
+                raise HTTPException(403, "This interview belongs to another session")
+            verify_consent(conn, "ai_processing", interview["beneficiary_id"], interview["session_id"])
+            confirmed = conn.execute("SELECT 1 FROM profile_field_values WHERE interview_id = ? AND user_confirmed = 1 LIMIT 1", (interview_id,)).fetchone()
+            if not confirmed:
+                raise HTTPException(409, "Confirm your profile before generating recommendations")
         return RecommendationService.generate_recommendations(conn, req, actor_id=actor.actor_id)
 
 @router.get("/recommendations/{recommendation_id}")

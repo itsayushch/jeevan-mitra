@@ -15,7 +15,7 @@ EDUCATION = ('No_Formal', 'Primary', 'Middle', 'Secondary',
 
 
 def _predict(profile: dict, courses: list[dict]) -> dict:
-    # Keep the normal FastAPI installation independent of the ML dependency set.
+    # Load the model lazily; inference failures retain the rules-based ranking.
     import pandas as pd
     from ml_model.src.prediction.predict import predict
     return predict(profile, top_k=len(courses), courses_df=pd.DataFrame(courses))
