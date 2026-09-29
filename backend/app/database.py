@@ -18,6 +18,12 @@ class PostgresWrapper:
         if "INSERT OR IGNORE INTO" in query:
             query = query.replace("INSERT OR IGNORE INTO", "INSERT INTO")
             query = query.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING;"
+        
+        # Postgres does not have rowid, remove it from tie-breaker sorts
+        if ", rowid DESC" in query:
+            query = query.replace(", rowid DESC", "")
+        if ", rowid ASC" in query:
+            query = query.replace(", rowid ASC", "")
             
         if "?" in query:
             query = query.replace("?", "%s")
@@ -32,6 +38,12 @@ class PostgresWrapper:
         if "INSERT OR IGNORE INTO" in query:
             query = query.replace("INSERT OR IGNORE INTO", "INSERT INTO")
             query = query.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING;"
+        
+        # Postgres does not have rowid, remove it from tie-breaker sorts
+        if ", rowid DESC" in query:
+            query = query.replace(", rowid DESC", "")
+        if ", rowid ASC" in query:
+            query = query.replace(", rowid ASC", "")
             
         if "?" in query:
             query = query.replace("?", "%s")
