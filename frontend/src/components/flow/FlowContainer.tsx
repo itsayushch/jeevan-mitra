@@ -32,7 +32,14 @@ export function FlowContainer({ mode = 'journey', language, onSelectLanguage }: 
       await api.recordConsent('ai_processing', true, language);
       await api.recordConsent('profile_storage', true, language);
       const interview = await api.startInterview(language);
-      setInterviewId(interview.interview_id); setStep(2);
+      setInterviewId(interview.interview_id); 
+      setStep(2);
+      
+      // If the user clicked "My Journey", skip the AI conversational chat
+      // and drop them straight into the manual form so it feels different.
+      if (mode === 'journey') {
+          setReview(true);
+      }
     });
   }
   async function match() {
