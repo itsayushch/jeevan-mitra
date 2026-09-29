@@ -39,9 +39,9 @@ def generate_courses(n_courses=200, seed=42):
     ]
 
     sector_weights = [
-        0.15,
-        0.15,
-        0.10,
+        0.12,
+        0.12,
+        0.08,
         0.08,
         0.08,
         0.05,
@@ -52,9 +52,9 @@ def generate_courses(n_courses=200, seed=42):
         0.05,
         0.05,
         0.05,
-        0.02,
-        0.02,
-        0.01
+        0.05,
+        0.04,
+        0.08
     ]
 
     sector_weights = [
@@ -188,6 +188,16 @@ def generate_courses(n_courses=200, seed=42):
                     'Plumbing Basics',
                     'Electrician',
                     'Welding Technician'
+                ])
+
+            elif sector == 'Entrepreneurship':
+
+                course_name = random.choice([
+                    'Micro-Enterprise Business Development',
+                    'Agri-Business & Rural Startup',
+                    'Small Business Management',
+                    'E-Commerce & Digital Store Setup',
+                    'Self-Employment Entrepreneurship'
                 ])
 
             # --------------------------------------------------
@@ -350,6 +360,15 @@ def generate_courses(n_courses=200, seed=42):
                     'Plumber',
                     'Electrician',
                     'Welding Technician'
+                ])
+
+            elif sector == 'Entrepreneurship':
+
+                job_role = random.choice([
+                    'Micro-Enterprise Owner',
+                    'Agri-Business Founder',
+                    'Small Business Manager',
+                    'Digital Store Entrepreneur'
                 ])
 
             else:

@@ -86,6 +86,16 @@ def compute_pair_features(beneficiary_row, course_row) -> dict:
             'entrepreneurial': 0.10
         }
 
+    # Entrepreneurship
+    elif 'entrepreneur' in sector_lower or 'business' in sector_lower or 'startup' in sector_lower:
+        weights = {
+            'entrepreneurial': 0.50,
+            'communication': 0.20,
+            'numerical': 0.15,
+            'digital': 0.10,
+            'technical': 0.05
+        }
+
     # Other sectors
     else:
         weights = {
@@ -185,6 +195,14 @@ def compute_pair_features(beneficiary_row, course_row) -> dict:
                 'beauty & wellness': [
                     'beauty',
                     'wellness'
+                ],
+                'entrepreneurship': [
+                    'business',
+                    'startup',
+                    'self-employment',
+                    'micro-enterprise',
+                    'small business',
+                    'entrepreneur'
                 ]
             }
 

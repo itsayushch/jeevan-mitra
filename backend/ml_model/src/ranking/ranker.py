@@ -131,7 +131,13 @@ def rank_courses(beneficiary: dict, courses_df: pd.DataFrame, model_path: str = 
     results = []
     for i, course_row in enumerate(course_list):
         features = feature_rows[i]
-        score = float(scores[i])
+        raw_ml_score = float(scores[i])
+        
+        # Combine ML model probability with career match & skill match boost
+        career_boost = 0.30 if features.get('career_interest_match', 0) == 1 else 0.0
+        skill_boost = 0.20 * float(features.get('skill_match_score', 0))
+        final_score = (0.50 * raw_ml_score) + career_boost + skill_boost
+        score = float(final_score)
         
         # Rule-based explanations
         explanations = []

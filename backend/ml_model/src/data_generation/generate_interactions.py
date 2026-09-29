@@ -40,7 +40,13 @@ def clean_str(s):
         'graduation': 'graduate',
 
         '10th': 'secondary',
-        'class 10': 'secondary'
+        'class 10': 'secondary',
+
+        'entrepreneurship': 'entrepreneurship',
+        'business': 'entrepreneurship',
+        'startup': 'entrepreneurship',
+        'self-employment': 'entrepreneurship',
+        'small business': 'entrepreneurship'
     }
 
     return aliases.get(s, s)

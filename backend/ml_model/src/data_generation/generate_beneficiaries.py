@@ -67,7 +67,11 @@ def generate_beneficiaries(n=10000, seed=42):
     
     existing_skill = np.random.choice(['Beginner', 'Intermediate', 'Advanced', 'Expert'], size=n)
     
-    sectors = ['IT / ITES', 'Healthcare', 'Retail', 'Agriculture', 'Construction', 'Automotive', 'Electronics', 'Tourism']
+    sectors = [
+        'IT / ITES', 'Healthcare', 'Retail', 'Agriculture', 'Construction', 
+        'Automotive', 'Electronics', 'Tourism', 'Hospitality', 'Banking / Finance', 
+        'Beauty & Wellness', 'Logistics', 'Manufacturing', 'Green Jobs', 'Telecom', 'Entrepreneurship'
+    ]
     career_interest = np.random.choice(sectors, size=n)
     pref_occ = [f"{ci} Role" for ci in career_interest]
     pref_ind = career_interest.copy()
