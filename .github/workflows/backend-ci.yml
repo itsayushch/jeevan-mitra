@@ -2,7 +2,7 @@ name: Backend CI
 
 on:
   push:
-    branches: [ main, 'codex/integrated-branches-*' ]
+    branches: [ main, 'feat/ml-integration' ]
   pull_request:
     branches: [ main ]
 
