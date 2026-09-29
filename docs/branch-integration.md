@@ -47,19 +47,19 @@ The ML pipeline, synthetic datasets, reports and contributed model remain in
   before eligibility and feature calculation.
 - The Next.js build explicitly uses the frontend directory as its tracing root.
 
-## Optional ML ranking
+## Enabled ML ranking
 
 The contributed model is trained on synthetic data. Its availability is not
-evidence of predictive quality on real beneficiaries. It is disabled by default.
+evidence of predictive quality on real beneficiaries. It is enabled by default as a ranking aid, with verified catalogue constraints retained.
 
 From `backend/`, using Python 3.12:
 
 ```sh
-python -m pip install -r requirements.txt -r ml_model/requirements-inference.txt
+python -m pip install -r requirements.txt
 python -m pytest tests/test_ml_adapter.py
 ```
 
-Set `ML_RANKING_ENABLED=true` in the backend environment to opt in. The adapter
+Set `ML_RANKING_ENABLED=false` to disable the model and use only rules. The adapter
 receives only verified catalogue candidates that already passed the existing
 hard filters. It blends 80% of the deterministic score with 20% of the ML score,
 records the components in `ranking_factors`, and cannot add synthetic courses,
@@ -70,11 +70,10 @@ The application does not load synthetic CSVs for live matching.
 For a container with inference dependencies, build from `backend/`:
 
 ```sh
-docker build --build-arg INSTALL_ML=true -t jeevan-mitra-backend .
+docker build -t jeevan-mitra-backend .
 ```
 
-The default image retains the deterministic path. The model/package is included
-in both variants; datasets, reports and local environments are excluded.
+The default Python 3.12 image includes inference dependencies and the model; datasets, reports and local environments are excluded.
 
 Standalone research commands work from `backend/`:
 
@@ -97,3 +96,18 @@ Training and EDA additionally require `ml_model/requirements.txt`.
 - External speech/LLM providers, cloud deployment and model accuracy on real data
   are not validated by these checks. Existing mock/stub integrations are not
   presented as completed provider implementations.
+
+## Live frontend journey
+
+`/journey` now creates a session, records explicit processing/storage consent,
+collects actual profile fields, confirms them, and calls `/recommendations/generate`.
+Results and selected course details come from that response, including honest
+empty/error states. Counselor requests record separate sharing consent.
+The API returns `ranking_method` (`ml_blended` or `rules`) and score components.
+The standalone voice assistant still uses its existing demo responses; this
+change enables the recommendation model, not a general-purpose chat LLM.
+
+Run the backend with Python 3.12 after installing `requirements.txt`. Run the
+frontend with `npm run dev`. The frontend proxies to port 4000 by default; set
+server-side `BACKEND_URL` to override it (restart/rebuild Next.js after changing).
+Local review uses backend port 4001 and frontend http://localhost:3002/journey.
