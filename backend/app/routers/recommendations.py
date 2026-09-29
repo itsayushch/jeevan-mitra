@@ -1,21 +1,61 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from typing import Optional, Dict, Any, List
+from app.database import get_db
+from app.models import GenerateRecommendationsRequest, RecommendationMatchRequest
+from app.services.recommendation_service import RecommendationService
+from app.ai_layers.layer3_matching.matching_engine import MatchingEngine
+from app.dependencies.auth import get_current_actor, Actor
 import uuid
 import json
 from datetime import datetime, timezone
-from app.database import get_db
-from app.models import RecommendationMatchRequest
-from app.ai_layers.layer3_matching.matching_engine import MatchingEngine
 
-router = APIRouter(prefix="/recommendations", tags=["Recommendations"])
+router = APIRouter(tags=["Recommendations"])
 
-@router.post("/match")
-def match_recommendations(req: RecommendationMatchRequest):
+# ============================================================================
+# A5. Deterministic Recommendations Endpoints
+# ============================================================================
+@router.post("/recommendations/generate")
+def generate_recommendations(
+    req: GenerateRecommendationsRequest,
+    actor: Actor = Depends(get_current_actor)
+):
+    """
+    Deterministic matching and recommendation engine based on verified catalog and confirmed profile answers.
+    """
+    with get_db() as conn:
+        return RecommendationService.generate_recommendations(conn, req, actor_id=actor.actor_id)
+
+@router.get("/recommendations/{recommendation_id}")
+def get_recommendation_detail(recommendation_id: str):
+    """
+    Retrieves detailed structured recommendation record with verification snapshot.
+    """
+    with get_db() as conn:
+        return RecommendationService.get_recommendation_by_id(conn, recommendation_id)
+
+@router.get("/interviews/{interview_id}/recommendations")
+def get_interview_recommendations(interview_id: str):
+    """
+    Retrieves recommendations generated for a specific interview session.
+    """
+    with get_db() as conn:
+        recs = RecommendationService.get_recommendations_for_interview(conn, interview_id)
+        return {
+            "interview_id": interview_id,
+            "count": len(recs),
+            "recommendations": recs
+        }
+
+# ============================================================================
+# Legacy Recommendations Endpoints (Backwards Compatibility)
+# ============================================================================
+@router.post("/recommendations/match")
+def legacy_match(req: RecommendationMatchRequest, actor: Actor = Depends(get_current_actor)):
     now = datetime.now(timezone.utc).isoformat()
     with get_db() as conn:
         engine = MatchingEngine(conn)
         top_matches = engine.match(req.model_dump())
 
-        # Persist recommendations to DB
         saved_recs = []
         for match in top_matches:
             rec_id = f"rec_{uuid.uuid4().hex[:10]}"
@@ -24,13 +64,13 @@ def match_recommendations(req: RecommendationMatchRequest):
 
             conn.execute("""
                 INSERT INTO recommendations (
-                    id, beneficiary_id, session_id, qualification_id, local_opportunity_id,
+                    id, beneficiary_id, session_id, interview_id, qualification_id, local_opportunity_id,
                     rank, score, score_breakdown, match_state, explanation_text,
                     audio_explanation_script, tradeoff_summary, skill_gap_summary,
                     data_snapshot, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """, (
-                rec_id, req.beneficiaryId, req.sessionId, qual["id"],
+                rec_id, req.beneficiaryId, req.sessionId, req.interview_id or req.sessionId, qual["id"],
                 best_opp["id"] if best_opp else None,
                 match["rank"], match["score"], json.dumps(match["score_breakdown"]),
                 match["match_state"], match["explanation_text"], match["audio_explanation_script"],
@@ -49,7 +89,7 @@ def match_recommendations(req: RecommendationMatchRequest):
             "recommendations": saved_recs
         }
 
-@router.get("/beneficiary/{beneficiary_id}")
+@router.get("/recommendations/beneficiary/{beneficiary_id}")
 def get_by_beneficiary(beneficiary_id: str):
     with get_db() as conn:
         rows = conn.execute("""
@@ -70,28 +110,11 @@ def get_by_beneficiary(beneficiary_id: str):
 
         return results
 
-@router.get("/{rec_id}/details")
-def get_details(rec_id: str):
-    with get_db() as conn:
-        row = conn.execute("""
-            SELECT r.*, q.title as qualification_title, q.sector, q.nsqf_level, q.work_type,
-                   q.curriculum_summary, q.entry_criteria, q.certification_body, q.nqr_link,
-                   o.centre_or_employer_name, o.address, o.batch_start_date, o.batch_end_date,
-                   o.available_seats, o.stipend_amount_inr, o.free_toolkit_provided
-            FROM recommendations r
-            JOIN qualifications q ON r.qualification_id = q.id
-            LEFT JOIN local_opportunities o ON r.local_opportunity_id = o.id
-            WHERE r.id = ?;
-        """, (rec_id,)).fetchone()
+@router.get("/recommendations/{rec_id}/details")
+def legacy_get_details(rec_id: str):
+    return get_recommendation_detail(rec_id)
 
-        if not row:
-            raise HTTPException(status_code=404, detail="Recommendation not found")
-
-        res = dict(row)
-        res["score_breakdown"] = json.loads(res.get("score_breakdown") or "{}")
-        return res
-
-@router.get("/compare/{id1}/{id2}")
+@router.get("/recommendations/compare/{id1}/{id2}")
 def compare_recommendations(id1: str, id2: str):
     with get_db() as conn:
         r1 = conn.execute("SELECT * FROM recommendations WHERE id = ?;", (id1,)).fetchone()

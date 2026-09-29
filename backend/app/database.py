@@ -27,16 +27,58 @@ def get_db() -> Generator[sqlite3.Connection, None, None]:
     finally:
         conn.close()
 
+def _add_column_if_missing(conn: sqlite3.Connection, table: str, column_def: str, col_name: str):
+    cursor = conn.execute(f"PRAGMA table_info({table});")
+    existing_cols = [row["name"] for row in cursor.fetchall()]
+    if col_name not in existing_cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column_def};")
+
+def run_migrations(conn: sqlite3.Connection):
+    """Run incremental column migrations on existing tables."""
+    # local_opportunities
+    _add_column_if_missing(conn, "local_opportunities", "state TEXT NOT NULL DEFAULT 'Uttar Pradesh'", "state")
+    _add_column_if_missing(conn, "local_opportunities", "availability TEXT DEFAULT 'verified_open'", "availability")
+    _add_column_if_missing(conn, "local_opportunities", "source_url TEXT", "source_url")
+    _add_column_if_missing(conn, "local_opportunities", "contact_details TEXT", "contact_details")
+    _add_column_if_missing(conn, "local_opportunities", "is_archived INTEGER NOT NULL DEFAULT 0", "is_archived")
+
+    # qualifications
+    _add_column_if_missing(conn, "qualifications", "official_source_url TEXT", "official_source_url")
+    _add_column_if_missing(conn, "qualifications", "last_verified_at TEXT", "last_verified_at")
+
+    # recommendations
+    _add_column_if_missing(conn, "recommendations", "interview_id TEXT", "interview_id")
+    _add_column_if_missing(conn, "recommendations", "ranking_factors TEXT", "ranking_factors")
+    _add_column_if_missing(conn, "recommendations", "hard_constraint_result TEXT", "hard_constraint_result")
+    _add_column_if_missing(conn, "recommendations", "matched_skills TEXT", "matched_skills")
+    _add_column_if_missing(conn, "recommendations", "skill_gaps TEXT", "skill_gaps")
+    _add_column_if_missing(conn, "recommendations", "local_opportunity_status TEXT DEFAULT 'unknown'", "local_opportunity_status")
+    _add_column_if_missing(conn, "recommendations", "caveat TEXT DEFAULT 'This is a guidance recommendation, not confirmation of admission or placement.'", "caveat")
+
+    # beneficiaries
+    _add_column_if_missing(conn, "beneficiaries", "owner_type TEXT DEFAULT 'authenticated_user'", "owner_type")
+    _add_column_if_missing(conn, "beneficiaries", "owner_id TEXT", "owner_id")
+
+    # interview_sessions
+    _add_column_if_missing(conn, "interview_sessions", "session_id TEXT", "session_id")
+
 def init_database():
-    """Ensure database schema is created and seeded."""
+    """Ensure database schema is created, migrated, and seeded."""
     logger.info(f"Initializing database at: {settings.DATABASE_PATH}")
     
-    schema_path = Path(__file__).resolve().parent.parent / "src" / "database" / "schema.sql"
+    schema_paths = [
+        Path(__file__).resolve().parent / "database" / "schema.sql",
+        Path(__file__).resolve().parent / "schema.sql",
+        Path(__file__).resolve().parent.parent / "src" / "database" / "schema.sql",
+    ]
+    schema_path = next((p for p in schema_paths if p.exists()), None)
+
     with get_db() as conn:
-        if schema_path.exists():
+        if schema_path and schema_path.exists():
             with open(schema_path, "r", encoding="utf-8") as f:
                 schema_sql = f.read()
             conn.executescript(schema_sql)
+            run_migrations(conn)
         else:
             logger.warning("schema.sql not found, skipping migration execution")
 
@@ -48,6 +90,7 @@ def init_database():
             seed_database(conn)
         else:
             logger.info(f"Database already contains {count} qualifications. Skipping initial seed.")
+
 
 def seed_database(conn: sqlite3.Connection):
     now = datetime.now(timezone.utc).isoformat()

@@ -1,0 +1,139 @@
+import os
+import tempfile
+import pytest
+from fastapi.testclient import TestClient
+from app.config import settings
+from app.database import get_db, init_database
+from app.main import app
+
+@pytest.fixture
+def client():
+    orig_db = settings.DATABASE_PATH
+    orig_key = settings.WORKER_API_KEY
+    temp_dir = tempfile.TemporaryDirectory()
+    settings.DATABASE_PATH = os.path.join(temp_dir.name, "test_consent.db")
+    settings.WORKER_API_KEY = "test-worker-key"
+    init_database()
+
+    with TestClient(app, headers={"X-Worker-API-Key": settings.WORKER_API_KEY}) as c:
+        yield c
+
+    settings.DATABASE_PATH = orig_db
+    settings.WORKER_API_KEY = orig_key
+    temp_dir.cleanup()
+
+def test_consent_recording_and_versioning(client):
+    # Create session
+    sess_res = client.post("/api/v1/sessions", json={"owner_type": "anonymous"})
+    assert sess_res.status_code == 201
+    session_id = sess_res.json()["session_id"]
+
+    # Record versioned consent
+    consent_res = client.post("/api/v1/consents", json={
+        "session_id": session_id,
+        "consent_type": "ai_processing",
+        "policy_version": "1.0",
+        "user_language": "hi",
+        "capture_channel": "web_app",
+        "granted": True
+    })
+    assert consent_res.status_code == 201
+    consent_data = consent_res.json()
+    assert consent_data["consent_type"] == "ai_processing"
+    assert consent_data["policy_version"] == "1.0"
+    assert consent_data["status"] == "granted"
+
+    # Query consents for session
+    get_res = client.get(f"/api/v1/consents/{session_id}")
+    assert get_res.status_code == 200
+    records = get_res.json()
+    assert len(records) >= 1
+    assert records[0]["session_id"] == session_id
+
+def test_ai_processing_blocked_without_consent(client):
+    sess_res = client.post("/api/v1/sessions")
+    session_id = sess_res.json()["session_id"]
+
+    # Starting interview without ai_processing consent should fail with 403
+    start_res = client.post("/api/v1/interviews/start", json={
+        "session_id": session_id,
+        "language": "hi"
+    })
+    assert start_res.status_code == 403
+    err = start_res.json()
+    assert err["error"]["code"] == "CONSENT_REQUIRED"
+
+def test_consent_revocation_blocks_subsequent_actions(client):
+    sess_res = client.post("/api/v1/sessions")
+    session_id = sess_res.json()["session_id"]
+
+    # Grant consent
+    consent_res = client.post("/api/v1/consents", json={
+        "session_id": session_id,
+        "consent_type": "ai_processing",
+        "granted": True
+    })
+    assert consent_res.status_code == 201
+    consent_id = consent_res.json()["id"]
+
+    # Start interview succeeds
+    start_res = client.post("/api/v1/interviews/start", json={
+        "session_id": session_id,
+        "language": "hi"
+    })
+    assert start_res.status_code == 201
+    interview_id = start_res.json()["interview_id"]
+
+    # Revoke consent
+    revoke_res = client.post(f"/api/v1/consents/{consent_id}/revoke", json={
+        "reason": "Beneficiary decided to stop processing"
+    })
+    assert revoke_res.status_code == 200
+    assert revoke_res.json()["status"] == "revoked"
+
+    # Future interview turns must be blocked with 403 CONSENT_REVOKED
+    turn_res = client.post(f"/api/v1/interviews/{interview_id}/turns", json={
+        "message": "I know basic wiring"
+    }, headers={"X-Session-ID": session_id})
+    assert turn_res.status_code == 403
+    assert turn_res.json()["error"]["code"] == "CONSENT_REVOKED"
+
+def test_counselor_referral_consent_required_and_revocation(client):
+    sess_res = client.post("/api/v1/sessions")
+    session_id = sess_res.json()["session_id"]
+
+    # Try creating referral without counselor_referral consent -> 403
+    ref_fail = client.post("/api/v1/referrals", json={
+        "interview_id": session_id,
+        "referral_reason": "no_verified_local_option",
+        "notes": "Needs human assistance"
+    }, headers={"X-Session-ID": session_id})
+    assert ref_fail.status_code == 403
+
+    # Grant counselor_referral consent
+    c_res = client.post("/api/v1/consents", json={
+        "session_id": session_id,
+        "consent_type": "counselor_referral",
+        "granted": True
+    })
+    assert c_res.status_code == 201
+    c_id = c_res.json()["id"]
+
+    # Now referral creation succeeds
+    ref_ok = client.post("/api/v1/referrals", json={
+        "interview_id": session_id,
+        "referral_reason": "no_verified_local_option",
+        "notes": "Needs human assistance"
+    }, headers={"X-Session-ID": session_id})
+    assert ref_ok.status_code == 201
+    assert ref_ok.json()["status"] == "new"
+
+    # Revoke counselor_referral consent
+    client.post(f"/api/v1/consents/{c_id}/revoke", json={"reason": "Revoked consent"})
+
+    # Post-revocation: active referral case should be closed automatically
+    my_refs = client.get("/api/v1/referrals/me", headers={"X-Session-ID": session_id})
+    assert my_refs.status_code == 200
+    cases = my_refs.json()
+    assert len(cases) > 0
+    assert cases[0]["status"] == "closed"
