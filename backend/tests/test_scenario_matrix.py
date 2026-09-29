@@ -1,4 +1,6 @@
 import uuid
+import os
+import tempfile
 import pytest
 from fastapi.testclient import TestClient
 from datetime import datetime, timezone, timedelta
@@ -10,10 +12,16 @@ from app.database import get_db, init_database
 @pytest.fixture(autouse=True)
 def setup_test_db():
     original_admin_key = settings.ADMIN_API_KEY
+    original_database_path = settings.DATABASE_PATH
     settings.ADMIN_API_KEY = "admin-key-01"
-    init_database()
-    yield
-    settings.ADMIN_API_KEY = original_admin_key
+    with tempfile.TemporaryDirectory() as temp_dir:
+        settings.DATABASE_PATH = os.path.join(temp_dir, "scenario_matrix.db")
+        try:
+            init_database()
+            yield
+        finally:
+            settings.ADMIN_API_KEY = original_admin_key
+            settings.DATABASE_PATH = original_database_path
 
 client = TestClient(app)
 
