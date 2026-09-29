@@ -452,7 +452,7 @@ CREATE TABLE IF NOT EXISTS journeys (
   profile_confirmed INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  FOREIGN KEY (session_id) REFERENCES interview_sessions(id) ON DELETE CASCADE
+  FOREIGN KEY (session_id) REFERENCES anonymous_sessions(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_journeys_session ON journeys(session_id);
 CREATE INDEX IF NOT EXISTS idx_journeys_state ON journeys(state);
