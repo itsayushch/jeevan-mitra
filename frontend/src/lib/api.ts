@@ -28,13 +28,23 @@ export interface InterviewSessionResponse {
   language: string;
 }
 
+export interface ConversationProfile {
+  district?: string | null;
+  block?: string | null;
+  education?: string | null;
+  interests?: string[];
+  traditional_or_existing_skills?: string[];
+  mobility?: number | null;
+  self_employment_or_wage_preference?: string | null;
+  current_work?: string | null;
+  access_needs?: string | null;
+}
 export interface InterviewTurnResponse {
-  turn_id: string;
-  speaker: 'user' | 'ai' | 'system';
-  mode: 'standard' | 'guided_fallback' | 'clarification';
-  extracted_fields: Record<string, any>;
   next_question?: string;
-  clarification_needed?: boolean;
+  inferred_profile?: ConversationProfile;
+  is_final?: boolean;
+  extraction_provider?: 'gemini' | 'guided';
+  missing_fields?: string[];
 }
 
 export interface RecommendationItem {
@@ -373,7 +383,9 @@ class ApiService {
   async submitTurn(
     interviewId: string,
     message: string,
-    speaker: 'user' | 'ai' = 'user'
+    speaker: 'user' | 'ai' = 'user',
+    language: string = 'en',
+    mode: string = 'conversational'
   ): Promise<InterviewTurnResponse> {
     const res = await fetch(`${API_BASE}/interviews/${interviewId}/turns`, {
       method: 'POST',
@@ -381,6 +393,8 @@ class ApiService {
       body: JSON.stringify({
         text: message,
         speaker,
+        language,
+        mode,
       }),
     });
     if (!res.ok) throw new Error(`Turn submission failed: ${res.statusText}`);

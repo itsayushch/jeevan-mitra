@@ -104,10 +104,29 @@ collects actual profile fields, confirms them, and calls `/recommendations/gener
 Results and selected course details come from that response, including honest
 empty/error states. Counselor requests record separate sharing consent.
 The API returns `ranking_method` (`ml_blended` or `rules`) and score components.
-The standalone voice assistant still uses its existing demo responses; this
-change enables the recommendation model, not a general-purpose chat LLM.
+The AI Assistant and My Journey now share conversational intake, editable
+profile review, and the confirmed-profile recommendation flow.
 
 Run the backend with Python 3.12 after installing `requirements.txt`. Run the
 frontend with `npm run dev`. The frontend proxies to port 4000 by default; set
 server-side `BACKEND_URL` to override it (restart/rebuild Next.js after changing).
 Local review uses backend port 4001 and frontend http://localhost:3002/journey.
+## Conversational intake
+
+Both `/voice-assistant` and `/journey` now accept typed answers or browser speech
+transcripts after processing/storage consent. Transcripts stay in the composer
+until the user sends them. Unsupported browsers and microphone errors retain typing.
+
+Set `AI_PROVIDER=gemini` and a server-side `GEMINI_API_KEY` for JSON Schema
+extraction. `GEMINI_MODEL` defaults to `gemini-2.5-flash`. The backend validates
+responses with Pydantic. Missing credentials or provider/validation failures use
+labelled guided intake. Unknown fields stay empty; the assistant asks for missing
+required details. Users review and correct fields before matching. Conversation
+changes invalidate previous confirmation.
+
+The local environment has no Gemini credential, so live provider inference and
+microphone hardware remain unverified. Tests cover the provider request contract,
+guided extraction in English/Hindi, missing details, corrections and the full
+conversation-to-review-to-matching API flow.
+
+Provider reference: https://ai.google.dev/gemini-api/docs/generate-content/structured-output
