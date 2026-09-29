@@ -530,6 +530,18 @@ class ApiService {
   }
 
   /**
+   * RAG: Ask questions about NQR curriculum
+   */
+  async askNqrQuestion(query: string): Promise<{ query: string, answer: string }> {
+    const res = await fetch(`${API_BASE}/catalogue/nqr/ask?query=${encodeURIComponent(query)}`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to ask NQR question: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
    * Worker API: Get all cases
    */
   async getWorkerCases(): Promise<any> {
