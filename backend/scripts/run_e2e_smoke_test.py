@@ -2,7 +2,9 @@ import sys
 import time
 import requests
 
-BASE_URL = "http://localhost:8000/api/v1"
+import os
+
+BASE_URL = os.environ.get("BASE_URL", "http://localhost:4000/api/v1")
 
 def print_step(name):
     print(f"--- Running: {name} ---")
