@@ -1,0 +1,201 @@
+course_id,course_name,nsqf_level,sector,sub_sector,course_duration_hours,minimum_education,required_skill_level,delivery_mode,language,age_min,age_max,job_role,industry,average_salary,local_demand,course_location
+NSQ_11000,Domestic Data Entry Operator,1,IT / ITES,IT / ITES Sub-Sector 3,102,No_Formal,Beginner,Online,"English, Odia, Malayalam",20,36,Web Developer,IT / ITES,10887,Medium,Gujarat
+NSQ_11001,Domestic Data Entry Operator,4,IT / ITES,IT / ITES Sub-Sector 5,294,No_Formal,Beginner,Offline,"Telugu, Hindi, Bengali",20,45,Cybersecurity Specialist,IT / ITES,24141,High,Bihar
+NSQ_11002,Cloud Computing Basics,2,IT / ITES,IT / ITES Sub-Sector 3,194,No_Formal,Beginner,Online,"Kannada, Odia, English",20,37,Cybersecurity Specialist,IT / ITES,20371,High,Madhya Pradesh
+NSQ_11003,Domestic Data Entry Operator,1,IT / ITES,IT / ITES Sub-Sector 2,114,No_Formal,Beginner,Online,"Gujarati, English",21,55,Cybersecurity Specialist,IT / ITES,11245,High,Madhya Pradesh
+NSQ_11004,Cybersecurity Basics,5,IT / ITES,IT / ITES Sub-Sector 1,390,Secondary,Intermediate,Online,"Tamil, Bengali, Kannada, English",18,55,Data Entry Operator,IT / ITES,35436,Low,Madhya Pradesh
+NSQ_11005,Cybersecurity Basics,4,IT / ITES,IT / ITES Sub-Sector 1,188,Middle,Beginner,Blended,"Tamil, Kannada, English",21,39,Cybersecurity Specialist,IT / ITES,23963,High,Karnataka
+NSQ_11006,Cloud Computing Basics,4,IT / ITES,IT / ITES Sub-Sector 2,340,Primary,Beginner,Online,English,16,55,Data Entry Operator,IT / ITES,31271,Very_High,Bihar
+NSQ_11007,Cloud Computing Basics,4,IT / ITES,IT / ITES Sub-Sector 4,350,Primary,Beginner,Blended,English,18,59,Cybersecurity Specialist,IT / ITES,23649,Very_High,Maharashtra
+NSQ_11008,Domestic Data Entry Operator,7,IT / ITES,IT / ITES Sub-Sector 3,504,Secondary,Advanced,Blended,"Telugu, Hindi",16,46,Data Entry Operator,IT / ITES,43677,Low,West Bengal
+NSQ_11009,Domestic Data Entry Operator,2,IT / ITES,IT / ITES Sub-Sector 3,118,No_Formal,Beginner,Online,"Malayalam, Hindi",15,58,Cloud Computing Specialist,IT / ITES,20275,Medium,Maharashtra
+NSQ_11010,Cloud Computing Basics,6,IT / ITES,IT / ITES Sub-Sector 2,321,Senior_Secondary,Intermediate,Blended,"Tamil, Odia, Hindi",18,47,Cybersecurity Specialist,IT / ITES,37059,Very_High,Bihar
+NSQ_11011,Web Developer,2,IT / ITES,IT / ITES Sub-Sector 1,190,No_Formal,Beginner,Online,"Tamil, Hindi, English",14,42,Web Developer,IT / ITES,20919,High,Bihar
+NSQ_11012,Web Developer,3,IT / ITES,IT / ITES Sub-Sector 4,94,Primary,Beginner,Online,"Malayalam, Kannada, Tamil, English",20,41,Web Developer,IT / ITES,19291,Very_High,West Bengal
+NSQ_11013,Cloud Computing Basics,4,IT / ITES,IT / ITES Sub-Sector 1,130,No_Formal,Beginner,Offline,"Marathi, English, Tamil",17,41,Cloud Computing Specialist,IT / ITES,23970,Medium,Rajasthan
+NSQ_11014,Web Developer,6,IT / ITES,IT / ITES Sub-Sector 1,459,Senior_Secondary,Intermediate,Online,"Odia, Hindi",15,59,Data Entry Operator,IT / ITES,32927,Very_High,Tamil Nadu
+NSQ_11015,Cloud Computing Basics,6,IT / ITES,IT / ITES Sub-Sector 2,411,Middle,Intermediate,Offline,"Kannada, Telugu, English",21,39,Data Entry Operator,IT / ITES,34909,Low,Gujarat
+NSQ_11016,Cybersecurity Basics,2,IT / ITES,IT / ITES Sub-Sector 5,162,No_Formal,Beginner,Blended,Hindi,15,40,Web Developer,IT / ITES,18684,Medium,Karnataka
+NSQ_11017,Web Developer,4,IT / ITES,IT / ITES Sub-Sector 1,396,No_Formal,Beginner,Offline,"Malayalam, Odia, Marathi, English",17,56,Cybersecurity Specialist,IT / ITES,25073,Very_High,Maharashtra
+NSQ_11018,Cybersecurity Basics,4,IT / ITES,IT / ITES Sub-Sector 1,84,Primary,Beginner,Blended,"English, Malayalam, Tamil",18,39,Cybersecurity Specialist,IT / ITES,32265,Medium,West Bengal
+NSQ_11019,Web Developer,4,IT / ITES,IT / ITES Sub-Sector 5,234,Middle,Beginner,Blended,"Hindi, Odia, Telugu",15,39,Cybersecurity Specialist,IT / ITES,23692,Low,Gujarat
+NSQ_11020,Cybersecurity Basics,3,IT / ITES,IT / ITES Sub-Sector 2,127,No_Formal,Beginner,Blended,"Telugu, Odia, Kannada, English",14,37,Cloud Computing Specialist,IT / ITES,26030,Low,Uttar Pradesh
+NSQ_11021,Web Developer,4,IT / ITES,IT / ITES Sub-Sector 3,162,Middle,Beginner,Offline,"Gujarati, Odia, Hindi",15,37,Data Entry Operator,IT / ITES,28510,High,Gujarat
+NSQ_11022,Cloud Computing Basics,2,IT / ITES,IT / ITES Sub-Sector 3,133,No_Formal,Beginner,Offline,"Tamil, Hindi",19,59,Cloud Computing Specialist,IT / ITES,21411,Medium,Madhya Pradesh
+NSQ_11023,Web Developer,6,IT / ITES,IT / ITES Sub-Sector 1,255,Senior_Secondary,Intermediate,Offline,"Tamil, Telugu, Hindi",15,47,Web Developer,IT / ITES,43450,Medium,Madhya Pradesh
+NSQ_11024,Cybersecurity Basics,3,IT / ITES,IT / ITES Sub-Sector 2,97,No_Formal,Beginner,Blended,"Gujarati, English",18,37,Cybersecurity Specialist,IT / ITES,21630,Very_High,Gujarat
+NSQ_11025,Domestic Data Entry Operator,2,IT / ITES,IT / ITES Sub-Sector 3,85,No_Formal,Beginner,Offline,English,20,46,Cybersecurity Specialist,IT / ITES,17542,Low,Karnataka
+NSQ_11026,Web Developer,3,IT / ITES,IT / ITES Sub-Sector 4,40,Primary,Beginner,Blended,"Tamil, Marathi, Gujarati, Hindi",19,54,Cybersecurity Specialist,IT / ITES,24503,Low,Rajasthan
+NSQ_11027,Cybersecurity Basics,5,IT / ITES,IT / ITES Sub-Sector 3,286,Secondary,Intermediate,Offline,"Bengali, Tamil, Gujarati, English",16,54,Cybersecurity Specialist,IT / ITES,31760,Low,Rajasthan
+NSQ_21028,Home Health Aide,4,Healthcare,Healthcare Sub-Sector 5,390,Middle,Beginner,Offline,"Kannada, Malayalam, Hindi",21,60,Home Health Aide,Healthcare,29779,High,Gujarat
+NSQ_21029,Phlebotomy Technician,2,Healthcare,Healthcare Sub-Sector 2,119,No_Formal,Beginner,Online,Hindi,14,42,Pharmacy Assistant,Healthcare,18801,Low,Tamil Nadu
+NSQ_21030,Home Health Aide,5,Healthcare,Healthcare Sub-Sector 4,332,Middle,Intermediate,Online,Hindi,15,59,Pharmacy Assistant,Healthcare,29288,Very_High,Uttar Pradesh
+NSQ_21031,Home Health Aide,6,Healthcare,Healthcare Sub-Sector 1,468,Middle,Intermediate,Offline,"Odia, Malayalam, Marathi, English",20,52,Pharmacy Assistant,Healthcare,44037,Very_High,Tamil Nadu
+NSQ_21032,Home Health Aide,5,Healthcare,Healthcare Sub-Sector 3,346,Middle,Intermediate,Blended,"Telugu, English",15,57,Phlebotomy Technician,Healthcare,29495,High,West Bengal
+NSQ_21033,General Duty Assistant,2,Healthcare,Healthcare Sub-Sector 2,138,No_Formal,Beginner,Online,"Tamil, English, Gujarati",20,45,Pharmacy Assistant,Healthcare,17393,Medium,Karnataka
+NSQ_21034,General Duty Assistant,6,Healthcare,Healthcare Sub-Sector 5,411,Secondary,Intermediate,Online,"Telugu, Gujarati, English",17,50,Home Health Aide,Healthcare,34548,Very_High,Uttar Pradesh
+NSQ_21035,Phlebotomy Technician,5,Healthcare,Healthcare Sub-Sector 4,164,Middle,Intermediate,Online,"Odia, Hindi, Gujarati",14,37,Pharmacy Assistant,Healthcare,28191,Very_High,Maharashtra
+NSQ_21036,Phlebotomy Technician,4,Healthcare,Healthcare Sub-Sector 2,312,Primary,Beginner,Offline,"Telugu, Gujarati, English",15,50,Healthcare Assistant,Healthcare,30789,Low,West Bengal
+NSQ_21037,General Duty Assistant,5,Healthcare,Healthcare Sub-Sector 1,94,Primary,Intermediate,Online,"Malayalam, Hindi",17,39,Pharmacy Assistant,Healthcare,35236,Medium,Tamil Nadu
+NSQ_21038,Phlebotomy Technician,5,Healthcare,Healthcare Sub-Sector 2,390,Secondary,Intermediate,Blended,"English, Bengali, Telugu",15,53,Healthcare Assistant,Healthcare,38661,Very_High,Karnataka
+NSQ_21039,Home Health Aide,2,Healthcare,Healthcare Sub-Sector 2,66,No_Formal,Beginner,Offline,"Malayalam, English, Hindi",19,52,Pharmacy Assistant,Healthcare,19162,Low,Gujarat
+NSQ_21040,Phlebotomy Technician,1,Healthcare,Healthcare Sub-Sector 4,165,No_Formal,Beginner,Offline,"Kannada, Bengali, English",16,58,Phlebotomy Technician,Healthcare,13602,Very_High,Tamil Nadu
+NSQ_21041,Phlebotomy Technician,3,Healthcare,Healthcare Sub-Sector 2,62,No_Formal,Beginner,Offline,"Kannada, English",19,35,Pharmacy Assistant,Healthcare,26228,Medium,Tamil Nadu
+NSQ_21042,Phlebotomy Technician,5,Healthcare,Healthcare Sub-Sector 3,222,Secondary,Intermediate,Blended,"Odia, Hindi",17,37,Home Health Aide,Healthcare,35904,Very_High,Gujarat
+NSQ_21043,Home Health Aide,5,Healthcare,Healthcare Sub-Sector 4,308,Primary,Intermediate,Online,"Tamil, Gujarati, Hindi",18,56,Phlebotomy Technician,Healthcare,32647,High,Karnataka
+NSQ_21044,Phlebotomy Technician,4,Healthcare,Healthcare Sub-Sector 4,218,Primary,Beginner,Offline,English,17,45,Healthcare Assistant,Healthcare,30720,Medium,Madhya Pradesh
+NSQ_21045,Pharmacy Assistant,3,Healthcare,Healthcare Sub-Sector 5,174,Primary,Beginner,Offline,"Tamil, English",17,46,Home Health Aide,Healthcare,21180,Medium,Rajasthan
+NSQ_21046,General Duty Assistant,4,Healthcare,Healthcare Sub-Sector 2,330,No_Formal,Beginner,Online,"Telugu, Kannada, Odia, English",19,40,Healthcare Assistant,Healthcare,25227,Very_High,Bihar
+NSQ_21047,Pharmacy Assistant,4,Healthcare,Healthcare Sub-Sector 5,106,No_Formal,Beginner,Online,"Telugu, English, Tamil",15,52,Pharmacy Assistant,Healthcare,29190,Medium,Gujarat
+NSQ_21048,Pharmacy Assistant,6,Healthcare,Healthcare Sub-Sector 3,570,Secondary,Intermediate,Offline,"Malayalam, Hindi, English",17,55,Home Health Aide,Healthcare,34422,Low,Maharashtra
+NSQ_21049,Home Health Aide,4,Healthcare,Healthcare Sub-Sector 2,80,Primary,Beginner,Offline,"Malayalam, Kannada, Telugu, Hindi",17,44,Phlebotomy Technician,Healthcare,30273,Very_High,Bihar
+NSQ_21050,Home Health Aide,6,Healthcare,Healthcare Sub-Sector 5,270,Secondary,Intermediate,Online,"Tamil, Bengali, Telugu, Hindi",15,36,Home Health Aide,Healthcare,42447,High,Tamil Nadu
+NSQ_21051,Pharmacy Assistant,5,Healthcare,Healthcare Sub-Sector 4,218,Secondary,Intermediate,Blended,"Kannada, English",14,48,Phlebotomy Technician,Healthcare,34369,Low,Bihar
+NSQ_21052,General Duty Assistant,7,Healthcare,Healthcare Sub-Sector 3,561,Secondary,Advanced,Online,"Odia, Kannada, English",16,53,Pharmacy Assistant,Healthcare,45318,Very_High,Bihar
+NSQ_21053,Phlebotomy Technician,4,Healthcare,Healthcare Sub-Sector 3,132,No_Formal,Beginner,Offline,"Kannada, Telugu, English",14,49,Healthcare Assistant,Healthcare,25922,High,Bihar
+NSQ_21054,Pharmacy Assistant,6,Healthcare,Healthcare Sub-Sector 1,534,Secondary,Intermediate,Offline,"Tamil, English",21,55,Pharmacy Assistant,Healthcare,41951,Medium,Rajasthan
+NSQ_21055,Home Health Aide,6,Healthcare,Healthcare Sub-Sector 4,492,Middle,Intermediate,Online,"Malayalam, Tamil, Bengali, English",14,52,Pharmacy Assistant,Healthcare,31816,Low,Tamil Nadu
+NSQ_21056,Home Health Aide,4,Healthcare,Healthcare Sub-Sector 3,340,Middle,Beginner,Offline,"Kannada, Malayalam, Hindi",21,52,Home Health Aide,Healthcare,26696,Medium,Bihar
+NSQ_21057,Pharmacy Assistant,3,Healthcare,Healthcare Sub-Sector 5,108,No_Formal,Beginner,Offline,"Telugu, Kannada, Bengali, English",21,46,Phlebotomy Technician,Healthcare,23477,Very_High,Tamil Nadu
+NSQ_21058,Home Health Aide,7,Healthcare,Healthcare Sub-Sector 2,558,Senior_Secondary,Advanced,Online,"Hindi, Marathi",21,57,Pharmacy Assistant,Healthcare,41040,Medium,Tamil Nadu
+NSQ_21059,Home Health Aide,4,Healthcare,Healthcare Sub-Sector 5,248,No_Formal,Beginner,Offline,"Odia, English",14,58,Home Health Aide,Healthcare,26991,Medium,Bihar
+NSQ_21060,Phlebotomy Technician,3,Healthcare,Healthcare Sub-Sector 4,60,No_Formal,Beginner,Blended,"Gujarati, Marathi, Kannada, Hindi",15,42,Phlebotomy Technician,Healthcare,27576,Low,Karnataka
+NSQ_31061,Retail Technician 13,5,Retail,Retail Sub-Sector 1,306,Primary,Intermediate,Blended,"Hindi, Malayalam",19,60,Retail Specialist,Retail,27140,High,West Bengal
+NSQ_31062,Retail Technician 56,2,Retail,Retail Sub-Sector 5,145,No_Formal,Beginner,Blended,"Bengali, Hindi",15,54,Retail Specialist,Retail,20670,Medium,Tamil Nadu
+NSQ_31063,Retail Technician 75,2,Retail,Retail Sub-Sector 4,105,No_Formal,Beginner,Offline,"Hindi, Kannada, Telugu",16,37,Retail Specialist,Retail,17580,High,Rajasthan
+NSQ_31064,Retail Technician 82,7,Retail,Retail Sub-Sector 3,468,Senior_Secondary,Advanced,Online,"Kannada, English",17,47,Retail Specialist,Retail,44237,High,Rajasthan
+NSQ_31065,Retail Technician 3,7,Retail,Retail Sub-Sector 4,330,Secondary,Advanced,Blended,"Hindi, Kannada, Telugu",17,54,Retail Specialist,Retail,48193,Medium,Madhya Pradesh
+NSQ_31066,Retail Technician 80,3,Retail,Retail Sub-Sector 2,200,No_Formal,Beginner,Blended,"Hindi, Telugu, Kannada",14,53,Retail Specialist,Retail,21756,Medium,Bihar
+NSQ_31067,Retail Technician 38,3,Retail,Retail Sub-Sector 4,84,No_Formal,Beginner,Online,"Marathi, Odia, Telugu, Hindi",18,50,Retail Specialist,Retail,27299,High,West Bengal
+NSQ_31068,Retail Technician 15,4,Retail,Retail Sub-Sector 1,152,No_Formal,Beginner,Blended,"Gujarati, Odia, Marathi, Hindi",20,35,Retail Specialist,Retail,25361,Low,Tamil Nadu
+NSQ_31069,Retail Technician 48,5,Retail,Retail Sub-Sector 3,378,Middle,Intermediate,Blended,"English, Tamil",21,35,Retail Specialist,Retail,34578,High,Madhya Pradesh
+NSQ_31070,Retail Technician 83,2,Retail,Retail Sub-Sector 4,117,No_Formal,Beginner,Offline,"Bengali, Hindi",14,44,Retail Specialist,Retail,21570,Low,Bihar
+NSQ_31071,Retail Technician 31,6,Retail,Retail Sub-Sector 2,417,Secondary,Intermediate,Offline,"Odia, Gujarati, Bengali, English",15,50,Retail Specialist,Retail,39757,High,Uttar Pradesh
+NSQ_31072,Retail Technician 89,4,Retail,Retail Sub-Sector 4,306,No_Formal,Beginner,Offline,"Marathi, English",14,47,Retail Specialist,Retail,25489,Low,Tamil Nadu
+NSQ_31073,Retail Technician 12,5,Retail,Retail Sub-Sector 5,90,Primary,Intermediate,Offline,"Bengali, Hindi",15,59,Retail Specialist,Retail,33715,Medium,Madhya Pradesh
+NSQ_31074,Retail Technician 43,5,Retail,Retail Sub-Sector 5,80,Middle,Intermediate,Online,"Odia, English",16,38,Retail Specialist,Retail,35125,Low,Maharashtra
+NSQ_31075,Retail Technician 2,4,Retail,Retail Sub-Sector 2,380,Primary,Beginner,Online,"Telugu, Hindi",16,58,Retail Specialist,Retail,27114,Low,Bihar
+NSQ_31076,Retail Technician 61,4,Retail,Retail Sub-Sector 3,342,Middle,Beginner,Online,"Odia, Tamil, Hindi",18,49,Retail Specialist,Retail,29605,Low,Uttar Pradesh
+NSQ_31077,Retail Technician 62,5,Retail,Retail Sub-Sector 4,134,Middle,Intermediate,Blended,"English, Malayalam",19,54,Retail Specialist,Retail,28358,Medium,Rajasthan
+NSQ_31078,Retail Technician 80,4,Retail,Retail Sub-Sector 5,246,Primary,Beginner,Blended,"Telugu, Kannada, Gujarati, Hindi",15,55,Retail Specialist,Retail,29690,Medium,Karnataka
+NSQ_31079,Retail Technician 58,6,Retail,Retail Sub-Sector 4,378,Secondary,Intermediate,Offline,"English, Marathi",20,45,Retail Specialist,Retail,40509,High,Maharashtra
+NSQ_31080,Retail Technician 88,6,Retail,Retail Sub-Sector 1,189,Middle,Intermediate,Online,"English, Marathi",16,52,Retail Specialist,Retail,31311,High,Bihar
+NSQ_31081,Retail Technician 53,4,Retail,Retail Sub-Sector 4,106,Primary,Beginner,Blended,"Marathi, English",17,39,Retail Specialist,Retail,29755,Medium,Bihar
+NSQ_31082,Retail Technician 45,5,Retail,Retail Sub-Sector 3,138,Middle,Intermediate,Blended,"Gujarati, Hindi",18,35,Retail Specialist,Retail,28781,High,West Bengal
+NSQ_31083,Retail Technician 45,1,Retail,Retail Sub-Sector 2,184,No_Formal,Beginner,Offline,"Bengali, Hindi",15,58,Retail Specialist,Retail,13158,Very_High,Karnataka
+NSQ_31084,Retail Technician 59,3,Retail,Retail Sub-Sector 3,119,Primary,Beginner,Offline,"Malayalam, English, Hindi",16,40,Retail Specialist,Retail,25340,Low,Bihar
+NSQ_41085,Soil Tester,5,Agriculture,Agriculture Sub-Sector 4,390,Middle,Intermediate,Offline,"Tamil, Odia, Hindi",19,48,Agriculture Worker,Agriculture,30138,Very_High,Gujarat
+NSQ_41086,Drone Operator,1,Agriculture,Agriculture Sub-Sector 4,193,No_Formal,Beginner,Online,"Telugu, Hindi",16,59,Precision Agriculture Technician,Agriculture,11905,Low,Uttar Pradesh
+NSQ_41087,Soil Tester,3,Agriculture,Agriculture Sub-Sector 4,176,Primary,Beginner,Online,"Odia, Marathi, English",20,58,Agriculture Worker,Agriculture,22413,Very_High,Bihar
+NSQ_41088,Soil Tester,4,Agriculture,Agriculture Sub-Sector 4,228,No_Formal,Beginner,Offline,"Marathi, Hindi",21,57,Precision Agriculture Technician,Agriculture,23387,Low,Madhya Pradesh
+NSQ_41089,Soil Tester,4,Agriculture,Agriculture Sub-Sector 4,238,Middle,Beginner,Offline,"Marathi, Hindi",15,51,Agriculture Worker,Agriculture,28342,Medium,West Bengal
+NSQ_41090,Precision Agriculture,3,Agriculture,Agriculture Sub-Sector 2,105,No_Formal,Beginner,Online,"Bengali, English, Malayalam",21,49,Drone Operator,Agriculture,24666,High,West Bengal
+NSQ_41091,Soil Tester,2,Agriculture,Agriculture Sub-Sector 4,117,No_Formal,Beginner,Blended,"Marathi, Hindi",18,49,Drone Operator,Agriculture,14670,High,Rajasthan
+NSQ_41092,Organic Farming,4,Agriculture,Agriculture Sub-Sector 5,276,Primary,Beginner,Blended,"Hindi, Kannada, Tamil",19,54,Drone Operator,Agriculture,28015,Low,Tamil Nadu
+NSQ_41093,Drone Operator,7,Agriculture,Agriculture Sub-Sector 1,507,Graduate,Advanced,Online,"Tamil, English",21,51,Organic Farming Technician,Agriculture,40659,High,Karnataka
+NSQ_41094,Drone Operator,5,Agriculture,Agriculture Sub-Sector 1,250,Primary,Intermediate,Offline,"Odia, English",18,43,Organic Farming Technician,Agriculture,30800,Medium,West Bengal
+NSQ_41095,Soil Tester,2,Agriculture,Agriculture Sub-Sector 1,119,No_Formal,Beginner,Offline,"Marathi, Bengali, English",20,51,Precision Agriculture Technician,Agriculture,14531,High,Maharashtra
+NSQ_41096,Drone Operator,6,Agriculture,Agriculture Sub-Sector 4,267,Middle,Intermediate,Online,English,18,60,Agriculture Worker,Agriculture,38116,Low,West Bengal
+NSQ_41097,Precision Agriculture,4,Agriculture,Agriculture Sub-Sector 2,162,No_Formal,Beginner,Blended,"Bengali, Kannada, Hindi",20,46,Organic Farming Technician,Agriculture,33259,High,Tamil Nadu
+NSQ_41098,Precision Agriculture,3,Agriculture,Agriculture Sub-Sector 4,89,No_Formal,Beginner,Blended,"Kannada, Malayalam, Telugu, English",20,40,Organic Farming Technician,Agriculture,25771,Medium,Rajasthan
+NSQ_41099,Soil Tester,6,Agriculture,Agriculture Sub-Sector 5,198,Senior_Secondary,Intermediate,Blended,"Telugu, Hindi",16,43,Drone Operator,Agriculture,44160,Medium,Karnataka
+NSQ_41100,Precision Agriculture,5,Agriculture,Agriculture Sub-Sector 3,92,Middle,Intermediate,Online,"Odia, Marathi, Hindi",20,37,Precision Agriculture Technician,Agriculture,29363,High,Bihar
+NSQ_51101,Electrician,5,Construction,Construction Sub-Sector 2,98,Middle,Intermediate,Offline,"Bengali, Kannada, Odia, Hindi",15,35,Electrician,Construction,29246,Medium,Gujarat
+NSQ_51102,Welding Technician,2,Construction,Construction Sub-Sector 3,100,No_Formal,Beginner,Online,"Tamil, English",21,37,Mason,Construction,20424,Very_High,Gujarat
+NSQ_51103,Plumbing Basics,5,Construction,Construction Sub-Sector 3,298,Primary,Intermediate,Blended,"Tamil, Gujarati, Hindi",15,51,Electrician,Construction,27293,Low,Karnataka
+NSQ_51104,Masonry,4,Construction,Construction Sub-Sector 3,208,Middle,Beginner,Online,"English, Marathi",17,58,Mason,Construction,31040,High,Maharashtra
+NSQ_51105,Electrician,4,Construction,Construction Sub-Sector 2,316,Middle,Beginner,Offline,"Bengali, Malayalam, English",21,36,Electrician,Construction,24657,Medium,Uttar Pradesh
+NSQ_51106,Electrician,4,Construction,Construction Sub-Sector 5,322,Primary,Beginner,Online,"Tamil, Telugu, Marathi, Hindi",19,43,Mason,Construction,31352,Very_High,Karnataka
+NSQ_51107,Welding Technician,6,Construction,Construction Sub-Sector 4,378,Middle,Intermediate,Offline,"Kannada, Marathi, Telugu, Hindi",20,37,Welding Technician,Construction,39557,Medium,Gujarat
+NSQ_51108,Electrician,2,Construction,Construction Sub-Sector 3,115,No_Formal,Beginner,Offline,"Gujarati, Bengali, Kannada, English",21,36,Electrician,Construction,18826,Very_High,Rajasthan
+NSQ_51109,Masonry,2,Construction,Construction Sub-Sector 4,133,No_Formal,Beginner,Blended,"Bengali, Hindi, Malayalam",21,36,Plumber,Construction,14884,High,West Bengal
+NSQ_51110,Masonry,4,Construction,Construction Sub-Sector 4,268,Primary,Beginner,Offline,"Malayalam, Hindi",19,47,Electrician,Construction,29675,Medium,Bihar
+NSQ_51111,Plumbing Basics,4,Construction,Construction Sub-Sector 4,366,No_Formal,Beginner,Offline,"Kannada, Tamil, English",21,41,Mason,Construction,23920,Low,Tamil Nadu
+NSQ_51112,Welding Technician,7,Construction,Construction Sub-Sector 3,384,Graduate,Advanced,Online,"Odia, Telugu, Malayalam, Hindi",16,60,Electrician,Construction,43150,Low,Madhya Pradesh
+NSQ_51113,Plumbing Basics,5,Construction,Construction Sub-Sector 1,264,Secondary,Intermediate,Blended,"Kannada, Odia, Hindi",15,37,Electrician,Construction,31655,Very_High,Gujarat
+NSQ_51114,Welding Technician,5,Construction,Construction Sub-Sector 1,144,Middle,Intermediate,Blended,"Kannada, English",19,39,Plumber,Construction,36534,Medium,Karnataka
+NSQ_51115,Masonry,5,Construction,Construction Sub-Sector 5,158,Middle,Intermediate,Online,"Marathi, Hindi",19,51,Electrician,Construction,37566,High,Madhya Pradesh
+NSQ_51116,Electrician,2,Construction,Construction Sub-Sector 3,197,No_Formal,Beginner,Online,"Bengali, Malayalam, Odia, English",14,35,Mason,Construction,14727,High,Madhya Pradesh
+NSQ_51117,Welding Technician,4,Construction,Construction Sub-Sector 1,334,Middle,Beginner,Blended,"Telugu, Kannada, Hindi",20,44,Welding Technician,Construction,23217,Low,Maharashtra
+NSQ_61118,Automotive Technician 57,4,Automotive,Automotive Sub-Sector 4,184,Primary,Beginner,Blended,"Marathi, English",19,47,Automotive Specialist,Automotive,23864,High,Gujarat
+NSQ_61119,Automotive Technician 72,2,Automotive,Automotive Sub-Sector 2,159,No_Formal,Beginner,Offline,"Tamil, Bengali, Hindi",14,44,Automotive Specialist,Automotive,21206,Very_High,Madhya Pradesh
+NSQ_61120,Automotive Technician 21,5,Automotive,Automotive Sub-Sector 5,240,Primary,Intermediate,Online,"Odia, Kannada, English",18,50,Automotive Specialist,Automotive,26705,Very_High,Gujarat
+NSQ_61121,Automotive Technician 59,7,Automotive,Automotive Sub-Sector 2,567,Senior_Secondary,Advanced,Online,"Telugu, English",21,44,Automotive Specialist,Automotive,43631,Low,Karnataka
+NSQ_71122,Electronics Technician 18,6,Electronics,Electronics Sub-Sector 3,429,Secondary,Intermediate,Online,"Hindi, Odia",17,46,Electronics Specialist,Electronics,38808,Low,Karnataka
+NSQ_71123,Electronics Technician 65,4,Electronics,Electronics Sub-Sector 5,222,Middle,Beginner,Blended,"English, Bengali, Malayalam",20,46,Electronics Specialist,Electronics,31302,High,Gujarat
+NSQ_71124,Electronics Technician 47,5,Electronics,Electronics Sub-Sector 2,388,Secondary,Intermediate,Offline,"Hindi, Malayalam, Odia",16,57,Electronics Specialist,Electronics,30796,Very_High,Gujarat
+NSQ_71125,Electronics Technician 59,2,Electronics,Electronics Sub-Sector 5,75,No_Formal,Beginner,Blended,"Bengali, Gujarati, English",19,51,Electronics Specialist,Electronics,20363,Very_High,Rajasthan
+NSQ_71126,Electronics Technician 61,5,Electronics,Electronics Sub-Sector 3,248,Secondary,Intermediate,Online,"Malayalam, Telugu, Hindi",21,43,Electronics Specialist,Electronics,39165,Medium,Uttar Pradesh
+NSQ_71127,Electronics Technician 75,4,Electronics,Electronics Sub-Sector 5,396,Primary,Beginner,Online,"Tamil, Hindi, English",17,35,Electronics Specialist,Electronics,27339,Very_High,Maharashtra
+NSQ_71128,Electronics Technician 53,5,Electronics,Electronics Sub-Sector 4,336,Secondary,Intermediate,Offline,"Hindi, Bengali, Tamil",19,56,Electronics Specialist,Electronics,32714,Very_High,West Bengal
+NSQ_71129,Electronics Technician 23,4,Electronics,Electronics Sub-Sector 5,254,Middle,Beginner,Offline,"Telugu, Kannada, Tamil, Hindi",18,52,Electronics Specialist,Electronics,25743,High,Rajasthan
+NSQ_71130,Electronics Technician 91,3,Electronics,Electronics Sub-Sector 4,121,No_Formal,Beginner,Offline,"Telugu, Malayalam, English",20,47,Electronics Specialist,Electronics,25929,Medium,Rajasthan
+NSQ_71131,Electronics Technician 6,3,Electronics,Electronics Sub-Sector 1,128,No_Formal,Beginner,Blended,"Kannada, Tamil, Hindi",18,52,Electronics Specialist,Electronics,24804,Medium,Bihar
+NSQ_71132,Electronics Technician 79,5,Electronics,Electronics Sub-Sector 2,204,Primary,Intermediate,Blended,"Tamil, Malayalam, Hindi",15,48,Electronics Specialist,Electronics,30759,Very_High,Bihar
+NSQ_71133,Electronics Technician 88,5,Electronics,Electronics Sub-Sector 1,360,Primary,Intermediate,Offline,"Kannada, Malayalam, Tamil, English",19,44,Electronics Specialist,Electronics,34925,Low,Madhya Pradesh
+NSQ_71134,Electronics Technician 69,5,Electronics,Electronics Sub-Sector 1,168,Middle,Intermediate,Online,"Gujarati, English",16,58,Electronics Specialist,Electronics,39100,High,Uttar Pradesh
+NSQ_71135,Electronics Technician 2,3,Electronics,Electronics Sub-Sector 5,67,No_Formal,Beginner,Offline,"Odia, Malayalam, English",16,51,Electronics Specialist,Electronics,22705,Medium,Bihar
+NSQ_71136,Electronics Technician 43,3,Electronics,Electronics Sub-Sector 4,105,Primary,Beginner,Online,"Marathi, English",17,40,Electronics Specialist,Electronics,24020,Very_High,Karnataka
+NSQ_71137,Electronics Technician 66,3,Electronics,Electronics Sub-Sector 4,64,No_Formal,Beginner,Online,"Marathi, Tamil, Hindi",18,47,Electronics Specialist,Electronics,20566,High,West Bengal
+NSQ_81138,Tourism Technician 39,4,Tourism,Tourism Sub-Sector 5,84,Primary,Beginner,Blended,"Tamil, Hindi",15,49,Tourism Specialist,Tourism,25836,Very_High,Gujarat
+NSQ_81139,Tourism Technician 91,5,Tourism,Tourism Sub-Sector 1,230,Middle,Intermediate,Blended,"Tamil, Hindi",21,39,Tourism Specialist,Tourism,32405,High,Karnataka
+NSQ_81140,Tourism Technician 90,4,Tourism,Tourism Sub-Sector 4,354,Middle,Beginner,Online,"Malayalam, Hindi",21,51,Tourism Specialist,Tourism,30282,Low,Bihar
+NSQ_81141,Tourism Technician 8,5,Tourism,Tourism Sub-Sector 5,182,Secondary,Intermediate,Blended,"Bengali, English",21,38,Tourism Specialist,Tourism,35379,Very_High,Bihar
+NSQ_81142,Tourism Technician 66,4,Tourism,Tourism Sub-Sector 1,312,No_Formal,Beginner,Blended,"Kannada, Hindi",21,56,Tourism Specialist,Tourism,31437,Low,Karnataka
+NSQ_81143,Tourism Technician 33,5,Tourism,Tourism Sub-Sector 2,376,Primary,Intermediate,Online,"Marathi, English",14,37,Tourism Specialist,Tourism,39417,Very_High,Uttar Pradesh
+NSQ_81144,Tourism Technician 37,4,Tourism,Tourism Sub-Sector 2,294,Primary,Beginner,Offline,"Gujarati, Malayalam, Hindi",16,55,Tourism Specialist,Tourism,32035,Low,Maharashtra
+NSQ_81145,Tourism Technician 69,4,Tourism,Tourism Sub-Sector 2,194,No_Formal,Beginner,Online,"Kannada, Odia, English",20,42,Tourism Specialist,Tourism,25172,High,Maharashtra
+NSQ_81146,Tourism Technician 36,3,Tourism,Tourism Sub-Sector 1,48,Primary,Beginner,Offline,"Hindi, Tamil, Odia",15,38,Tourism Specialist,Tourism,23864,Very_High,Uttar Pradesh
+NSQ_81147,Tourism Technician 32,5,Tourism,Tourism Sub-Sector 4,304,Primary,Intermediate,Blended,Hindi,16,51,Tourism Specialist,Tourism,39513,Medium,West Bengal
+NSQ_91148,Hospitality Technician 74,4,Hospitality,Hospitality Sub-Sector 3,200,Primary,Beginner,Online,"Odia, Tamil, Gujarati, English",18,36,Hospitality Specialist,Hospitality,28635,Medium,Karnataka
+NSQ_91149,Hospitality Technician 72,4,Hospitality,Hospitality Sub-Sector 3,274,Middle,Beginner,Offline,"Gujarati, Malayalam, Bengali, English",20,40,Hospitality Specialist,Hospitality,30849,Very_High,Madhya Pradesh
+NSQ_91150,Hospitality Technician 29,3,Hospitality,Hospitality Sub-Sector 2,158,No_Formal,Beginner,Blended,"Gujarati, Odia, Hindi",20,42,Hospitality Specialist,Hospitality,20745,High,Bihar
+NSQ_91151,Hospitality Technician 58,5,Hospitality,Hospitality Sub-Sector 1,354,Secondary,Intermediate,Online,"Telugu, English",14,37,Hospitality Specialist,Hospitality,28883,Medium,Tamil Nadu
+NSQ_91152,Hospitality Technician 27,6,Hospitality,Hospitality Sub-Sector 3,351,Middle,Intermediate,Online,English,21,42,Hospitality Specialist,Hospitality,40973,Medium,Karnataka
+NSQ_91153,Hospitality Technician 31,4,Hospitality,Hospitality Sub-Sector 3,274,Primary,Beginner,Blended,"Marathi, Telugu, Odia, English",21,49,Hospitality Specialist,Hospitality,23504,Very_High,West Bengal
+NSQ_101154,Banking / Finance Technician 27,4,Banking / Finance,Banking / Finance Sub-Sector 4,102,Middle,Beginner,Online,"Bengali, Hindi, Telugu",20,44,Banking / Finance Specialist,Banking / Finance,24107,High,Madhya Pradesh
+NSQ_101155,Banking / Finance Technician 49,4,Banking / Finance,Banking / Finance Sub-Sector 2,334,Middle,Beginner,Blended,"Marathi, Telugu, Kannada, English",21,40,Banking / Finance Specialist,Banking / Finance,30607,High,Maharashtra
+NSQ_101156,Banking / Finance Technician 18,5,Banking / Finance,Banking / Finance Sub-Sector 4,174,Secondary,Intermediate,Blended,"Odia, Hindi",15,56,Banking / Finance Specialist,Banking / Finance,27040,Low,Karnataka
+NSQ_101157,Banking / Finance Technician 18,5,Banking / Finance,Banking / Finance Sub-Sector 2,114,Secondary,Intermediate,Online,"Tamil, English",19,36,Banking / Finance Specialist,Banking / Finance,34555,Very_High,Tamil Nadu
+NSQ_101158,Banking / Finance Technician 3,1,Banking / Finance,Banking / Finance Sub-Sector 5,145,No_Formal,Beginner,Online,"Telugu, Odia, Malayalam, Hindi",20,60,Banking / Finance Specialist,Banking / Finance,15286,Medium,Bihar
+NSQ_101159,Banking / Finance Technician 13,4,Banking / Finance,Banking / Finance Sub-Sector 2,178,Middle,Beginner,Blended,"Marathi, Telugu, English",15,46,Banking / Finance Specialist,Banking / Finance,33144,Very_High,Madhya Pradesh
+NSQ_101160,Banking / Finance Technician 90,3,Banking / Finance,Banking / Finance Sub-Sector 1,48,No_Formal,Beginner,Offline,"Gujarati, Odia, English",14,55,Banking / Finance Specialist,Banking / Finance,18486,Medium,Bihar
+NSQ_111161,Beauty & Wellness Technician 64,5,Beauty & Wellness,Beauty & Wellness Sub-Sector 3,368,Primary,Intermediate,Blended,"Tamil, Hindi",21,43,Beauty & Wellness Specialist,Beauty & Wellness,27014,Low,Rajasthan
+NSQ_111162,Beauty & Wellness Technician 70,4,Beauty & Wellness,Beauty & Wellness Sub-Sector 1,170,Primary,Beginner,Online,"Malayalam, Hindi",20,37,Beauty & Wellness Specialist,Beauty & Wellness,25751,Medium,Karnataka
+NSQ_111163,Beauty & Wellness Technician 87,6,Beauty & Wellness,Beauty & Wellness Sub-Sector 3,414,Senior_Secondary,Intermediate,Online,"English, Odia, Marathi",14,38,Beauty & Wellness Specialist,Beauty & Wellness,37043,Low,West Bengal
+NSQ_111164,Beauty & Wellness Technician 78,5,Beauty & Wellness,Beauty & Wellness Sub-Sector 5,282,Middle,Intermediate,Online,"Telugu, Kannada, Odia, Hindi",19,52,Beauty & Wellness Specialist,Beauty & Wellness,38823,Very_High,Maharashtra
+NSQ_111165,Beauty & Wellness Technician 88,4,Beauty & Wellness,Beauty & Wellness Sub-Sector 4,122,Middle,Beginner,Offline,English,15,43,Beauty & Wellness Specialist,Beauty & Wellness,24127,Medium,Karnataka
+NSQ_111166,Beauty & Wellness Technician 41,4,Beauty & Wellness,Beauty & Wellness Sub-Sector 1,82,Primary,Beginner,Offline,"Telugu, English",16,37,Beauty & Wellness Specialist,Beauty & Wellness,24498,Very_High,Gujarat
+NSQ_111167,Beauty & Wellness Technician 72,4,Beauty & Wellness,Beauty & Wellness Sub-Sector 1,92,No_Formal,Beginner,Offline,"English, Marathi, Gujarati",14,44,Beauty & Wellness Specialist,Beauty & Wellness,27034,Low,Gujarat
+NSQ_121168,Logistics Technician 32,4,Logistics,Logistics Sub-Sector 2,274,No_Formal,Beginner,Online,"Telugu, Malayalam, English",16,37,Logistics Specialist,Logistics,24272,High,Karnataka
+NSQ_121169,Logistics Technician 39,4,Logistics,Logistics Sub-Sector 1,264,Primary,Beginner,Online,"Kannada, Tamil, Malayalam, Hindi",16,44,Logistics Specialist,Logistics,22475,Very_High,West Bengal
+NSQ_121170,Logistics Technician 80,4,Logistics,Logistics Sub-Sector 3,304,Primary,Beginner,Offline,"Malayalam, Bengali, Telugu, English",17,50,Logistics Specialist,Logistics,25918,Very_High,West Bengal
+NSQ_121171,Logistics Technician 38,5,Logistics,Logistics Sub-Sector 4,374,Primary,Intermediate,Offline,"Telugu, Gujarati, English",15,53,Logistics Specialist,Logistics,29037,Medium,Gujarat
+NSQ_121172,Logistics Technician 4,7,Logistics,Logistics Sub-Sector 4,279,Senior_Secondary,Advanced,Offline,"English, Gujarati, Kannada",16,55,Logistics Specialist,Logistics,39608,High,Maharashtra
+NSQ_121173,Logistics Technician 92,4,Logistics,Logistics Sub-Sector 4,116,Primary,Beginner,Blended,"Malayalam, Gujarati, English",14,60,Logistics Specialist,Logistics,33246,Low,Bihar
+NSQ_121174,Logistics Technician 99,3,Logistics,Logistics Sub-Sector 3,82,Primary,Beginner,Blended,"Malayalam, English",19,60,Logistics Specialist,Logistics,22360,Low,Bihar
+NSQ_121175,Logistics Technician 34,3,Logistics,Logistics Sub-Sector 5,182,Primary,Beginner,Blended,"Tamil, Kannada, Marathi, English",21,59,Logistics Specialist,Logistics,24651,Medium,West Bengal
+NSQ_121176,Logistics Technician 4,4,Logistics,Logistics Sub-Sector 3,292,No_Formal,Beginner,Online,"Bengali, Marathi, Telugu, English",21,60,Logistics Specialist,Logistics,24716,Very_High,West Bengal
+NSQ_131177,Manufacturing Technician 61,2,Manufacturing,Manufacturing Sub-Sector 4,121,No_Formal,Beginner,Offline,English,14,45,Manufacturing Specialist,Manufacturing,19065,Medium,Madhya Pradesh
+NSQ_131178,Manufacturing Technician 67,3,Manufacturing,Manufacturing Sub-Sector 2,124,Primary,Beginner,Offline,"Tamil, Gujarati, Hindi",16,55,Manufacturing Specialist,Manufacturing,24447,Very_High,Uttar Pradesh
+NSQ_131179,Manufacturing Technician 95,4,Manufacturing,Manufacturing Sub-Sector 2,310,Middle,Beginner,Offline,"Hindi, Tamil",17,43,Manufacturing Specialist,Manufacturing,30826,Low,Bihar
+NSQ_131180,Manufacturing Technician 69,3,Manufacturing,Manufacturing Sub-Sector 3,90,No_Formal,Beginner,Online,"Kannada, Odia, English",20,54,Manufacturing Specialist,Manufacturing,22011,Low,West Bengal
+NSQ_131181,Manufacturing Technician 46,5,Manufacturing,Manufacturing Sub-Sector 5,168,Secondary,Intermediate,Blended,"Malayalam, English",16,45,Manufacturing Specialist,Manufacturing,27955,High,Bihar
+NSQ_131182,Manufacturing Technician 24,4,Manufacturing,Manufacturing Sub-Sector 2,340,Primary,Beginner,Offline,"Bengali, Gujarati, Odia, Hindi",21,55,Manufacturing Specialist,Manufacturing,28418,Medium,Gujarat
+NSQ_131183,Manufacturing Technician 22,4,Manufacturing,Manufacturing Sub-Sector 2,174,Primary,Beginner,Offline,"Hindi, Marathi, Malayalam",21,39,Manufacturing Specialist,Manufacturing,24585,Very_High,Gujarat
+NSQ_131184,Manufacturing Technician 65,5,Manufacturing,Manufacturing Sub-Sector 4,330,Middle,Intermediate,Blended,"Kannada, Bengali, Hindi",14,60,Manufacturing Specialist,Manufacturing,36445,High,Uttar Pradesh
+NSQ_131185,Manufacturing Technician 36,3,Manufacturing,Manufacturing Sub-Sector 3,83,No_Formal,Beginner,Blended,"Kannada, Odia, English",15,43,Manufacturing Specialist,Manufacturing,25531,High,Gujarat
+NSQ_131186,Manufacturing Technician 97,1,Manufacturing,Manufacturing Sub-Sector 4,179,No_Formal,Beginner,Offline,"Tamil, English",14,49,Manufacturing Specialist,Manufacturing,11766,Low,Tamil Nadu
+NSQ_131187,Manufacturing Technician 16,5,Manufacturing,Manufacturing Sub-Sector 2,186,Secondary,Intermediate,Blended,"Marathi, Gujarati, Bengali, Hindi",17,41,Manufacturing Specialist,Manufacturing,37031,High,Gujarat
+NSQ_131188,Manufacturing Technician 36,4,Manufacturing,Manufacturing Sub-Sector 2,244,Middle,Beginner,Offline,"Malayalam, Telugu, Hindi",16,59,Manufacturing Specialist,Manufacturing,31199,Low,Rajasthan
+NSQ_141189,Green Jobs Technician 84,2,Green Jobs,Green Jobs Sub-Sector 2,103,No_Formal,Beginner,Blended,"Tamil, Gujarati, English",16,53,Green Jobs Specialist,Green Jobs,18953,Very_High,Karnataka
+NSQ_141190,Green Jobs Technician 58,2,Green Jobs,Green Jobs Sub-Sector 1,143,No_Formal,Beginner,Blended,"Marathi, Kannada, English",19,53,Green Jobs Specialist,Green Jobs,14417,Low,Tamil Nadu
+NSQ_141191,Green Jobs Technician 82,5,Green Jobs,Green Jobs Sub-Sector 3,112,Secondary,Intermediate,Offline,"Gujarati, Hindi",21,43,Green Jobs Specialist,Green Jobs,30661,High,West Bengal
+NSQ_141192,Green Jobs Technician 71,4,Green Jobs,Green Jobs Sub-Sector 5,328,Primary,Beginner,Blended,Hindi,15,55,Green Jobs Specialist,Green Jobs,31179,Very_High,Uttar Pradesh
+NSQ_151193,Telecom Technician 16,6,Telecom,Telecom Sub-Sector 2,456,Secondary,Intermediate,Online,"Tamil, Bengali, English",16,43,Telecom Specialist,Telecom,31818,High,Rajasthan
+NSQ_151194,Telecom Technician 11,4,Telecom,Telecom Sub-Sector 2,106,Primary,Beginner,Blended,"Tamil, Gujarati, Hindi",15,35,Telecom Specialist,Telecom,24790,Low,Maharashtra
+NSQ_151195,Telecom Technician 76,3,Telecom,Telecom Sub-Sector 4,42,No_Formal,Beginner,Blended,"English, Gujarati",16,50,Telecom Specialist,Telecom,19051,Very_High,Bihar
+NSQ_151196,Telecom Technician 94,5,Telecom,Telecom Sub-Sector 1,240,Middle,Intermediate,Offline,"Gujarati, Hindi",16,37,Telecom Specialist,Telecom,33402,Low,Maharashtra
+NSQ_151197,Telecom Technician 57,4,Telecom,Telecom Sub-Sector 2,400,Middle,Beginner,Online,"Malayalam, Kannada, Hindi",15,38,Telecom Specialist,Telecom,23968,Low,Karnataka
+NSQ_161198,Entrepreneurship Technician 45,7,Entrepreneurship,Entrepreneurship Sub-Sector 3,225,Secondary,Advanced,Offline,"English, Tamil, Telugu",14,56,Entrepreneurship Specialist,Entrepreneurship,49464,Medium,Gujarat
+NSQ_161199,Entrepreneurship Technician 78,4,Entrepreneurship,Entrepreneurship Sub-Sector 4,230,Middle,Beginner,Online,"Kannada, English",15,42,Entrepreneurship Specialist,Entrepreneurship,27995,Low,Gujarat
