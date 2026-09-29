@@ -6,5 +6,5 @@ import { pathForSection } from '../../lib/routes';
 export default function Page() {
   const { language, setLanguage } = useAppSettings();
   const router = useRouter();
-  return <FlowContainer language={language} onSelectLanguage={setLanguage} onNavigateModule={key => router.push(pathForSection(key))} />;
+  return <FlowContainer mode="assistant" language={language} onSelectLanguage={setLanguage} onNavigateModule={key => router.push(pathForSection(key))} />;
 }
