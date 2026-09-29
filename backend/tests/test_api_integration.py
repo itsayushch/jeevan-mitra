@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+import pytest
 from fastapi.testclient import TestClient
 from app.config import settings
 from app.database import get_db
@@ -38,6 +39,7 @@ class TestPythonBackend(unittest.TestCase):
             settings.WORKER_NAME = cls.original_worker_name
             cls.database_directory.cleanup()
 
+    @pytest.mark.security
     def test_untrusted_headers_do_not_create_privileged_or_beneficiary_actors(self):
         for forged_key in ("admin-attacker", "counselor-attacker"):
             with self.subTest(api_key=forged_key):
@@ -59,6 +61,7 @@ class TestPythonBackend(unittest.TestCase):
         )
         self.assertEqual(actor.actor_role, "anonymous")
 
+    @pytest.mark.security
     def test_session_id_is_not_a_session_credential(self):
         with get_db() as conn:
             session = SessionService.create_session(conn)
@@ -164,6 +167,7 @@ class TestPythonBackend(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    @pytest.mark.security
     def test_worker_verification_is_required_before_referral(self):
         consent = self.client.post('/api/v1/consents', json={
             'beneficiary_id': 'ben_rajesh_kumar',
