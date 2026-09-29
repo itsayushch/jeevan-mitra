@@ -25,14 +25,14 @@ class ConsentService:
         ))
 
         # Also insert into legacy consents table if beneficiary_id is present
-        if data.beneficiary_id and data.granted:
+        if data.beneficiary_id:
             legacy_id = f"consent_{uuid.uuid4().hex[:12]}"
             conn.execute("""
                 INSERT INTO consents (
                     id, beneficiary_id, purpose, notice_version,
                     audio_consent_recorded, voice_retention_choice, dpdp_affirmative_consent, timestamp
-                ) VALUES (?, ?, ?, ?, 1, 'do_not_keep', 1, ?);
-            """, (legacy_id, data.beneficiary_id, f"DPDP Consent for {data.consent_type}", data.policy_version or "1.0", now))
+                ) VALUES (?, ?, ?, ?, 1, 'do_not_keep', ?, ?);
+            """, (legacy_id, data.beneficiary_id, f"DPDP Consent for {data.consent_type}", data.policy_version or "1.0", 1 if data.granted else 0, now))
 
         log_audit_event(
             conn=conn,
@@ -85,10 +85,13 @@ class ConsentService:
             conn.execute("""
                 UPDATE referral_cases
                 SET status = 'closed', notes = COALESCE(notes, '') || ' [Closed: Consent revoked by beneficiary]'
-                WHERE (beneficiary_id = ? OR interview_id IN (
-                    SELECT id FROM interview_sessions WHERE beneficiary_id = ? OR session_id = ?
-                )) AND status NOT IN ('resolved', 'closed');
-            """, (ben_id, ben_id, sess_id))
+                WHERE (
+                    (beneficiary_id IS NOT NULL AND beneficiary_id = ?)
+                    OR (interview_id IS NOT NULL AND (interview_id = ? OR interview_id IN (
+                        SELECT id FROM interview_sessions WHERE beneficiary_id = ? OR session_id = ?
+                    )))
+                ) AND status NOT IN ('resolved', 'closed');
+            """, (ben_id or "", sess_id or "", ben_id or "", sess_id or ""))
 
         elif consent_type == "profile_storage":
             # If profile storage is revoked, anonymize/mark non-retained

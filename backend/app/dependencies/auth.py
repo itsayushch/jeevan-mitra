@@ -32,25 +32,33 @@ def get_current_actor(
     """
     Identifies the caller actor based on worker API keys, session tokens, or guest session IDs.
     """
+    token = x_session_token or x_session_id
+
     # 1. Staff authentication via worker API key
     if x_worker_api_key:
         if settings.WORKER_API_KEY and x_worker_api_key == settings.WORKER_API_KEY:
             return Actor(
                 actor_id=settings.WORKER_ID or "worker_01",
                 actor_role="field_worker",
-                actor_name=settings.WORKER_NAME or "Field Worker"
+                actor_name=settings.WORKER_NAME or "Field Worker",
+                session_id=token,
+                beneficiary_id=x_beneficiary_id
             )
         elif x_worker_api_key.startswith("admin-"):
             return Actor(
                 actor_id="admin_01",
                 actor_role="admin",
-                actor_name="District Administrator"
+                actor_name="District Administrator",
+                session_id=token,
+                beneficiary_id=x_beneficiary_id
             )
         elif x_worker_api_key.startswith("counselor-"):
             return Actor(
                 actor_id=x_worker_api_key.replace("counselor-", "counselor_"),
                 actor_role="counselor",
-                actor_name="Career Counselor"
+                actor_name="Career Counselor",
+                session_id=token,
+                beneficiary_id=x_beneficiary_id
             )
 
     # 2. Check token in anonymous_sessions table

@@ -1,70 +1,83 @@
-from fastapi import APIRouter, HTTPException
-import json
-from typing import Optional
+from fastapi import APIRouter, HTTPException, Depends, Query
+from typing import Optional, List, Dict, Any
 from app.database import get_db
+from app.models import QualificationCreate, QualificationUpdate, OpportunityCreate, OpportunityUpdate
+from app.services.catalogue_service import CatalogueService
+from app.dependencies.auth import require_admin_or_worker, Actor
 
-router = APIRouter(prefix="/catalogue", tags=["Catalogue"])
+router = APIRouter(tags=["Catalogue"])
 
-@router.get("/qualifications")
+# ============================================================================
+# Public Catalogue Read Endpoints (A4)
+# ============================================================================
+@router.get("/catalogue/qualifications")
 def list_qualifications(sector: Optional[str] = None):
     with get_db() as conn:
-        query = "SELECT * FROM qualifications WHERE verification_status = 'verified'"
-        params = []
-        if sector:
-            query += " AND sector = ?"
-            params.append(sector)
-        query += " ORDER BY nsqf_level ASC;"
-
-        rows = conn.execute(query, params).fetchall()
-        results = []
-        for r in rows:
-            d = dict(r)
-            d["skills_acquired"] = json.loads(d.get("skills_acquired") or "[]")
-            results.append(d)
-
+        quals = CatalogueService.list_qualifications(conn, sector=sector)
         return {
-            "count": len(results),
-            "qualifications": results
+            "count": len(quals),
+            "qualifications": quals
         }
 
-@router.get("/qualifications/{qual_id}")
-def get_qualification_detail(qual_id: str):
+@router.get("/catalogue/qualifications/{qualification_id}")
+def get_qualification(qualification_id: str):
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM qualifications WHERE id = ?;", (qual_id,)).fetchone()
-        if not row:
-            raise HTTPException(status_code=404, detail="Qualification not found")
+        return CatalogueService.get_qualification_detail(conn, qualification_id)
 
-        qual = dict(row)
-        qual["skills_acquired"] = json.loads(qual.get("skills_acquired") or "[]")
-
-        opp_rows = conn.execute("""
-            SELECT * FROM local_opportunities
-            WHERE qualification_id = ? AND batch_status IN ('active', 'upcoming');
-        """, (qual_id,)).fetchall()
-
-        return {
-            "qualification": qual,
-            "activeBatches": [dict(o) for o in opp_rows]
-        }
-
-@router.get("/opportunities")
-def list_opportunities(district: Optional[str] = None, block: Optional[str] = None, status: Optional[str] = None):
+@router.get("/catalogue/opportunities")
+def list_opportunities(
+    district: Optional[str] = None,
+    block: Optional[str] = None,
+    qualification_id: Optional[str] = None
+):
     with get_db() as conn:
-        query = "SELECT * FROM local_opportunities WHERE 1=1"
-        params = []
-        if district:
-            query += " AND district = ?"
-            params.append(district)
-        if block:
-            query += " AND block = ?"
-            params.append(block)
-        if status:
-            query += " AND batch_status = ?"
-            params.append(status)
-        query += " ORDER BY batch_start_date ASC;"
-
-        rows = conn.execute(query, params).fetchall()
+        opps = CatalogueService.list_opportunities(conn, district=district, block=block, qualification_id=qualification_id)
         return {
-            "count": len(rows),
-            "opportunities": [dict(r) for r in rows]
+            "count": len(opps),
+            "opportunities": opps
         }
+
+# ============================================================================
+# Protected Admin / Worker Catalogue Management Endpoints (A4)
+# ============================================================================
+@router.post("/admin/catalogue/qualifications", status_code=201)
+def create_qualification(
+    data: QualificationCreate,
+    admin: Actor = Depends(require_admin_or_worker)
+):
+    with get_db() as conn:
+        return CatalogueService.create_qualification(conn, data, actor_id=admin.actor_id)
+
+@router.patch("/admin/catalogue/qualifications/{qualification_id}")
+def update_qualification(
+    qualification_id: str,
+    data: QualificationUpdate,
+    admin: Actor = Depends(require_admin_or_worker)
+):
+    with get_db() as conn:
+        return CatalogueService.update_qualification(conn, qualification_id, data, actor_id=admin.actor_id)
+
+@router.post("/admin/catalogue/opportunities", status_code=201)
+def create_opportunity(
+    data: OpportunityCreate,
+    admin: Actor = Depends(require_admin_or_worker)
+):
+    with get_db() as conn:
+        return CatalogueService.create_opportunity(conn, data, actor_id=admin.actor_id)
+
+@router.patch("/admin/catalogue/opportunities/{opportunity_id}")
+def update_opportunity(
+    opportunity_id: str,
+    data: OpportunityUpdate,
+    admin: Actor = Depends(require_admin_or_worker)
+):
+    with get_db() as conn:
+        return CatalogueService.update_opportunity(conn, opportunity_id, data, actor_id=admin.actor_id)
+
+@router.post("/admin/catalogue/opportunities/{opportunity_id}/archive")
+def archive_opportunity(
+    opportunity_id: str,
+    admin: Actor = Depends(require_admin_or_worker)
+):
+    with get_db() as conn:
+        return CatalogueService.archive_opportunity(conn, opportunity_id, actor_id=admin.actor_id)

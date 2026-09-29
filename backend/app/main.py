@@ -134,21 +134,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API routers under /api/v1 prefix
-api_prefix = settings.API_PREFIX
-app.include_router(health.router, prefix=api_prefix)
-app.include_router(beneficiaries.router, prefix=api_prefix)
-app.include_router(consents.router, prefix=api_prefix)
-app.include_router(interview.router, prefix=api_prefix)
-app.include_router(recommendations.router, prefix=api_prefix)
-app.include_router(worker.router, prefix=api_prefix)
-app.include_router(referrals.router, prefix=api_prefix)
-app.include_router(planning.router, prefix=api_prefix)
-app.include_router(monitoring.router, prefix=api_prefix)
-app.include_router(channels.router, prefix=api_prefix)
-app.include_router(audit.router, prefix=api_prefix)
-app.include_router(catalogue.router, prefix=api_prefix)
-app.include_router(chat.router, prefix=api_prefix)
+# Include API routers under both /api/v1 and /api prefixes for full frontend & test compatibility
+api_routers = [
+    health.router,
+    beneficiaries.router,
+    consents.router,
+    interview.router,
+    recommendations.router,
+    worker.router,
+    referrals.router,
+    planning.router,
+    monitoring.router,
+    channels.router,
+    audit.router,
+    catalogue.router,
+    chat.router
+]
+
+for prefix in ["/api/v1", "/api"]:
+    for r in api_routers:
+        app.include_router(r, prefix=prefix)
 
 # Also expose health check at root /health for convenience
 app.include_router(health.router)

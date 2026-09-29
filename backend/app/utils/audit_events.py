@@ -21,6 +21,11 @@ def log_audit_event(
     """
     Log an immutable audit event for compliance, data reading, export, change, or deletion.
     """
+    # Normalize actor_role to ensure compliance with database CHECK constraint
+    allowed_roles = {'beneficiary', 'field_worker', 'district_officer', 'counselor', 'system', 'admin'}
+    if actor_role not in allowed_roles:
+        actor_role = 'beneficiary' if actor_role in ['anonymous', 'guest', 'authenticated_user'] else 'system'
+
     event_id = f"aud_{uuid.uuid4().hex[:12]}"
     now = timestamp or datetime.now(timezone.utc).isoformat()
     
