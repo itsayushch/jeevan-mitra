@@ -8,15 +8,72 @@ from typing import Generator
 from app.config import settings
 from app.utils.logger import logger
 
-def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(settings.DATABASE_PATH, timeout=10.0)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON;")
-    conn.execute("PRAGMA journal_mode = WAL;")
-    return conn
+class PostgresWrapper:
+    def __init__(self, conn):
+        self.conn = conn
+        self.is_postgres = True
+
+    def execute(self, query, params=None):
+        cursor = self.conn.cursor()
+        if "INSERT OR IGNORE INTO" in query:
+            query = query.replace("INSERT OR IGNORE INTO", "INSERT INTO")
+            query = query.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING;"
+            
+        if "?" in query:
+            query = query.replace("?", "%s")
+        if params is not None:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
+        return cursor
+
+    def executemany(self, query, params_list):
+        cursor = self.conn.cursor()
+        if "INSERT OR IGNORE INTO" in query:
+            query = query.replace("INSERT OR IGNORE INTO", "INSERT INTO")
+            query = query.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING;"
+            
+        if "?" in query:
+            query = query.replace("?", "%s")
+        cursor.executemany(query, params_list)
+        return cursor
+        
+    def executescript(self, sql_script):
+        cursor = self.conn.cursor()
+        statements = sql_script.split(";")
+        for stmt in statements:
+            stmt = stmt.strip()
+            if not stmt or stmt.startswith("PRAGMA") or stmt.startswith("--"):
+                continue
+            cursor.execute(stmt)
+        return cursor
+
+    def commit(self):
+        self.conn.commit()
+
+    def rollback(self):
+        self.conn.rollback()
+
+    def close(self):
+        self.conn.close()
+
+def get_connection():
+    if settings.DATABASE_URL:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+        conn = psycopg2.connect(settings.DATABASE_URL, cursor_factory=RealDictCursor)
+        return PostgresWrapper(conn)
+    else:
+        conn = sqlite3.connect(settings.DATABASE_PATH, timeout=10.0)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON;")
+        conn.execute("PRAGMA journal_mode = WAL;")
+        return conn
+
+from typing import Generator, Any
 
 @contextmanager
-def get_db() -> Generator[sqlite3.Connection, None, None]:
+def get_db() -> Generator[Any, None, None]:
     conn = get_connection()
     try:
         yield conn
@@ -27,7 +84,7 @@ def get_db() -> Generator[sqlite3.Connection, None, None]:
     finally:
         conn.close()
 
-def get_db_session() -> Generator[sqlite3.Connection, None, None]:
+def get_db_session() -> Generator[Any, None, None]:
     """Dependency for FastAPI"""
     conn = get_connection()
     try:
@@ -39,19 +96,32 @@ def get_db_session() -> Generator[sqlite3.Connection, None, None]:
     finally:
         conn.close()
 
-def _add_column_if_missing(conn: sqlite3.Connection, table: str, column_def: str, col_name: str):
-    table_check = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (table,)).fetchone()
-    if not table_check:
-        return
-    cursor = conn.execute(f"PRAGMA table_info({table});")
-    existing_cols = [row["name"] for row in cursor.fetchall()]
-    if col_name not in existing_cols:
-        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column_def};")
+def _add_column_if_missing(conn, table: str, column_def: str, col_name: str):
+    if hasattr(conn, "is_postgres"):
+        check = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name=%s AND column_name=%s", (table, col_name)).fetchone()
+        if not check:
+            try:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column_def};")
+            except Exception as e:
+                logger.warning(f"Could not add column {col_name} to {table}: {e}")
+    else:
+        table_check = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (table,)).fetchone()
+        if not table_check:
+            return
+        cursor = conn.execute(f"PRAGMA table_info({table});")
+        existing_cols = [row["name"] for row in cursor.fetchall()]
+        if col_name not in existing_cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column_def};")
 
-def _create_table_if_missing(conn: sqlite3.Connection, table_name: str, create_sql: str):
-    table_check = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (table_name,)).fetchone()
-    if not table_check:
-        conn.execute(create_sql)
+def _create_table_if_missing(conn, table_name: str, create_sql: str):
+    if hasattr(conn, "is_postgres"):
+        check = conn.execute("SELECT table_name FROM information_schema.tables WHERE table_name=%s", (table_name,)).fetchone()
+        if not check:
+            conn.execute(create_sql)
+    else:
+        table_check = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (table_name,)).fetchone()
+        if not table_check:
+            conn.execute(create_sql)
 
 def run_migrations(conn: sqlite3.Connection):
     """Run incremental column migrations on existing tables."""

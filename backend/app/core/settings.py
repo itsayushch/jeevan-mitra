@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     PORT: int = 4000
     HOST: str = "0.0.0.0"
     DATABASE_PATH: str = str(Path(__file__).resolve().parent.parent.parent / "jeevanmitra.db")
+    DATABASE_URL: str = ""
     JWT_SECRET: str = "supersecret_jwt_key_for_dev_only"
     WORKER_API_KEY: str = ""
     WORKER_ID: str = ""
