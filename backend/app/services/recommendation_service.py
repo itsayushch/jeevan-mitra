@@ -10,6 +10,8 @@ from app.ai_layers.layer3_matching.explanation_generator import ExplanationGener
 from app.services.catalogue_service import CatalogueService
 from app.utils.audit_events import log_audit_event
 from app.utils.errors import EntityNotFoundException
+from app.ai_layers.layer5_planning.demand_record_service import DemandRecordService, current_period_label
+from app.utils.logger import logger
 
 class RecommendationService:
     @staticmethod
@@ -326,6 +328,30 @@ class RecommendationService:
             entity_id=target_interview_id or rec_id,
             metadata={"count": len(saved_recs), "district": district}
         )
+
+        # Layer 5: write an anonymised demand record for the rank-1 trade
+        # interest (only when analytics consent is on file). Never affects
+        # the matching result.
+        try:
+            if top_candidates:
+                interview_sess = conn.execute(
+                    "SELECT session_id FROM interview_sessions WHERE id = ?;",
+                    (target_interview_id,),
+                ).fetchone() if target_interview_id else None
+                DemandRecordService.record_demand(
+                    conn=conn,
+                    qualification_id=top_candidates[0]["qualification"]["internal_id"],
+                    district=district,
+                    block=block,
+                    mobility_radius_km=mobility_radius,
+                    work_preference=work_pref if work_pref in ("wage", "self_employment", "both") else None,
+                    had_verified_match=any(r["match_state"] == "Verified Match" for r in top_candidates),
+                    period=current_period_label(),
+                    beneficiary_id=target_ben_id,
+                    session_id=interview_sess["session_id"] if interview_sess else None,
+                )
+        except Exception as e:
+            logger.warning(f"Demand record write failed (non-blocking): {e}")
 
         return {
             "count": len(saved_recs),
