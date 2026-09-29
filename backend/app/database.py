@@ -27,6 +27,18 @@ def get_db() -> Generator[sqlite3.Connection, None, None]:
     finally:
         conn.close()
 
+def get_db_session() -> Generator[sqlite3.Connection, None, None]:
+    """Dependency for FastAPI"""
+    conn = get_connection()
+    try:
+        yield conn
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
 def _add_column_if_missing(conn: sqlite3.Connection, table: str, column_def: str, col_name: str):
     table_check = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (table,)).fetchone()
     if not table_check:
