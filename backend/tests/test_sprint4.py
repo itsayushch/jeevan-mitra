@@ -88,3 +88,61 @@ def test_qualification_creation(client, auth_headers):
     res = client.get("/api/v1/qualifications")
     assert res.status_code == 200
     assert len(res.json()) >= 1
+
+def test_scope_denial_leaves_business_data_unchanged_and_security_audit_logged(client, test_db):
+    """
+    Regression Test:
+    Attempting an update on an opportunity outside the worker's geographic scope
+    must be rejected with 403, leaving the business data in the database completely
+    unchanged, while recording a SECURITY_ACCESS_DENIED audit event via the isolated audit path.
+    """
+    from tests.factories.auth_factories import (
+        create_field_worker_alpha,
+        create_field_worker_beta,
+        get_auth_headers
+    )
+    from tests.factories.opportunity_factories import (
+        create_provider_record,
+        create_opportunity_record
+    )
+
+    with get_db() as conn:
+        fw_alpha = create_field_worker_alpha(conn, user_id="fw_alpha_reg", email="fwa_reg@example.com", district_id="District Alpha")
+        fw_beta = create_field_worker_beta(conn, user_id="fw_beta_reg", email="fwb_reg@example.com", district_id="District Beta")
+        prov = create_provider_record(conn, provider_id="prov_reg_01", district_id="District Alpha")
+        opp = create_opportunity_record(
+            conn,
+            opp_id="opp_reg_01",
+            provider_id="prov_reg_01",
+            district_id="District Alpha",
+            status="ACTIVE",
+            seats_available=20
+        )
+        # Ensure title is known
+        conn.execute("UPDATE local_opportunities SET title = 'Alpha Original Opportunity' WHERE id = 'opp_reg_01'")
+        conn.commit()
+
+    headers_beta = get_auth_headers("fw_beta_reg")
+
+    # Worker Beta attempts to PATCH Alpha opportunity
+    patch_res = client.patch(
+        "/api/v1/staff/opportunities/opp_reg_01",
+        json={"title": "Hacked Title", "seats_available": 0},
+        headers=headers_beta
+    )
+    assert patch_res.status_code == 403
+
+    # Verify business data is completely untouched
+    with get_db() as conn:
+        opp_row = conn.execute("SELECT title, seats_available, status FROM local_opportunities WHERE id = 'opp_reg_01'").fetchone()
+        assert opp_row["title"] == "Alpha Original Opportunity"
+        assert opp_row["seats_available"] == 20
+        assert opp_row["status"] == "ACTIVE"
+
+        # Verify security denial audit event was committed via isolated audit session
+        audit_events = conn.execute(
+            "SELECT * FROM audit_events WHERE entity_id = 'opp_reg_01' AND action = 'SECURITY_ACCESS_DENIED' AND actor_user_id = 'fw_beta_reg'"
+        ).fetchall()
+        assert len(audit_events) >= 1
+        assert audit_events[0]["actor_user_id"] == "fw_beta_reg"
+

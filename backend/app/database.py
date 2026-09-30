@@ -47,6 +47,7 @@ def run_migrations(conn: sqlite3.Connection):
     _add_column_if_missing(conn, "recommendations", "skill_gaps TEXT", "skill_gaps")
     _add_column_if_missing(conn, "recommendations", "local_opportunity_status TEXT DEFAULT 'unknown'", "local_opportunity_status")
     _add_column_if_missing(conn, "recommendations", "caveat TEXT DEFAULT 'This is a guidance recommendation, not confirmation of admission or placement.'", "caveat")
+    _add_column_if_missing(conn, "recommendations", "explanation_facts TEXT", "explanation_facts")
 
     # beneficiaries
     _add_column_if_missing(conn, "beneficiaries", "owner_type TEXT DEFAULT 'authenticated_user'", "owner_type")
