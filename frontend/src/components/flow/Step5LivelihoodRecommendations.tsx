@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ChevronRight, Sparkles, Store, SunMedium, Scissors, CheckCircle2, AlertCircle, ExternalLink, UserCheck, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Sparkles, Store, SunMedium, Scissors, CheckCircle2, AlertCircle, ExternalLink, UserCheck, ShieldAlert, Volume2 } from 'lucide-react';
 import type { Language } from '../../types';
 import type { RecommendationItem } from '../../lib/api';
 import { api } from '../../lib/api';
-import { SoundFX } from '../../utils/speech';
+import { SoundFX, speakText } from '../../utils/speech';
+import { useAppSettings } from '../AppShell';
+import { getVoiceCapability } from '../../lib/i18n/voiceCapabilities';
 
 interface Step5Props {
   language: Language;
@@ -22,6 +24,11 @@ export const Step5LivelihoodRecommendations: React.FC<Step5Props> = ({
   recommendations,
   interviewId,
 }) => {
+  const { t } = useAppSettings();
+  const [expandedReasons, setExpandedReasons] = useState<Record<string, boolean>>({});
+  const voiceCap = getVoiceCapability(language);
+  const isTtsSupported = voiceCap.tts === 'supported';
+
   const [referralRequested, setReferralRequested] = useState<Record<string, boolean>>({});
   const [referralLoading, setReferralLoading] = useState<string | null>(null);
 
@@ -125,58 +132,117 @@ export const Step5LivelihoodRecommendations: React.FC<Step5Props> = ({
                     </div>
                   </div>
 
-                  {/* Why Recommended */}
-                  {rec.why_recommended && rec.why_recommended.length > 0 && (
-                    <div className="my-2 bg-slate-50 rounded-xl p-2 text-[11px] text-slate-700 border border-slate-100">
+                    {/* Why this may suit you */}
+                    <div className="my-2 bg-slate-50 rounded-xl p-2.5 text-[11px] text-slate-700 border border-slate-100">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="font-bold text-[11px] uppercase tracking-wider text-slate-700 flex items-center gap-1">
+                          <span>{t('recommendations.whyMaySuitYou')}</span>
+                        </div>
+                        {isTtsSupported && (
+                          <button
+                            type="button"
+                            className="text-emerald-700 hover:text-emerald-900 flex items-center gap-1 text-[10px] font-bold"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const script = rec.whyRecommended?.shortExplanation || (Array.isArray(rec.why_recommended) ? rec.why_recommended.join('. ') : '');
+                              if (script) speakText(script, language);
+                            }}
+                            aria-label="Hear explanation"
+                          >
+                            <Volume2 className="w-3.5 h-3.5" />
+                            <span>Hear explanation</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {rec.whyRecommended?.shortExplanation && (
+                        <p className="text-[11px] font-medium text-slate-600 mb-2 italic">
+                          "{rec.whyRecommended.shortExplanation}"
+                        </p>
+                      )}
+
+                      {(() => {
+                        const allReasons = rec.whyRecommended?.reasons || (rec.why_recommended?.map(r => ({ factor: 'REASON', text: r })) || []);
+                        const isExpanded = !!expandedReasons[rec.recommendation_id];
+                        const displayedReasons = isExpanded ? allReasons : allReasons.slice(0, 2);
+
+                        return (
+                          <>
+                            <ul className="space-y-1 list-disc list-inside text-slate-700">
+                              {displayedReasons.map((reason, idx) => (
+                                <li key={idx}>
+                                  {typeof reason === 'string' ? reason : reason.text}
+                                </li>
+                              ))}
+                            </ul>
+
+                            {allReasons.length > 2 && (
+                              <button
+                                type="button"
+                                className="mt-2 text-[10px] font-bold text-teal-700 hover:underline flex items-center gap-1"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedReasons(prev => ({
+                                    ...prev,
+                                    [rec.recommendation_id]: !prev[rec.recommendation_id]
+                                  }));
+                                }}
+                              >
+                                {isExpanded ? t('recommendations.showFewerReasons') : `${t('recommendations.showAllReasons')} (${allReasons.length})`}
+                              </button>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Skills Grid */}
+                    <div className="grid grid-cols-2 gap-2 my-2 text-[11px]">
+                      <div className="bg-emerald-50/60 p-2 rounded-xl border border-emerald-100">
+                        <span className="text-[9px] font-black uppercase text-emerald-800 block mb-1">
+                          {t('recommendations.matchedSkills')}
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {rec.matched_skills.map((skill, sIdx) => (
+                            <span key={sIdx} className="bg-white px-1.5 py-0.5 rounded text-[10px] text-emerald-900 border border-emerald-200">
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-amber-50/60 p-2 rounded-xl border border-amber-100">
+                        <span className="text-[9px] font-black uppercase text-amber-800 block mb-1">
+                          {t('recommendations.skillGaps')}
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {rec.skill_gaps.map((gap, gIdx) => (
+                            <span key={gIdx} className="bg-white px-1.5 py-0.5 rounded text-[10px] text-amber-900 border border-amber-200">
+                              {gap}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Local Availability (Separated from Suitability) */}
+                    <div className="my-2 bg-white rounded-xl p-2.5 text-[11px] border border-slate-200">
                       <div className="font-bold text-[10px] uppercase tracking-wider text-slate-400 mb-1">
-                        Why Recommended:
+                        Availability:
                       </div>
-                      <ul className="space-y-0.5 list-disc list-inside">
-                        {rec.why_recommended.map((reason, idx) => (
-                          <li key={idx}>{reason}</li>
-                        ))}
-                      </ul>
+                      {isAvailOpen && avail ? (
+                        <div className="text-slate-700">
+                          <span className="font-bold text-slate-900">{avail.centre_name || 'Govt Training Centre'}</span>
+                          {avail.district && <span> • {avail.district}</span>}
+                          {avail.batch_start_date && <span> • Batch starts: {avail.batch_start_date}</span>}
+                          {avail.stipend_amount_inr ? <span> • Stipend: ₹{avail.stipend_amount_inr}/mo</span> : null}
+                        </div>
+                      ) : (
+                        <div className="text-amber-800 text-[11px] font-medium">
+                          {isAvailExpired ? t('recommendations.batchExpired') : t('recommendations.localBatchPending')}
+                        </div>
+                      )}
                     </div>
-                  )}
-
-                  {/* Skills Grid */}
-                  <div className="grid grid-cols-2 gap-2 my-2 text-[11px]">
-                    <div className="bg-emerald-50/60 p-2 rounded-xl border border-emerald-100">
-                      <span className="text-[9px] font-black uppercase text-emerald-800 block mb-1">
-                        Matched Skills
-                      </span>
-                      <div className="flex flex-wrap gap-1">
-                        {rec.matched_skills.map((skill, sIdx) => (
-                          <span key={sIdx} className="bg-white px-1.5 py-0.5 rounded text-[10px] text-emerald-900 border border-emerald-200">
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="bg-amber-50/60 p-2 rounded-xl border border-amber-100">
-                      <span className="text-[9px] font-black uppercase text-amber-800 block mb-1">
-                        Skill Gaps to Learn
-                      </span>
-                      <div className="flex flex-wrap gap-1">
-                        {rec.skill_gaps.map((gap, gIdx) => (
-                          <span key={gIdx} className="bg-white px-1.5 py-0.5 rounded text-[10px] text-amber-900 border border-amber-200">
-                            {gap}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Local Availability Details */}
-                  {isAvailOpen && avail && (
-                    <div className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100 my-1">
-                      <span className="font-bold text-slate-800">{avail.centre_name || 'Govt Training Centre'}</span>
-                      {avail.district && <span> • {avail.district}</span>}
-                      {avail.batch_start_date && <span> • Batch starts: {avail.batch_start_date}</span>}
-                      {avail.stipend_amount_inr ? <span> • Stipend: ₹{avail.stipend_amount_inr}/mo</span> : null}
-                    </div>
-                  )}
 
                   {/* Official Link & Caveat */}
                   <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1 pt-1 border-t border-slate-100">

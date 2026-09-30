@@ -50,6 +50,19 @@ export interface RecommendationItem {
     official_url: string;
   };
   why_recommended: string[];
+  whyRecommended?: {
+    shortExplanation: string;
+    reasons: { factor: string; text: string }[];
+    generatedBy: string;
+    locale: string;
+  };
+  explanationFacts?: {
+    factor: string;
+    labelKey: string;
+    value: string;
+    source: string;
+    confidence: string;
+  }[];
   matched_skills: string[];
   skill_gaps: string[];
   local_availability: {
