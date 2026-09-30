@@ -13,6 +13,8 @@ export default function SkillTrainingPage() {
   const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'learn' | 'my-learning' | 'opportunities' | 'ask'>('learn');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSector, setSelectedSector] = useState('');
 
   useEffect(() => {
     async function load() {
@@ -28,12 +30,24 @@ export default function SkillTrainingPage() {
     load();
   }, [language]);
 
+  const filteredCourses = courses.filter(course => {
+    const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          course.short_description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSector = selectedSector ? course.sector === selectedSector : true;
+    return matchesSearch && matchesSector;
+  });
+
+  const sectors = Array.from(new Set(courses.map(c => c.sector)));
+
   return (
     <div className="module-content">
-      <div className="flex bg-white rounded-xl border border-slate-200 p-0.5 mb-4">
+      <div className="flex bg-white rounded-xl border border-slate-200 p-0.5 mb-4" role="tablist" aria-label="Skill Training Tabs">
         {['learn', 'my-learning', 'opportunities', 'ask'].map(tab => (
           <button
             key={tab}
+            role="tab"
+            aria-selected={activeTab === tab}
+            aria-controls={`tabpanel-${tab}`}
             onClick={() => setActiveTab(tab as any)}
             className={`flex-1 text-xs font-bold px-3 py-2 rounded-lg transition-all capitalize ${
               activeTab === tab ? 'bg-emerald-700 text-white' : 'text-slate-600 hover:text-slate-900'
@@ -45,11 +59,33 @@ export default function SkillTrainingPage() {
       </div>
 
       {activeTab === 'learn' && (
-        <div className="space-y-4">
+        <div className="space-y-4" role="tabpanel" id="tabpanel-learn" aria-labelledby="tab-learn">
           <div className="mb-4">
             <h2 className="text-xl font-black text-slate-900">Skill Training</h2>
             <p className="text-sm text-slate-500">Learn step by step in your preferred language.</p>
           </div>
+
+          {!loading && courses.length > 0 && (
+            <div className="flex gap-2 mb-4">
+              <input 
+                type="search"
+                placeholder="Search courses..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="Search courses"
+                className="flex-1 text-sm bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-emerald-500"
+              />
+              <select 
+                value={selectedSector}
+                onChange={(e) => setSelectedSector(e.target.value)}
+                aria-label="Filter by sector"
+                className="text-sm bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-emerald-500"
+              >
+                <option value="">All Sectors</option>
+                {sectors.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          )}
           
           {loading ? (
             <div className="animate-pulse flex space-x-4">
@@ -61,13 +97,13 @@ export default function SkillTrainingPage() {
                 </div>
               </div>
             </div>
-          ) : courses.length === 0 ? (
-            <div className="text-center py-10 bg-slate-50 rounded-2xl border border-slate-200">
-              <p className="text-slate-500 font-medium">No courses found.</p>
+          ) : filteredCourses.length === 0 ? (
+            <div className="text-center py-10 bg-slate-50 rounded-2xl border border-slate-200" role="status">
+              <p className="text-slate-500 font-medium">No courses found matching your criteria.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {courses.map(course => (
+              {filteredCourses.map(course => (
                 <div key={course.id} className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm hover:border-emerald-300 transition-all">
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
