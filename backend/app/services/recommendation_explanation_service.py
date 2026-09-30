@@ -329,12 +329,54 @@ class RecommendationExplanationService:
         locale: SupportedLocale,
         facts: List[Dict[str, Any]],
         title: str,
-        match_state: str
+        match_state: str,
+        conn: Optional[Any] = None,
+        recommendation_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Public entry point: returns template explanation (or LLM rewrite when verified).
+        Public entry point: returns template explanation (or cached / LLM rewrite when verified).
+        Facts are the durable source of truth; rendered explanations in cache are disposable.
         """
-        return cls.render_template_explanation(locale, facts, title=title, match_state=match_state)
+        if conn and recommendation_id:
+            try:
+                cached = conn.execute("""
+                    SELECT * FROM recommendation_explanation_cache
+                    WHERE recommendation_id = ? AND locale = ?;
+                """, (recommendation_id, locale.value)).fetchone()
+                if cached:
+                    payload = json.loads(cached["rendered_text"])
+                    payload["generatedBy"] = cached["renderer"]
+                    return payload
+            except Exception as e:
+                logger.debug(f"Cache lookup failed: {e}")
+
+        explanation = cls.render_template_explanation(locale, facts, title=title, match_state=match_state)
+
+        if conn and recommendation_id:
+            try:
+                import uuid
+                from datetime import datetime, timezone
+                now = datetime.now(timezone.utc).isoformat()
+                cache_id = f"expl_{uuid.uuid4().hex[:10]}"
+                conn.execute("""
+                    INSERT OR REPLACE INTO recommendation_explanation_cache (
+                        id, recommendation_id, locale, renderer, model_version,
+                        rendered_text, explanation_facts_json, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                """, (
+                    cache_id,
+                    recommendation_id,
+                    locale.value,
+                    explanation.get("generatedBy", "template"),
+                    None,
+                    json.dumps(explanation, ensure_ascii=False),
+                    json.dumps(facts, ensure_ascii=False),
+                    now
+                ))
+            except Exception as e:
+                logger.debug(f"Cache write failed: {e}")
+
+        return explanation
 
     @classmethod
     def build_recommendation_explanation(

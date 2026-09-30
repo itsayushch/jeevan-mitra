@@ -3,7 +3,7 @@
 ## 1. Principles
 - **Verification before Action**: Only human verified opportunities map to referrals. An `INTEREST_MATCH` cannot be referred.
 - **Grounded AI Only**: LLMs operate on structured, verified data with zero hallucinations. Inferred fields are never auto-confirmed.
-- **Privacy by Design**: Minimum data collection. DPDP Act compliance with affirmative, granular, versioned consent.
+- **Privacy by Design**: Minimum data collection. Designed to support DPDP-aligned practices with affirmative, granular, versioned consent.
 
 ---
 

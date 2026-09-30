@@ -3,7 +3,7 @@
 ## 1. System Overview & Core Trust Invariant
 
 JeevanMitra 2.0 enforces a foundational guarantee across all skilling and livelihood services under PM-AJAY:
-> **Core Guarantee**: A referral can **ONLY** be created from a currently valid `VERIFIED_MATCH` linked to an `ACTIVE`, non-expired, capacity-available local opportunity within the field worker's and beneficiary's assigned geographic scope, backed by affirmative DPDP-compliant consent.
+> **Core Guarantee**: A referral can **ONLY** be created from a currently valid `VERIFIED_MATCH` linked to an `ACTIVE`, non-expired, capacity-available local opportunity within the field worker's and beneficiary's assigned geographic scope, backed by affirmative consent under workflows designed to support DPDP-aligned practices.
 
 Under no circumstances can an `INTEREST_MATCH` (which lacks confirmed local batch verification) be converted into an active referral, and no client request may supply arbitrary foreign keys or bypass server-side validation.
 
