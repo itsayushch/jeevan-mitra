@@ -706,6 +706,220 @@ class ApiService {
     if (!res.ok) throw new Error(`Failed to decline referral: ${res.statusText}`);
     return res.json();
   }
+
+  // ==========================================
+  // SPRINT 6: DISTRICT PLANNING & EXPORTS
+  // ==========================================
+
+  async getPlanningOverview(districtId: string = 'Moradabad', blockId?: string): Promise<PlanningOverview> {
+    const q = new URLSearchParams({ district_id: districtId });
+    if (blockId) q.append('block_id', blockId);
+    const res = await fetch(`${API_BASE}/planning/overview?${q.toString()}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch planning overview: ${res.statusText}`);
+    return res.json();
+  }
+
+  async getPlanningGaps(districtId: string = 'Moradabad', blockId?: string): Promise<{ metadata: PlanningMetadata; gaps: GapMetricItem[]; summary_by_status: Record<string, number> }> {
+    const q = new URLSearchParams({ district_id: districtId });
+    if (blockId) q.append('block_id', blockId);
+    const res = await fetch(`${API_BASE}/planning/gaps?${q.toString()}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch planning gaps: ${res.statusText}`);
+    return res.json();
+  }
+
+  async getPlanningFunnel(districtId: string = 'Moradabad', blockId?: string): Promise<{ metadata: PlanningMetadata; funnel: ReferralFunnelMetrics }> {
+    const q = new URLSearchParams({ district_id: districtId });
+    if (blockId) q.append('block_id', blockId);
+    const res = await fetch(`${API_BASE}/planning/referral-funnel?${q.toString()}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch planning funnel: ${res.statusText}`);
+    return res.json();
+  }
+
+  async getPlanningDataQuality(districtId: string = 'Moradabad', blockId?: string): Promise<PlanningDataQuality> {
+    const q = new URLSearchParams({ district_id: districtId });
+    if (blockId) q.append('block_id', blockId);
+    const res = await fetch(`${API_BASE}/planning/data-quality?${q.toString()}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch planning data quality: ${res.statusText}`);
+    return res.json();
+  }
+
+  async createPlanningSnapshot(req: { district_id: string; block_id?: string; period_start: string; period_end: string; notes?: string }): Promise<PlanningSnapshot> {
+    const res = await fetch(`${API_BASE}/planning/snapshots`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(req),
+    });
+    if (!res.ok) throw new Error(`Failed to generate snapshot: ${res.statusText}`);
+    return res.json();
+  }
+
+  async listPlanningSnapshots(districtId: string = 'Moradabad'): Promise<PlanningSnapshot[]> {
+    const res = await fetch(`${API_BASE}/planning/snapshots?district_id=${encodeURIComponent(districtId)}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to list planning snapshots: ${res.statusText}`);
+    return res.json();
+  }
+
+  async reviewPlanningSnapshot(snapshotId: string, notes?: string): Promise<PlanningSnapshot> {
+    const res = await fetch(`${API_BASE}/planning/snapshots/${snapshotId}/review`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ notes }),
+    });
+    if (!res.ok) throw new Error(`Failed to review snapshot: ${res.statusText}`);
+    return res.json();
+  }
+
+  async approvePlanningSnapshot(snapshotId: string, notes?: string): Promise<PlanningSnapshot> {
+    const res = await fetch(`${API_BASE}/planning/snapshots/${snapshotId}/approve`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ notes }),
+    });
+    if (!res.ok) throw new Error(`Failed to approve snapshot: ${res.statusText}`);
+    return res.json();
+  }
+
+  async createPlanningExport(snapshotId: string, exportType: 'CSV' | 'PDF', scope: string = 'FULL_REPORT'): Promise<PlanningExport> {
+    const endpoint = exportType === 'CSV' ? 'csv' : 'pdf';
+    const res = await fetch(`${API_BASE}/planning/snapshots/${snapshotId}/exports/${endpoint}?scope=${scope}`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to create export: ${res.statusText}`);
+    return res.json();
+  }
+
+  async downloadPlanningExportBlob(exportId: string): Promise<{ blob: Blob; filename: string }> {
+    const res = await fetch(`${API_BASE}/planning/exports/${exportId}/download`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to download export: ${res.statusText}`);
+    const disposition = res.headers.get('content-disposition') || '';
+    const match = disposition.match(/filename="?([^";]+)"?/);
+    const filename = match ? match[1] : `export_${exportId}`;
+    const blob = await res.blob();
+    return { blob, filename };
+  }
+}
+
+export interface PlanningMetadata {
+  data_freshness_at: string;
+  period_start: string;
+  period_end: string;
+  district_id: string;
+  block_id?: string;
+  privacy_threshold: number;
+  suppression_applied: boolean;
+  metric_version: string;
+}
+
+export interface PlanningOverview {
+  metadata: PlanningMetadata;
+  beneficiaries_profiled: number | null;
+  interest_matches: number | null;
+  verified_matches: number | null;
+  active_verified_opportunities: number;
+  available_verified_capacity: number;
+  referrals_created: number | null;
+  enrolments: number | null;
+  verified_livelihoods: number | null;
+  planning_supply_gaps: number | null;
+  is_suppressed: boolean;
+  narrative_brief: string;
+}
+
+export interface GapMetricItem {
+  qualification_id: string;
+  qualification_title: string;
+  sector: string;
+  demand_count: number | null;
+  available_verified_capacity: number;
+  supply_gap: number | null;
+  gap_status: string;
+  last_verified_at: string | null;
+  is_suppressed: boolean;
+}
+
+export interface ReferralFunnelMetrics {
+  verified_matches: number | null;
+  referrals_created: number | null;
+  referred_to_centre: number | null;
+  contacted: number | null;
+  enrolled: number | null;
+  training_started: number | null;
+  completed: number | null;
+  verified_livelihood: number | null;
+  conversion_match_to_referral_pct: number | null;
+  conversion_referral_to_contact_pct: number | null;
+  conversion_contact_to_enrolment_pct: number | null;
+  conversion_enrolment_to_start_pct: number | null;
+  conversion_start_to_complete_pct: number | null;
+  conversion_complete_to_livelihood_pct: number | null;
+  is_suppressed: boolean;
+}
+
+export interface PlanningDataQuality {
+  metadata: PlanningMetadata;
+  data_quality: {
+    stale_or_expired_opportunities_count: number;
+    opportunities_due_reverification_count: number;
+    overdue_follow_ups_count: number;
+    outcomes_pending_verification_count: number;
+    active_opportunities_missing_capacity_count: number;
+    cases_without_referral_consent_count: number;
+    language_distribution: Record<string, number | null>;
+    opportunity_submissions_by_mode: Record<string, number | null>;
+    opportunity_submissions_by_status: Record<string, number | null>;
+    explainability_quality: {
+      total_cached_explanations: number;
+      template_count: number;
+      llm_count: number;
+      recommendations_with_confirmed_facts: number;
+    };
+  };
+}
+
+export interface PlanningSnapshot {
+  id: string;
+  district_id: string;
+  block_id?: string;
+  period_start: string;
+  period_end: string;
+  status: string;
+  generated_by_user_id?: string;
+  generated_at: string;
+  metric_version: string;
+  data_freshness_at: string;
+  reviewed_by_user_id?: string;
+  reviewed_at?: string;
+  approved_by_user_id?: string;
+  approved_at?: string;
+  notes?: string;
+  aggregation: any;
+}
+
+export interface PlanningExport {
+  id: string;
+  snapshot_id: string;
+  export_type: string;
+  export_scope: string;
+  status: string;
+  requested_by_user_id: string;
+  generated_at?: string;
+  expires_at?: string;
+  checksum?: string;
+  download_count: number;
+  download_url: string;
 }
 
 export const api = new ApiService();

@@ -9,7 +9,7 @@ Migrations are managed via Alembic in `backend/alembic`:
 cd backend
 python -m alembic current
 
-# Upgrade database to latest revision (Head: d1e2f3a4b5c6)
+# Upgrade database to latest revision (Head: f3a4b5c6d7e8)
 python -m alembic upgrade head
 ```
 
@@ -17,14 +17,14 @@ python -m alembic upgrade head
 ```bash
 cd backend
 python -m pytest -q
-# Target: 86 passed, 0 failed
+# Target: 109 passed, 0 failed
 ```
 
 ### Frontend Build & Compilation
 ```bash
 cd frontend
 npm run build
-# Target: All static & dynamic routes compiled cleanly
+# Target: All static & dynamic routes compiled cleanly (0 TypeScript/Lint errors)
 ```
 
 ---
@@ -37,7 +37,36 @@ npm run build
 
 ---
 
-## 3. Operational Escalations & Case Triage
+## 3. District Planning, Snapshots & Export Operations (Sprint 6)
+
+### Data Quality Telemetry Check
+Run periodically or before district action planning meetings:
+```bash
+cd backend
+python scripts/check_planning_data_quality.py --district-id Moradabad
+```
+Outputs total unverified capacity, expired batches, overdue follow-ups, and multimodal submissions.
+
+### Scheduled Snapshot Freezing
+Freezes operational state into immutable snapshots for AAP documentation:
+```bash
+cd backend
+python scripts/generate_planning_snapshot.py --district-id Moradabad --period-start 2026-01-01 --period-end 2026-12-31
+```
+
+### Export Cleanup & Expiry Maintenance
+Sweeps expired CSV/PDF download files older than retention policy (default 7 days):
+```bash
+cd backend
+# Dry run:
+python scripts/expire_planning_exports.py --dry-run
+# Active sweep:
+python scripts/expire_planning_exports.py
+```
+
+---
+
+## 4. Operational Escalations & Case Triage
 
 ### Case Stuck in Pipeline
 1. Check `cases` table for `follow_up_due_at` date.
@@ -56,7 +85,7 @@ npm run build
 
 ---
 
-## 4. Disaster Recovery & Rollback
+## 5. Disaster Recovery & Rollback
 1. SQLite database backups stored in daily timestamped snapshots.
 2. If a migration needs rollback:
    `python -m alembic downgrade -1`

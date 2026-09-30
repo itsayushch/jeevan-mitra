@@ -176,7 +176,7 @@ for prefix in ["/api/v1", "/api"]:
         app.include_router(r, prefix=prefix)
 
 # Also expose at root for direct path access
-for r in [health.router, cases.router, referrals.router, beneficiary_cases.router]:
+for r in [health.router, cases.router, referrals.router, beneficiary_cases.router, planning.router]:
     app.include_router(r)
 
 if __name__ == "__main__":
