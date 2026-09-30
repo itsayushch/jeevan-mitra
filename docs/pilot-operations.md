@@ -9,14 +9,24 @@
 
 ---
 
-## 2. Operating Roles & Responsibilities
+## 2. Operational Ownership & Responsibilities
+
+| Role | Primary Responsibility | Scoping Boundary |
+| :--- | :--- | :--- |
+| **Pilot Administrator** | Programme rollout, user onboarding, approvals, operational sign-off | State / Programme Level |
+| **District Administrator** | Planning snapshots, district review, controlled exports, resource allocation | Assigned District |
+| **Field Worker** | Opportunity verification, referrals, follow-ups, verified outcomes | Assigned District & Blocks |
+| **Catalogue Manager** | Qualification/course mappings, NSQF alignment, and catalogue hygiene | Global Catalogue |
+| **Auditor** | Read-only verification, referral, and export history review | Assigned District / State |
+| **Technical Support Owner** | Incidents, deployment, background job monitoring, disaster recovery | Core Platform Infrastructure |
+| **Data-Protection Owner** | Consent notices, retention schedules, DPDP-aligned correction/deletion workflows | Regulatory & Privacy Governance |
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                 District Planning & Review                  │
 │                (District Admin & Auditors)                  │
 │   • Monitor weekly demand vs verified capacity gaps         │
-│   • Freeze monthly immutable planning snapshots             │
+│   • Freeze quarterly immutable planning snapshots           │
 │   • Generate audit-logged CSV/PDF planning reports          │
 └──────────────────────────────┬──────────────────────────────┘
                                │ Assigns & Oversees
@@ -95,11 +105,56 @@ Community members, employers, or field workers can submit training leads via typ
 
 ---
 
-## 5. Escalation & Support SLAs
+## 5. Escalation Protocols & Rules
 
-| Event Type | Priority | Escalation Path | Resolution SLA |
+Operational issues follow a strict 5-stage escalation chain:
+
+```
+[ 1. Beneficiary Support Request ]
+     │
+     ▼
+[ 2. Field-Worker Assignment & Direct Follow-up ]
+     │ (Unresolved > 48h or provider mismatch)
+     ▼
+[ 3. District Escalation (District Admin / Lead Counselor) ]
+     │ (System errors, data discrepancies, or batch shortfalls)
+     ▼
+[ 4. Technical Incident (Technical Support Owner & On-Call) ]
+     │ (Data corruption, scope breaches, or PII leak risk)
+     ▼
+[ 5. Privacy / Security Incident (Data-Protection Owner & Legal) ]
+```
+
+| Escalation Trigger | Lead Responder | Hand-off Criteria | Escalation Target |
 | :--- | :--- | :--- | :--- |
-| **System Down / Login Failure** | Sev 1 | Tech On-Call Engineer | $< 30$ minutes |
-| **Suspected Fraudulent Training Provider** | Sev 2 | District Admin | $< 24$ hours |
-| **Beneficiary Referral Stalled (> 7 days)**| Sev 3 | Lead Field Counselor | $< 48$ hours |
-| **Translation / Voice Clarification** | Sev 4 | District Language Focal | $< 3$ business days |
+| **Beneficiary Support Request** | Field Worker | Unassigned case, missing local opportunities, transport issues | Lead Field Worker |
+| **Field-Worker Assignment** | Lead Field Worker | Stalled referrals (>7 days), lack of batch capacity, candidate withdrawal | District Admin |
+| **District Escalation** | District Admin | System errors, data anomalies, export failures, API degradation | Technical Support Owner |
+| **Technical Incident** | Tech Support Owner | Unscheduled downtime, database lock, authentication spike, failed migrations | Incident Commander |
+| **Privacy / Security Incident** | Data-Protection Owner | Cross-district access breach, unauthorized data exposure, consent disputes | State Steering Committee |
+
+---
+
+## 6. Recommended Pilot Order & Phased Rollout Constraints
+
+To ensure patient, evidence-backed scaling, rollout must strictly follow four gated stages:
+
+```
+Stage 1: Internal Staff-Only Staging Rehearsal
+   │ • Verify all staff roles, permissions, scopes, and verification flows.
+   │ • Validate disaster recovery drill and automated backup restorations.
+   ▼
+Stage 2: Single District with Synthetic / Demo Beneficiaries (Moradabad)
+   │ • Validate bilingual intake, matching explanations, and referral transitions.
+   │ • Confirm minimum cell-size privacy threshold (k = 5) on real reports.
+   ▼
+Stage 3: Small Supervised Field Pilot (50–100 Live Beneficiaries)
+   │ • Supervised by authorized field workers across 2 selected blocks.
+   │ • Direct human-assisted verification of opportunities and referral tracking.
+   ▼
+Stage 4: Expand Language & Channel Coverage Based on Observed Gaps
+   │ • Add languages or channels only after observed demand and operational readiness.
+```
+
+> [!IMPORTANT]
+> **Strict Channel Expansion Boundary**: Do not enable additional languages, WhatsApp channels, IVR integration, or automated provider integrations merely because the architecture supports them. Each must be treated as a separately tested channel release with its own consent notice, identity verification, error-handling protocols, and operational-support model.

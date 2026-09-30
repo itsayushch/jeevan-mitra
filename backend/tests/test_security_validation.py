@@ -7,6 +7,10 @@ from app.main import app
 from app.database import get_db
 from app.core.settings import settings
 from app.core.security import create_access_token
+from app.core.logging import redact_text, redact_data
+from app.schemas.locale import resolve_locale, SupportedLocale
+from app.services.opportunity_verification_service import OpportunityVerificationService
+from app.services.planning_export_service import PlanningExportService
 
 client = TestClient(app)
 
@@ -179,3 +183,168 @@ def test_xss_payload_in_submission_stored_safely(setup_security_fixtures):
     data = response.json()
     assert data["status"] == "SUBMITTED"
     assert "<script>" in data["normalized_text"]  # Stored verbatim, not executed
+
+
+def test_refresh_token_missing_or_invalid_rejected():
+    """Verifies refresh endpoint rejects missing/invalid refresh token cookie."""
+    response = client.post("/api/v1/auth/refresh")
+    assert response.status_code == 401
+
+
+def test_scope_revocation_prevents_export_download(setup_security_fixtures):
+    """If user's district scope is revoked after export is created, download must be rejected."""
+    token = _token_for("usr_sec_admin_mbd")
+    headers = {"Authorization": f"Bearer {token}"}
+    now = datetime.now(timezone.utc).isoformat()
+
+    # 1. Seed snapshot and export for Moradabad
+    with get_db() as conn:
+        conn.execute("""
+            INSERT OR REPLACE INTO planning_snapshots (
+                id, district_id, period_start, period_end, generated_by_user_id,
+                generated_at, metric_version, data_freshness_at, status
+            ) VALUES ('snap_sec_rev', 'Moradabad', '2026-07-01', '2026-09-30', 'usr_sec_admin_mbd', ?, 'v1', ?, 'APPROVED');
+        """, (now, now))
+        conn.execute("""
+            INSERT OR REPLACE INTO planning_exports (
+                id, snapshot_id, export_type, export_scope, requested_by_user_id,
+                generated_at, expires_at, status, storage_key, checksum, download_count, created_at
+            ) VALUES (
+                'exp_sec_rev', 'snap_sec_rev', 'CSV', 'FULL_REPORT', 'usr_sec_admin_mbd',
+                ?, '2026-10-07T00:00:00Z', 'AVAILABLE', 'evidence/exports/sec_rev.csv',
+                'dummy_checksum', 0, ?
+            );
+        """, (now, now))
+        conn.commit()
+
+    # 2. Revoke admin's district scope
+    with get_db() as conn:
+        conn.execute("DELETE FROM user_scopes WHERE user_id = 'usr_sec_admin_mbd';")
+        conn.commit()
+
+    try:
+        # 3. Attempt download after revocation
+        res = client.get("/api/v1/planning/exports/exp_sec_rev/download", headers=headers)
+        assert res.status_code == 403
+    finally:
+        # Restore scope for any subsequent tests
+        with get_db() as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO user_scopes (id, user_id, district_id, scope_type, assigned_at)
+                VALUES ('scope_sec_admin_mbd', 'usr_sec_admin_mbd', 'Moradabad', 'district', ?);
+            """, (now,))
+            conn.commit()
+
+
+def test_csv_formula_injection_and_xss_neutralization():
+    """Verifies CSV cells neutralize formula injection prefixes and escape script tags."""
+    dangerous_inputs = [
+        "=cmd|'/C calc'!A0",
+        "+cmd|'/C calc'!A0",
+        "@SUM(A1:A10)",
+        "-2+3*cmd",
+        "<script>alert('xss')</script>",
+        "Safe Standard Value"
+    ]
+    for val in dangerous_inputs:
+        cleaned = PlanningExportService._sanitize_csv_cell(val)
+        if val.startswith(("=", "+", "@", "-")):
+            assert cleaned.startswith("'")
+        assert "<script>" not in cleaned
+
+
+def test_file_upload_abuse_prevention_for_evidence(setup_security_fixtures):
+    """Path traversal filenames and executable extensions must be rejected for evidence uploads."""
+    now = datetime.now(timezone.utc).isoformat()
+    with get_db() as conn:
+        conn.execute("""
+            INSERT OR REPLACE INTO qualifications (id, title, description, sector, nsqf_level, verification_status, created_at, updated_at)
+            VALUES ('q_sec_upload', 'Test Course', 'Description', 'Electronics', 4, 'VERIFIED', ?, ?);
+        """, (now, now))
+        conn.execute("""
+            INSERT OR REPLACE INTO local_opportunities (
+                id, qualification_id, title, summary, district_id, block_id,
+                seats_total, seats_available, status, verification_expires_at, created_at, updated_at
+            ) VALUES (
+                'opp_sec_upload', 'q_sec_upload', 'Batch', 'Summary', 'Moradabad', 'Chhajlet',
+                10, 5, 'DRAFT', '2026-12-31T00:00:00Z', ?, ?
+            );
+        """, (now, now))
+        conn.commit()
+
+        # Path traversal rejection
+        with pytest.raises(ValueError, match="path traversal"):
+            OpportunityVerificationService.submit_evidence(
+                conn=conn,
+                opp_id="opp_sec_upload",
+                data={"evidence_type": "DOCUMENT", "storage_key": "../../etc/passwd"},
+                user_id="usr_sec_worker_mbd"
+            )
+
+        # Executable file rejection
+        with pytest.raises(ValueError, match="prohibited"):
+            OpportunityVerificationService.submit_evidence(
+                conn=conn,
+                opp_id="opp_sec_upload",
+                data={"evidence_type": "DOCUMENT", "storage_key": "uploads/malicious_payload.exe"},
+                user_id="usr_sec_worker_mbd"
+            )
+
+
+def test_locale_code_abuse_sanitization():
+    """Malicious or oversized locale strings must resolve safely to default fallback locale."""
+    abusive_locales = [
+        "../../en",
+        "<script>alert(1)</script>",
+        "' OR 1=1 --",
+        "x" * 500,
+        "INVALID_LOCALE_XYZ"
+    ]
+    for loc in abusive_locales:
+        resolved = resolve_locale(explicit_locale=loc)
+        assert resolved in [SupportedLocale.EN, SupportedLocale.HI]
+        assert resolved == SupportedLocale.EN
+
+
+def test_state_machine_bypass_prevention(setup_security_fixtures):
+    """Attempting invalid opportunity verification or direct referral on draft opportunity must be rejected."""
+    token = _token_for("usr_sec_worker_mbd")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Verify invalid action is rejected
+    res = client.post(
+        "/api/v1/staff/opportunities/opp_sec_upload/INVALID_ACTION",
+        json={"action": "HACK_ACTIVE"},
+        headers=headers
+    )
+    assert res.status_code in (400, 422, 404)
+
+
+def test_sensitive_logging_leakage_redaction():
+    """Structured log formatters must redact passwords, JWTs, phone numbers, and Aadhaar numbers."""
+    raw_text = (
+        "User logged in with password='SuperSecretPassword123' "
+        "and Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.doNotLeakSignature "
+        "mobile=9876543210 and aadhaar=1234 5678 9012"
+    )
+
+    sanitized = redact_text(raw_text)
+    assert "SuperSecretPassword123" not in sanitized
+    assert "doNotLeakSignature" not in sanitized
+    assert "9876543210" not in sanitized
+    assert "1234 5678 9012" not in sanitized
+
+    # Check dictionary redaction
+    payload = {
+        "password": "my_secret_password",
+        "access_token": "token_abc123",
+        "phone": "9876543210",
+        "notes": "Caseworker internal diary confidential text",
+        "normal_field": "public_data"
+    }
+    redacted = redact_data(payload)
+    assert redacted["password"] == "[REDACTED]"
+    assert redacted["access_token"] == "[REDACTED]"
+    assert redacted["phone"] == "[REDACTED]"
+    assert redacted["notes"] == "[REDACTED]"
+    assert redacted["normal_field"] == "public_data"

@@ -73,3 +73,23 @@ def test_health_config_safe_report():
     assert isinstance(config["jwt_secret_configured"], bool)
     assert config["planning_min_cell_count"] == 5
     assert "export_retention_days" in config
+
+
+def test_operational_alerts_endpoint():
+    response = client.get("/api/v1/monitoring/alerts")
+    assert response.status_code == 200
+    data = response.json()
+    assert "status" in data
+    assert "alerts" in data
+    assert "evaluated_at" in data
+    assert data["status"] in ("HEALTHY", "WARNING", "CRITICAL")
+
+
+def test_prometheus_metrics_endpoint():
+    response = client.get("/api/v1/monitoring/metrics/prometheus")
+    assert response.status_code == 200
+    assert "text/plain" in response.headers["content-type"]
+    text = response.text
+    assert "jeevanmitra_uptime_seconds" in text
+    assert "jeevanmitra_db_connected" in text
+    assert "jeevanmitra_planning_suppressed_cells_total" in text

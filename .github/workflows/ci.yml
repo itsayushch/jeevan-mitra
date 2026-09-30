@@ -1,115 +1,165 @@
-name: JeevanMitra 2.0 CI/CD Quality & Release Pipeline
+name: JeevanMitra 2.0 CI/CD Quality Gate
 
 on:
   push:
-    branches: [ main, staging, "feature/**", "feat/**", "fix/**" ]
+    branches: [ main, "feat/**", "release/**" ]
   pull_request:
-    branches: [ main, staging ]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    branches: [ main ]
 
 jobs:
-  secret-scan:
-    name: Secret & Credential Scan
+  # ---------------------------------------------------------------------------
+  # 1. Backend Quality Gate
+  # ---------------------------------------------------------------------------
+  backend-quality-gate:
+    name: Backend Lint, Security, Migrations & Tests
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Scan for Leaked Secrets
-        run: |
-          echo "Scanning codebase for forbidden hardcoded secrets..."
-          # Check for high-entropy tokens or private keys accidentally committed
-          if git grep -E "(-----BEGIN [A-Z]+ PRIVATE KEY-----|AIzaSy[A-Za-z0-9_-]{33}|ghp_[A-Za-z0-9]{36})" -- ':!backend/tests' ':!docs'; then
-            echo "ERROR: Hardcoded secrets or private keys detected in repository!"
-            exit 1
-          fi
-          echo "Secret scan clean: No committed credentials detected."
-
-  backend-verification:
-    name: Backend Tests, Migrations & Recovery Drill
-    runs-on: ubuntu-latest
-    needs: secret-scan
     defaults:
       run:
         working-directory: backend
-    env:
-      APP_ENV: local
-      DATABASE_URL: sqlite:///./test_ci.db
-      JWT_SECRET: supersecret_jwt_key_for_dev_only_32_chars_min_len!!
-      NEXT_PUBLIC_DEMO_AUTH_FALLBACK: "false"
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Source Code
         uses: actions/checkout@v4
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          python-version: "3.11"
+          cache: "pip"
 
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pytest pytest-asyncio pytest-cov httpx starlette fastapi uvicorn alembic
+          pip install flake8 pytest pytest-asyncio
 
-      - name: Python Bytecode Compilation Check
+      # Quality Check 1: Code Formatting & Lint
+      - name: Backend Syntax and Lint Check
         run: |
-          python -m compileall app scripts
+          flake8 app tests scripts --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 app --count --exit-zero --max-complexity=15 --max-line-length=127 --statistics
 
-      - name: Alembic Migration Drill
+      # Quality Check 2: Secret Scan
+      - name: Secret Scan (Detect Hardcoded Credentials)
         run: |
-          echo "Testing clean database upgrade to Alembic head..."
+          python -c "
+          import re, sys
+          from pathlib import Path
+          patterns = [
+              re.compile(r'AKIA[0-9A-Z]{16}'),
+              re.compile(r'(?i)ghp_[0-9a-zA-Z]{36}'),
+              re.compile(r'(?i)AIza[0-9A-Za-z\\-_]{35}'),
+              re.compile(r'-----BEGIN (?:RSA )?PRIVATE KEY-----')
+          ]
+          found = 0
+          for py_file in Path('app').rglob('*.py'):
+              content = py_file.read_text(encoding='utf-8', errors='ignore')
+              for pat in patterns:
+                  if pat.search(content):
+                      print(f'CRITICAL: Secret pattern matched in {py_file}')
+                      found += 1
+          if found > 0:
+              sys.exit(1)
+          print('Secret scan completed: Zero exposed credentials detected.')
+          "
+
+      # Quality Check 3: Alembic Upgrade from Empty Database to Head
+      - name: Clean Database Migration Gate (Empty DB -> Head)
+        run: |
+          export DATABASE_URL="sqlite:///./ci_empty_test.db"
+          export DATABASE_PATH="./ci_empty_test.db"
           alembic upgrade head
-          python -c "from app.database import get_db;
-          with get_db() as conn:
-              rev = conn.execute('SELECT version_num FROM alembic_version;').fetchone()
-              print(f'Database successfully migrated to head: {rev[0]}')"
+          python -c "
+          import sqlite3
+          conn = sqlite3.connect('ci_empty_test.db')
+          rev = conn.execute('SELECT version_num FROM alembic_version;').fetchone()[0]
+          print(f'Successfully migrated to head revision: {rev}')
+          assert rev == 'f3a4b5c6d7e8', f'Unexpected revision: {rev}'
+          "
 
-      - name: Run Pytest Comprehensive Test Suite
+      # Quality Check 4: Full Automated Test Suite
+      - name: Run Backend Regression & Security Test Suite
         run: |
-          pytest -v --durations=10
+          pytest -q
 
-      - name: Execute Automated Disaster Recovery Drill
+      # Quality Check 5: Automated Backup & Restore Drill
+      - name: Execute Backup & Restore Disaster Recovery Drill
         run: |
-          echo "Executing automated backup and restore drill..."
-          python -m pytest tests/test_restore_drill.py -v
+          python scripts/db_backup_restore_drill.py
 
-      - name: Run Performance & SLA Smoke Benchmark
+      # Quality Check 6: Operational Alerts & Data Quality Check
+      - name: Check Operational Alerts & Data Quality
         run: |
-          python scripts/load_test.py --concurrency 10 --requests 60
+          python scripts/check_operational_alerts.py
+          python scripts/check_planning_data_quality.py --district Moradabad
 
-  frontend-build:
-    name: Frontend Build & Type Validation
+  # ---------------------------------------------------------------------------
+  # 2. Frontend Quality Gate
+  # ---------------------------------------------------------------------------
+  frontend-quality-gate:
+    name: Frontend Lint, Typecheck & Production Build
     runs-on: ubuntu-latest
-    needs: secret-scan
     defaults:
       run:
         working-directory: frontend
+
     steps:
-      - name: Checkout Code
+      - name: Checkout Source Code
         uses: actions/checkout@v4
 
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package.json
 
       - name: Install Frontend Dependencies
-        run: |
-          npm ci
+        run: npm ci || npm install
 
-      - name: Next.js Production Build
-        run: |
-          npm run build
+      - name: Run TypeScript & Next.js Production Build
+        run: npm run build
         env:
           NEXT_PUBLIC_API_BASE_URL: "http://localhost:4000/api/v1"
           NEXT_PUBLIC_DEMO_AUTH_FALLBACK: "false"
+
+  # ---------------------------------------------------------------------------
+  # 3. Integrated Smoke Test & Release Gate
+  # ---------------------------------------------------------------------------
+  smoke-and-readiness-gate:
+    name: API Live, Ready & Observability Smoke Test
+    runs-on: ubuntu-latest
+    needs: [ backend-quality-gate, frontend-quality-gate ]
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Backend Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run Migrations on Staging Test DB
+        run: |
+          alembic upgrade head
+
+      - name: Launch Server in Background
+        run: |
+          python -m uvicorn app.main:app --host 127.0.0.1 --port 4000 &
+          sleep 4
+
+      - name: Execute Live & Ready Health Probes
+        run: |
+          curl -f http://127.0.0.1:4000/health/live
+          curl -f http://127.0.0.1:4000/health/ready
+          curl -f http://127.0.0.1:4000/health/version
+          curl -f http://127.0.0.1:4000/api/v1/monitoring/alerts

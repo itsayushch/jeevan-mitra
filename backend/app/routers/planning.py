@@ -49,7 +49,7 @@ def _actor_to_dict(actor: Actor) -> Dict[str, Any]:
         "id": actor.actor_id,
         "role": actor.actor_role,
         "name": actor.actor_name,
-        "district": district or "Moradabad",
+        "district": district or "",
         "roles": actor.roles,
         "scopes": actor.scopes,
     }
