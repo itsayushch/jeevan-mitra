@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from fastapi.testclient import TestClient
 from app.config import settings
-from app.database import get_db
+from app.database import get_db, init_database
 from app.main import app
 from app.ai_layers.layer3_matching.state_machine import MatchStateMachine, UnauthorizedStateTransitionError
 
@@ -21,6 +21,7 @@ class TestPythonBackend(unittest.TestCase):
         settings.WORKER_API_KEY = 'test-worker-api-key'
         settings.WORKER_ID = 'test-worker-01'
         settings.WORKER_NAME = 'Test Field Worker'
+        init_database()
         cls.client = TestClient(app, headers={'X-Worker-API-Key': settings.WORKER_API_KEY})
         cls.client.__enter__()
 

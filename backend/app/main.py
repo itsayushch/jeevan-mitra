@@ -29,7 +29,7 @@ from app.routers import (
 async def lifespan(app: FastAPI):
     logger.info("Starting JeevanMitra 2.0 Python FastAPI Core Service...")
     logger.info(f"Environment: {settings.NODE_ENV} | Pilot District: {settings.DEFAULT_DISTRICT}")
-    init_database()
+    # init_database() is replaced by Alembic migrations
     logger.info("================================================================")
     logger.info("  JEEVAN-MITRA 2.0 PYTHON BACKEND SERVICE OPERATIONAL")
     logger.info("================================================================")

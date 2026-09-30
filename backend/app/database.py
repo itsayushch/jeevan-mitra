@@ -3,29 +3,19 @@ import json
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from contextlib import contextmanager
 from typing import Generator
 from app.config import settings
 from app.utils.logger import logger
+from app.db.session import get_db, DBWrapper
 
 def get_connection() -> sqlite3.Connection:
+    logger.warning("get_connection() is deprecated, use get_db() context manager")
     conn = sqlite3.connect(settings.DATABASE_PATH, timeout=10.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.execute("PRAGMA journal_mode = WAL;")
     return conn
 
-@contextmanager
-def get_db() -> Generator[sqlite3.Connection, None, None]:
-    conn = get_connection()
-    try:
-        yield conn
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        raise e
-    finally:
-        conn.close()
 
 def _add_column_if_missing(conn: sqlite3.Connection, table: str, column_def: str, col_name: str):
     table_check = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (table,)).fetchone()
@@ -68,34 +58,41 @@ def run_migrations(conn: sqlite3.Connection):
     _add_column_if_missing(conn, "referral_cases", "session_id TEXT", "session_id")
 
 def init_database():
-    """Ensure database schema is created, migrated, and seeded."""
-    logger.info(f"Initializing database at: {settings.DATABASE_PATH}")
+    """Ensure database schema is created via Alembic, migrated, and seeded."""
+    logger.info(f"Initializing database at: {settings.DATABASE_URL}")
+    import alembic.config
+    import alembic.command
     
-    schema_paths = [
-        Path(__file__).resolve().parent / "database" / "schema.sql",
-        Path(__file__).resolve().parent / "schema.sql",
-        Path(__file__).resolve().parent.parent / "src" / "database" / "schema.sql",
-    ]
-    schema_path = next((p for p in schema_paths if p.exists()), None)
-
+    alembic_ini = Path(__file__).resolve().parent.parent / "alembic.ini"
+    alembic_cfg = alembic.config.Config(str(alembic_ini))
+    alembic_cfg.set_main_option("script_location", str(alembic_ini.parent / "alembic"))
+    
+    # Use dynamic URL for test compatibility
+    db_url = settings.DATABASE_URL
+    if settings.DATABASE_PATH and db_url.startswith("sqlite") and "memory" not in db_url:
+        db_path = Path(settings.DATABASE_PATH).absolute().as_posix()
+        db_url = f"sqlite:///{db_path}"
+    
+    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+    
+    if "memory" in db_url:
+        from app.db.session import get_engine
+        engine = get_engine()
+        from alembic import context
+        with engine.begin() as connection:
+            alembic_cfg.attributes['connection'] = connection
+            alembic.command.upgrade(alembic_cfg, "head")
+    else:
+        alembic.command.upgrade(alembic_cfg, "head")
+        
     with get_db() as conn:
-        run_migrations(conn)
-        if schema_path and schema_path.exists():
-            with open(schema_path, "r", encoding="utf-8") as f:
-                schema_sql = f.read()
-            conn.executescript(schema_sql)
-            run_migrations(conn)
-        else:
-            logger.warning("schema.sql not found, skipping migration execution")
-
-        # Check if already seeded
-        cursor = conn.execute("SELECT count(*) as count FROM qualifications;")
-        count = cursor.fetchone()["count"]
-        if count == 0:
-            logger.info("Database empty, running initial seed...")
+        logger.info("Database schema applied.")
+        cols = conn.execute("PRAGMA table_info(audit_events);").fetchall()
+        print(f"DEBUG: audit_events columns in {db_url}: {cols}")
+        # Seed default values if empty
+        check = conn.execute("SELECT COUNT(*) as count FROM qualifications;").fetchone()
+        if check and check['count'] == 0:
             seed_database(conn)
-        else:
-            logger.info(f"Database already contains {count} qualifications. Skipping initial seed.")
 
 
 def seed_database(conn: sqlite3.Connection):
