@@ -27,7 +27,8 @@ from app.routers import (
     training,
     auth,
     cases,
-    beneficiary_cases
+    beneficiary_cases,
+    opportunity_submissions
 )
 
 @asynccontextmanager
@@ -166,7 +167,8 @@ api_routers = [
     training.admin_router,
     auth.router,
     cases.router,
-    beneficiary_cases.router
+    beneficiary_cases.router,
+    opportunity_submissions.router
 ]
 
 for prefix in ["/api/v1", "/api"]:

@@ -50,5 +50,20 @@ export const opportunitiesApi = {
             method: "POST",
             body: JSON.stringify(data)
         });
+    },
+    async submitOpportunity(data: {
+        input_mode: 'text' | 'voice';
+        text: string;
+        locale?: string;
+        audio_storage_key?: string;
+        transcript_confidence?: number;
+    }) {
+        return fetchWithAuth(`${BASE_URL}/api/v1/opportunity-submissions`, {
+            method: "POST",
+            body: JSON.stringify(data)
+        });
+    },
+    async listMySubmissions() {
+        return fetchWithAuth(`${BASE_URL}/api/v1/opportunity-submissions/me`);
     }
 };

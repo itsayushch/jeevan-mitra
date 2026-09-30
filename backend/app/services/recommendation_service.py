@@ -209,6 +209,7 @@ class RecommendationService:
                 elif any(word in qual_title.lower() for word in it_str.split()):
                     interest_score = max(interest_score, 20.0)
                     why_reasons.append(f"Aligns with your preference for {it}")
+                    break
 
             # 2. Existing skill overlap (20 pts)
             matched_skills = []

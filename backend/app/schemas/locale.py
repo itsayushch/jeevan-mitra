@@ -39,7 +39,9 @@ def resolve_locale(
     request: Optional[Request] = None,
     explicit_locale: Optional[str] = None,
     actor_preferred_language: Optional[str] = None,
-    require_enabled: bool = True
+    require_enabled: bool = True,
+    accept_language: Optional[str] = None,
+    preferred_language: Optional[str] = None
 ) -> SupportedLocale:
     """
     Standardized locale resolution order:
@@ -55,18 +57,18 @@ def resolve_locale(
             return parsed
 
     # 2. Accept-Language header
-    if request:
-        header_val = request.headers.get("accept-language")
-        if header_val:
-            tokens = [t.split(";")[0].strip() for t in header_val.split(",")]
-            for tok in tokens:
-                parsed = parse_locale(tok)
-                if parsed and (not require_enabled or parsed in ENABLED_LOCALES):
-                    return parsed
+    header_val = accept_language or (request.headers.get("accept-language") if request else None)
+    if header_val:
+        tokens = [t.split(";")[0].strip() for t in header_val.split(",")]
+        for tok in tokens:
+            parsed = parse_locale(tok)
+            if parsed and (not require_enabled or parsed in ENABLED_LOCALES):
+                return parsed
 
     # 3. Authenticated user's preferred_language
-    if actor_preferred_language:
-        parsed = parse_locale(actor_preferred_language)
+    pref = preferred_language or actor_preferred_language
+    if pref:
+        parsed = parse_locale(pref)
         if parsed and (not require_enabled or parsed in ENABLED_LOCALES):
             return parsed
 
