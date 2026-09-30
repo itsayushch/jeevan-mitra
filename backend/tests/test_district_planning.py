@@ -307,7 +307,7 @@ class TestControlledExports:
         assert "JeevanMitra 2.0 District Planning Export" in csv_text
         assert "SECTION 1: DEMAND VS VERIFIED CAPACITY GAPS" in csv_text
         assert "SECTION 4: DATA QUALITY & ACCESSIBILITY METRICS" in csv_text
-        assert "DPDP-aligned" in csv_text
+        assert "minimum cell-size privacy threshold of k = 5" in csv_text
 
         # Verify download count incremented
         meta_res = client.get(f"/api/v1/planning/exports/{csv_id}", headers=admin_headers)

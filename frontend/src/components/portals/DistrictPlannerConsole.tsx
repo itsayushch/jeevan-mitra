@@ -297,7 +297,7 @@ export const DistrictPlannerConsole: React.FC<DistrictPlannerProps> = ({ onBack 
                 `Aggregating live intake demand, capacity, and outcomes across ${district} under PM-AJAY rules.`}
             </p>
             <div className="mt-4 pt-3 border-t border-indigo-700/60 flex items-center justify-between text-[11px] text-indigo-200">
-              <span>Privacy rule: Cells representing &lt; 5 unique beneficiaries are strictly suppressed.</span>
+              <span>Minimum cell-size privacy threshold: k = 5. Aggregate cells with &lt; 5 unique beneficiaries are suppressed.</span>
               <span className="font-bold">Metric Engine: {overview?.metadata?.metric_version || 'v1'}</span>
             </div>
           </div>
@@ -543,7 +543,7 @@ export const DistrictPlannerConsole: React.FC<DistrictPlannerProps> = ({ onBack 
                 <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">Language Distribution</h3>
               </div>
               <p className="text-[11px] text-slate-500 mb-4">
-                Beneficiary preferred languages in {district} (DPDP k-threshold: 5).
+                Beneficiary preferred languages in {district} (Minimum cell-size privacy threshold: k = 5).
               </p>
               <div className="space-y-2">
                 {dataQuality?.data_quality.language_distribution &&

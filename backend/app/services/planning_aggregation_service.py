@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 from app.utils.logger import logger
 from app.utils.audit_events import log_isolated_audit_event
+from app.core.metrics import record_cell_suppression
 
 PLANNING_MIN_CELL_COUNT = 5
 
@@ -73,6 +74,7 @@ class PlanningAggregationService:
     def _apply_suppression(self, count: int) -> tuple[Optional[int], bool]:
         """Applies privacy threshold suppression."""
         if count < PLANNING_MIN_CELL_COUNT:
+            record_cell_suppression()
             return None, True
         return count, False
 

@@ -29,7 +29,7 @@ JeevanMitra is transitioning to a **Modular Monolith**. We will avoid microservi
 - **Authoritative Aggregation Engine (`PlanningAggregationService`)**:
   - Consumes authoritative operational records directly from Sprint 4 (`local_opportunities`, `qualifications`, `opportunity_providers`) and Sprint 5 (`beneficiary_cases`, `referrals`, `referral_outcomes`).
   - Strict domain boundaries: Unverified or expired opportunities are excluded from verified capacity; full opportunities count as full rather than available capacity; reported outcomes are never conflated with verified livelihoods.
-  - $k$-Anonymity Suppression ($k=5$): Groups with fewer than 5 unique beneficiaries are masked (`is_suppressed=True`), designed to support DPDP-aligned practices.
+  - Minimum Cell-Size Privacy Threshold ($k = 5$): JeevanMitra applies a minimum cell-size privacy threshold of k = 5. Aggregate cells with fewer than five unique beneficiaries are suppressed and returned as null with `is_suppressed = true`. This is a privacy safeguard designed to reduce re-identification risk; it is not, by itself, a formal guarantee of anonymity or legal compliance.
 - **Immutable Snapshot Pipeline (`PlanningSnapshotService`)**:
   - Captures complete frozen district planning aggregations into `planning_snapshots` with JSON payloads and normalized dimensional metric records in `planning_snapshot_metrics`.
   - Immutable lifecycle: `GENERATED` -> `REVIEWED` -> `APPROVED`.

@@ -16,67 +16,100 @@ python -m alembic upgrade head
 ### Full Backend Verification
 ```bash
 cd backend
-python -m pytest -q
-# Target: 109 passed, 0 failed
+pytest -v
+# Target: 138 passed, 0 failed
 ```
 
 ### Frontend Build & Compilation
 ```bash
 cd frontend
 npm run build
-# Target: All static & dynamic routes compiled cleanly (0 TypeScript/Lint errors)
+# Target: 14/14 static & dynamic routes compiled cleanly (0 TypeScript/Lint errors)
 ```
 
 ---
 
-## 2. Monitoring & Health
-- **Live Health Check**: `GET /api/v1/health` or `GET /health`
-- **Catalogue Freshness**: Monitored via `CatalogueFreshnessService`. Alerts trigger when opportunities near expiry (<7 days) or exceed 90 days without re-verification.
-- **Expiry Daemon**: Run periodically or via scheduled cron to sweep expired opportunities:
-  `OpportunityExpiryService.expire_stale_opportunities(conn)`
+## 2. Health & Observability Endpoints
+
+| Endpoint | Method | Expected Output | Purpose |
+| :--- | :--- | :--- | :--- |
+| `/health/live` | GET | `{"status": "live", ...}` | Process liveness probe (Zero DB queries) |
+| `/health/ready` | GET | `{"status": "ready", ...}` | Deep dependency readiness (DB, Alembic, Storage) |
+| `/health/version`| GET | `{"service": ..., "release_version": ...}` | Release version & git commit metadata |
+| `/health/config` | GET | `{"status": "ok", "config": ...}` | Safe non-sensitive config report |
+| `/metrics` | GET | Prometheus exposition format | Scraped by Prometheus / Datadog |
+| `/metrics/summary`| GET | JSON operational indicators | Operational dashboard summary |
 
 ---
 
-## 3. District Planning, Snapshots & Export Operations (Sprint 6)
+## 3. Disaster Recovery & Backup Operations
+
+### Creating Atomic Point-in-Time Backup
+Creates SQLite atomic snapshot with SHA-256 manifest:
+```bash
+cd backend
+python scripts/backup_db.py --dest /var/backups/jeevanmitra
+```
+
+### Running Automated Disaster Recovery Restore Drill
+Validates backup checksum, PRAGMA integrity, Alembic revision, and table counts:
+```bash
+cd backend
+# Automated Pytest Drill
+pytest tests/test_restore_drill.py -v
+
+# Standalone CLI Drill
+python scripts/restore_drill.py /path/to/backup.db /path/to/backup.json
+```
+
+---
+
+## 4. Performance & Load Benchmark Harness
+Run concurrent load tests to measure throughput and latency percentiles (p50, p90, p95, p99):
+```bash
+cd backend
+# In-process benchmark
+python scripts/load_test.py --concurrency 10 --requests 60
+
+# HTTP socket benchmark against live daemon
+python scripts/load_test.py --url http://127.0.0.1:4000 --concurrency 20 --requests 100
+```
+
+---
+
+## 5. District Planning, Snapshots & Export Operations
 
 ### Data Quality Telemetry Check
-Run periodically or before district action planning meetings:
 ```bash
 cd backend
 python scripts/check_planning_data_quality.py --district-id Moradabad
 ```
-Outputs total unverified capacity, expired batches, overdue follow-ups, and multimodal submissions.
 
 ### Scheduled Snapshot Freezing
-Freezes operational state into immutable snapshots for AAP documentation:
 ```bash
 cd backend
 python scripts/generate_planning_snapshot.py --district-id Moradabad --period-start 2026-01-01 --period-end 2026-12-31
 ```
 
 ### Export Cleanup & Expiry Maintenance
-Sweeps expired CSV/PDF download files older than retention policy (default 7 days):
 ```bash
 cd backend
-# Dry run:
-python scripts/expire_planning_exports.py --dry-run
-# Active sweep:
 python scripts/expire_planning_exports.py
 ```
 
 ---
 
-## 4. Operational Escalations & Case Triage
+## 6. Operational Escalations & Case Triage
 
 ### Case Stuck in Pipeline
-1. Check `cases` table for `follow_up_due_at` date.
+1. Check `beneficiary_cases` table for `next_follow_up_at` date.
 2. In the Field Worker Portal, filter by `HIGH` or `URGENT` priority.
 3. If assigned worker is unavailable, reassign case via `POST /api/v1/staff/cases/{case_id}/assign`.
 
 ### Referral Dispute or Drop-Out
 1. Check `referral_status_history` table for full provenance of state transitions.
 2. If beneficiary opted out, record `BENEFICIARY_DECLINED` or `DROPPED_OUT`.
-3. If provider rejected, transition status to `REJECTED` and add a case note explaining cause.
+3. If provider rejected, transition status to `REJECTED_BY_PROVIDER` and add a case note explaining cause.
 
 ### Outcome Verification Flow
 1. Field worker logs outcome via `POST /api/v1/staff/referrals/{id}/outcomes`. Status begins as `REPORTED`.
@@ -85,8 +118,12 @@ python scripts/expire_planning_exports.py
 
 ---
 
-## 5. Disaster Recovery & Rollback
-1. SQLite database backups stored in daily timestamped snapshots.
-2. If a migration needs rollback:
-   `python -m alembic downgrade -1`
-3. Audit logs in `audit_events` are append-only and immutable.
+## 7. Operational Documentation Reference
+- **Deployment**: [deployment.md](file:///c:/Users/DELL/JEEVAN-MITRA%202.0/docs/deployment.md)
+- **Production Readiness**: [production-readiness.md](file:///c:/Users/DELL/JEEVAN-MITRA%202.0/docs/production-readiness.md)
+- **Backup & Recovery**: [backup-recovery.md](file:///c:/Users/DELL/JEEVAN-MITRA%202.0/docs/backup-recovery.md)
+- **Security Test Plan**: [security-test-plan.md](file:///c:/Users/DELL/JEEVAN-MITRA%202.0/docs/security-test-plan.md)
+- **Pilot Operating Model**: [pilot-operations.md](file:///c:/Users/DELL/JEEVAN-MITRA%202.0/docs/pilot-operations.md)
+- **Incident Response**: [incident-response.md](file:///c:/Users/DELL/JEEVAN-MITRA%202.0/docs/incident-response.md)
+- **Accessibility & Localization QA**: [accessibility-qa.md](file:///c:/Users/DELL/JEEVAN-MITRA%202.0/docs/accessibility-qa.md)
+- **Observability**: [observability.md](file:///c:/Users/DELL/JEEVAN-MITRA%202.0/docs/observability.md)

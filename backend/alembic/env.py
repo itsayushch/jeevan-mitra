@@ -23,11 +23,13 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 target_metadata = None # Base.metadata
 
-db_url = settings.DATABASE_URL
-if settings.DATABASE_PATH and db_url.startswith("sqlite") and "memory" not in db_url:
-    db_path = Path(settings.DATABASE_PATH).absolute().as_posix()
-    db_url = f"sqlite:///{db_path}"
-config.set_main_option("sqlalchemy.url", db_url)
+custom_url = config.get_main_option("sqlalchemy.url")
+if not custom_url or custom_url.strip() in ("", "sqlite:///./jeevanmitra.db", "driver://user:pass@localhost/dbname"):
+    db_url = settings.DATABASE_URL
+    if settings.DATABASE_PATH and db_url.startswith("sqlite") and "memory" not in db_url:
+        db_path = Path(settings.DATABASE_PATH).absolute().as_posix()
+        db_url = f"sqlite:///{db_path}"
+    config.set_main_option("sqlalchemy.url", db_url)
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 

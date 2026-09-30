@@ -235,7 +235,7 @@ class PlanningExportService:
         writer.writerow(["# Generated At", snap_row["generated_at"]])
         writer.writerow(["# Data Freshness", snap_row["data_freshness_at"]])
         writer.writerow(["# Disclaimer", "Figures are district planning indicators, not admission or job guarantees."])
-        writer.writerow(["# Privacy Note", "Designed to support DPDP-aligned practices. Cells representing < 5 unique beneficiaries are suppressed."])
+        writer.writerow(["# Privacy Note", "JeevanMitra applies a minimum cell-size privacy threshold of k = 5. Aggregate cells with fewer than five unique beneficiaries are suppressed and returned as null with is_suppressed = true. This is a privacy safeguard designed to reduce re-identification risk; it is not, by itself, a formal guarantee of anonymity or legal compliance."])
         writer.writerow([])
 
         # Section 1: Demand vs Supply Gaps
