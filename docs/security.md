@@ -3,7 +3,7 @@
 ## 1. Principles
 - **Verification before Action**: Only human verified opportunities map to referrals. An `INTEREST_MATCH` cannot be referred.
 - **Grounded AI Only**: LLMs operate on structured, verified data with zero hallucinations. Inferred fields are never auto-confirmed.
-- **Privacy by Design**: Minimum data collection. Designed to support DPDP-aligned practices with affirmative, granular, versioned consent.
+- **Privacy by Design**: Minimum data collection with affirmative, granular, versioned consent.
 
 ---
 
@@ -16,7 +16,7 @@
   - `field_worker`: Case management and referral progression strictly scoped to assigned district.
   - `beneficiary`: Access restricted strictly to own records via authenticated user ID.
 - **Geographic Scoping**:
-  - Field workers are assigned a district (e.g. `Moradabad`).
+  - Field workers and district admins are assigned a district (e.g. `Moradabad`).
   - Cross-district access attempts are blocked with HTTP 403 Forbidden.
 
 ---
@@ -44,10 +44,20 @@ To prevent accidental partial commits when a 403 is raised:
 ## 5. District Planning, Aggregations & Controlled Exports Security (Sprint 6)
 - **Role Restrictions**: Access to `/api/v1/planning/*` is restricted exclusively to `district_admin`, `auditor`, and `super_admin`. Unprivileged roles (`beneficiary`, `field_worker`, `guest`) receive HTTP 403 Forbidden with an isolated `SECURITY_ACCESS_DENIED` audit log.
 - **Geographic Scoping**: `district_admin` and `auditor` can only access their assigned district. Cross-district queries are rejected with HTTP 403 Forbidden and an isolated security audit log. `super_admin` has global multi-district visibility.
-- **Small-Cell Suppression ($k=5$)**: To prevent re-identification under DPDP-aligned practices, any aggregated cell or breakdown representing fewer than 5 unique beneficiaries is automatically suppressed (`is_suppressed = true`, values masked or nullified).
+- **Minimum Cell-Size Privacy Threshold ($k = 5$)**: JeevanMitra applies a minimum cell-size privacy threshold of $k = 5$. Aggregate cells with fewer than five unique beneficiaries are suppressed and returned as null with `is_suppressed = true`. This is a privacy safeguard designed to reduce re-identification risk; it is not, by itself, a formal guarantee of anonymity or legal compliance.
 - **Controlled Export Lifecycles**:
   - Exports (CSV and PDF) are generated exclusively from immutable frozen snapshots, never from live operational state.
   - Every export record is hashed with SHA-256 for cryptographic tamper-evidence.
   - **Re-authorization at Download Time**: When a download is requested via `/api/v1/planning/exports/{id}/download`, the user's current district scope is verified again before streaming the file.
   - Expired exports return HTTP 410 Gone.
   - Zero beneficiary PII, caseworker notes, or private phone numbers are ever included in planning snapshots or export outputs.
+
+---
+
+## 6. Production Hardening & Observability Controls (Sprint 7)
+- **Startup Constraint Validation**: `validate_production_constraints()` terminates startup if `JWT_SECRET` is weak (< 32 chars), if SQLite is used in production without authorization, or if demo auth bypass is enabled.
+- **HTTP Security Headers**: Enforces `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, and CSP.
+- **Sensitive Route Cache Invalidation**: `Cache-Control: no-store, private` attached to authentication, cases, referrals, and planning exports.
+- **Redacting Structured Logging**: Automatically sanitizes tokens, passwords, Aadhaar numbers, phone numbers, emails, and sensitive casework notes before output.
+- **Automated Security Verification**: The automated security test suite (`backend/tests/test_security_validation.py`) continuously verifies IDOR prevention, geographic isolation, role escalation rejection, JWT validity, and injection resilience (100% pass rate).
+- **Security Test Plan Reference**: See [security-test-plan.md](file:///c:/Users/DELL/JEEVAN-MITRA%202.0/docs/security-test-plan.md) for detailed penetration test scenarios and audit trails.

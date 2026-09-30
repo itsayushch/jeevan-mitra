@@ -7,7 +7,7 @@ JeevanMitra 2.0 provides district administrators, state planners, and auditors w
 ### Foundational Invariants:
 1. **Authoritative Grounding Only**: Planning indicators are aggregated strictly from verified database records (confirmed profile answers, active and non-expired local opportunities, affirmative consents, and verified referral outcomes). No speculative numbers or unconfirmed claims are included.
 2. **Strict Privacy Safeguards (DPDP Act Alignment)**:
-   - $k$-anonymity threshold ($k = 5$): Cells or breakdowns representing fewer than 5 unique beneficiaries are strictly suppressed (`is_suppressed = true`, count returned as `null` or omitted).
+   - JeevanMitra applies a minimum cell-size privacy threshold of k = 5. Aggregate cells with fewer than five unique beneficiaries are suppressed and returned as null with is_suppressed = true. This is a privacy safeguard designed to reduce re-identification risk; it is not, by itself, a formal guarantee of anonymity or legal compliance.
    - Exports contain **zero** beneficiary names, phone numbers, contact details, caseworker diary notes, or evidence file references.
    - All exports and reports display mandatory privacy and disclaimer statements.
 3. **Prevention of Metric Conflation**:

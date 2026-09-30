@@ -1,0 +1,115 @@
+name: JeevanMitra 2.0 CI/CD Quality & Release Pipeline
+
+on:
+  push:
+    branches: [ main, staging, "feature/**", "feat/**", "fix/**" ]
+  pull_request:
+    branches: [ main, staging ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secret-scan:
+    name: Secret & Credential Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan for Leaked Secrets
+        run: |
+          echo "Scanning codebase for forbidden hardcoded secrets..."
+          # Check for high-entropy tokens or private keys accidentally committed
+          if git grep -E "(-----BEGIN [A-Z]+ PRIVATE KEY-----|AIzaSy[A-Za-z0-9_-]{33}|ghp_[A-Za-z0-9]{36})" -- ':!backend/tests' ':!docs'; then
+            echo "ERROR: Hardcoded secrets or private keys detected in repository!"
+            exit 1
+          fi
+          echo "Secret scan clean: No committed credentials detected."
+
+  backend-verification:
+    name: Backend Tests, Migrations & Recovery Drill
+    runs-on: ubuntu-latest
+    needs: secret-scan
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      APP_ENV: local
+      DATABASE_URL: sqlite:///./test_ci.db
+      JWT_SECRET: supersecret_jwt_key_for_dev_only_32_chars_min_len!!
+      NEXT_PUBLIC_DEMO_AUTH_FALLBACK: "false"
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pytest pytest-asyncio pytest-cov httpx starlette fastapi uvicorn alembic
+
+      - name: Python Bytecode Compilation Check
+        run: |
+          python -m compileall app scripts
+
+      - name: Alembic Migration Drill
+        run: |
+          echo "Testing clean database upgrade to Alembic head..."
+          alembic upgrade head
+          python -c "from app.database import get_db;
+          with get_db() as conn:
+              rev = conn.execute('SELECT version_num FROM alembic_version;').fetchone()
+              print(f'Database successfully migrated to head: {rev[0]}')"
+
+      - name: Run Pytest Comprehensive Test Suite
+        run: |
+          pytest -v --durations=10
+
+      - name: Execute Automated Disaster Recovery Drill
+        run: |
+          echo "Executing automated backup and restore drill..."
+          python -m pytest tests/test_restore_drill.py -v
+
+      - name: Run Performance & SLA Smoke Benchmark
+        run: |
+          python scripts/load_test.py --concurrency 10 --requests 60
+
+  frontend-build:
+    name: Frontend Build & Type Validation
+    runs-on: ubuntu-latest
+    needs: secret-scan
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Frontend Dependencies
+        run: |
+          npm ci
+
+      - name: Next.js Production Build
+        run: |
+          npm run build
+        env:
+          NEXT_PUBLIC_API_BASE_URL: "http://localhost:4000/api/v1"
+          NEXT_PUBLIC_DEMO_AUTH_FALLBACK: "false"

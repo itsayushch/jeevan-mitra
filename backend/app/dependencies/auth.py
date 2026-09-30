@@ -66,6 +66,18 @@ def get_current_actor(
     """
     Identifies the caller actor based on Sprint 2 JWTs, or falls back to legacy methods for test compatibility.
     """
+    def _bind(actor: Actor) -> Actor:
+        try:
+            request.state.actor = actor
+            request.state.actor_role = actor.actor_role
+            if actor.scopes:
+                districts = [s.get("district_id") for s in actor.scopes if s.get("district_id")]
+                if districts:
+                    request.state.district_scope = ",".join(districts)
+        except Exception:
+            pass
+        return actor
+
     token = x_session_token or x_session_id
 
     # 1. JWT Authentication (Sprint 2 Priority)
@@ -84,7 +96,7 @@ def get_current_actor(
                     # otherwise we assume beneficiary_id = user_id or we trust the header for now to avoid breaking tests
                     ben_id = user_id if "beneficiary" in roles else x_beneficiary_id
                     
-                    return Actor(
+                    return _bind(Actor(
                         actor_id=user["id"],
                         actor_role=roles[0] if roles else "beneficiary",
                         actor_name=user["display_name"],
@@ -93,39 +105,39 @@ def get_current_actor(
                         db_user=dict(user),
                         roles=roles,
                         scopes=scopes
-                    )
+                    ))
         except ValueError:
             pass # Fallthrough to legacy methods if token is invalid (to not break old endpoints immediately)
 
     # 2. Staff authentication via worker API key (Legacy)
     if x_worker_api_key:
         if settings.WORKER_API_KEY and x_worker_api_key == settings.WORKER_API_KEY:
-            return Actor(
+            return _bind(Actor(
                 actor_id=settings.WORKER_ID or "worker_01",
                 actor_role="field_worker",
                 actor_name=settings.WORKER_NAME or "Field Worker",
                 session_id=token,
                 beneficiary_id=x_beneficiary_id,
                 roles=["field_worker"]
-            )
+            ))
         elif x_worker_api_key.startswith("admin-"):
-            return Actor(
+            return _bind(Actor(
                 actor_id="admin_01",
                 actor_role="admin",
                 actor_name="District Administrator",
                 session_id=token,
                 beneficiary_id=x_beneficiary_id,
                 roles=["admin"]
-            )
+            ))
         elif x_worker_api_key.startswith("counselor-"):
-            return Actor(
+            return _bind(Actor(
                 actor_id=x_worker_api_key.replace("-", "_"),
                 actor_role="counselor",
                 actor_name="Career Counselor",
                 session_id=token,
                 beneficiary_id=x_beneficiary_id,
                 roles=["counselor"]
-            )
+            ))
 
     # 3. Check token in anonymous_sessions table (Legacy)
     if token:
@@ -136,34 +148,34 @@ def get_current_actor(
             """, (token, token)).fetchone()
 
             if sess:
-                return Actor(
+                return _bind(Actor(
                     actor_id=sess["id"],
                     actor_role=sess["owner_type"],
                     actor_name="Guest Beneficiary",
                     session_id=sess["id"],
                     beneficiary_id=sess["owner_id"],
                     roles=["beneficiary"]
-                )
+                ))
 
     # 4. Fallback to explicit beneficiary ID if provided (Legacy)
     if x_beneficiary_id:
-        return Actor(
+        return _bind(Actor(
             actor_id=x_beneficiary_id,
             actor_role="beneficiary",
             actor_name="Beneficiary",
             beneficiary_id=x_beneficiary_id,
             roles=["beneficiary"]
-        )
+        ))
 
     # 5. Anonymous Guest fallback
     guest_id = token or "guest_anonymous"
-    return Actor(
+    return _bind(Actor(
         actor_id=guest_id,
         actor_role="anonymous",
         actor_name="Guest Beneficiary",
         session_id=token,
         roles=["anonymous"]
-    )
+    ))
 
 def require_authenticated_user(actor: Actor = Depends(get_current_actor)) -> Actor:
     """Strictly requires a JWT authenticated user (Sprint 2). For transition, we also accept legacy staff actors if they have explicit roles."""

@@ -1,4 +1,5 @@
 from sqlite3 import Connection
+from pathlib import Path
 import uuid
 import json
 from datetime import datetime, timezone
@@ -22,6 +23,15 @@ class OpportunityVerificationService:
         ev_type = data.get('evidence_type', '').upper()
         if ev_type not in valid_types:
             raise ValueError(f"Invalid evidence_type. Must be one of {valid_types}")
+
+        storage_key = data.get('storage_key')
+        if storage_key:
+            if ".." in storage_key or storage_key.startswith("/") or "\\" in storage_key:
+                raise ValueError("Invalid storage_key: path traversal sequences are forbidden.")
+            disallowed_exts = {".exe", ".sh", ".bat", ".cmd", ".php", ".py", ".pl", ".dll", ".so", ".bin", ".js", ".vbs"}
+            ext = Path(storage_key).suffix.lower()
+            if ext in disallowed_exts:
+                raise ValueError(f"Invalid file extension: '{ext}' is prohibited for evidence upload.")
 
         evidence_id = f"ev_{uuid.uuid4().hex[:8]}"
         now = OpportunityVerificationService._now()

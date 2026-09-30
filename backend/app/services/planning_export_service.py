@@ -223,9 +223,27 @@ class PlanningExportService:
             )
 
     @staticmethod
-    def _generate_csv(snap_row: Any, agg: Dict[str, Any], scope: str) -> str:
+    def _sanitize_csv_cell(val: Any) -> Any:
+        if val is None:
+            return ""
+        s = str(val)
+        if s and s[0] in ("=", "+", "-", "@", "\t", "\r"):
+            s = "'" + s
+        s = s.replace("<script>", "&lt;script&gt;").replace("</script>", "&lt;/script&gt;")
+        return s
+
+    @classmethod
+    def _generate_csv(cls, snap_row: Any, agg: Dict[str, Any], scope: str) -> str:
         output = io.StringIO()
-        writer = csv.writer(output)
+        raw_writer = csv.writer(output)
+
+        class SanitizingWriter:
+            def __init__(self, inner):
+                self.inner = inner
+            def writerow(self, row):
+                self.inner.writerow([cls._sanitize_csv_cell(c) for c in row])
+
+        writer = SanitizingWriter(raw_writer)
 
         # Header metadata block
         writer.writerow(["# JeevanMitra 2.0 District Planning Export"])
@@ -235,7 +253,7 @@ class PlanningExportService:
         writer.writerow(["# Generated At", snap_row["generated_at"]])
         writer.writerow(["# Data Freshness", snap_row["data_freshness_at"]])
         writer.writerow(["# Disclaimer", "Figures are district planning indicators, not admission or job guarantees."])
-        writer.writerow(["# Privacy Note", "Designed to support DPDP-aligned practices. Cells representing < 5 unique beneficiaries are suppressed."])
+        writer.writerow(["# Privacy Note", "JeevanMitra applies a minimum cell-size privacy threshold of k = 5. Aggregate cells with fewer than five unique beneficiaries are suppressed and returned as null with is_suppressed = true. This is a privacy safeguard designed to reduce re-identification risk; it is not, by itself, a formal guarantee of anonymity or legal compliance."])
         writer.writerow([])
 
         # Section 1: Demand vs Supply Gaps
