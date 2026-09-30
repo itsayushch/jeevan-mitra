@@ -209,6 +209,7 @@ class RecommendationService:
                 elif any(word in qual_title.lower() for word in it_str.split()):
                     interest_score = max(interest_score, 20.0)
                     why_reasons.append(f"Aligns with your preference for {it}")
+                    break
 
             # 2. Existing skill overlap (20 pts)
             matched_skills = []
@@ -304,11 +305,30 @@ class RecommendationService:
             }
 
         # Persist structured recommendations in database
+        from app.services.recommendation_explanation_service import RecommendationExplanationService
+        from app.schemas.locale import resolve_locale
+        resolved_loc = resolve_locale(explicit_locale=lang)
+
         saved_recs = []
         for i, item in enumerate(top_candidates):
             rec_id = f"rec_{uuid.uuid4().hex[:10]}"
             best_opp = item["best_opp"]
             qual_internal_id = item["qualification"]["internal_id"]
+
+            facts = RecommendationExplanationService.build_explanation_facts(
+                profile=confirmed_profile,
+                qualification=item["qualification"],
+                matched_skills=item["matched_skills"],
+                skill_gaps=item["skill_gaps"],
+                match_state=item["match_state"],
+                best_opp=best_opp
+            )
+            why_recommended_payload = RecommendationExplanationService.get_explanation(
+                locale=resolved_loc,
+                facts=facts,
+                title=item["qualification"]["title"],
+                match_state=item["match_state"]
+            )
 
             conn.execute("""
                 INSERT INTO recommendations (
@@ -316,8 +336,8 @@ class RecommendationService:
                     local_opportunity_id, rank, score, score_breakdown, match_state,
                     explanation_text, audio_explanation_script, tradeoff_summary, skill_gap_summary,
                     data_snapshot, ranking_factors, hard_constraint_result, matched_skills,
-                    skill_gaps, local_opportunity_status, caveat, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    skill_gaps, local_opportunity_status, caveat, explanation_facts, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """, (
                 rec_id, target_ben_id, target_interview_id, target_interview_id,
                 qual_internal_id, best_opp["id"] if best_opp else None,
@@ -327,7 +347,8 @@ class RecommendationService:
                 json.dumps({"qualification": item["qualification"], "local_availability": item["local_availability"]}),
                 json.dumps(item["ranking_factors"]), json.dumps({"passed": True}),
                 json.dumps(item["matched_skills"]), json.dumps(item["skill_gaps"]),
-                item["local_availability"]["status"], item["caveat"], now, now
+                item["local_availability"]["status"], item["caveat"],
+                json.dumps(facts, ensure_ascii=False), now, now
             ))
 
             # Persist to recommendation_match_state table
@@ -341,9 +362,16 @@ class RecommendationService:
 
             is_verified = (item["match_state"] in ("Verified Match", "VERIFIED_MATCH"))
             clean_response = {
+                "id": rec_id,
                 "recommendation_id": rec_id,
+                "qualification_id": qual_internal_id,
+                "rank": i + 1,
+                "title": item["qualification"]["title"],
                 "qualification": item["qualification"],
                 "why_recommended": item["why_recommended"],
+                "whyRecommended": why_recommended_payload,
+                "explanationFacts": facts,
+                "explanationVersion": "v1",
                 "matched_skills": item["matched_skills"],
                 "skill_gaps": item["skill_gaps"],
                 "local_availability": item["local_availability"],
@@ -351,6 +379,7 @@ class RecommendationService:
                 "caveat": item["caveat"],
                 "score": item["score"],
                 "match_state": "VERIFIED_MATCH" if is_verified else "INTEREST_MATCH",
+                "matchState": "VERIFIED_MATCH" if is_verified else "INTEREST_MATCH",
                 "can_request_referral": is_verified,
                 "can_request_worker_support": True,
                 "canRequestReferral": is_verified,
@@ -385,7 +414,7 @@ class RecommendationService:
         }
 
     @staticmethod
-    def get_recommendation_by_id(conn: sqlite3.Connection, rec_id: str) -> Dict[str, Any]:
+    def get_recommendation_by_id(conn: sqlite3.Connection, rec_id: str, locale: Any = None) -> Dict[str, Any]:
         row = conn.execute("SELECT * FROM recommendations WHERE id = ?;", (rec_id,)).fetchone()
         if not row:
             raise EntityNotFoundException("Recommendation", rec_id)
@@ -398,22 +427,62 @@ class RecommendationService:
             "id": qual_row["nqr_code"] if qual_row else d["qualification_id"],
             "title": qual_row["title"] if qual_row else "Qualification",
             "nsqf_level": f"Level {qual_row['nsqf_level']}" if qual_row else "",
+            "sector": qual_row["sector"] if qual_row else "General",
             "official_url": (qual_row.get("official_source_url") or qual_row.get("nqr_link")) if qual_row else ""
         }
 
+        from app.services.recommendation_explanation_service import RecommendationExplanationService
+        from app.schemas.locale import SupportedLocale
+
+        facts_raw = d.get("explanation_facts")
+        if facts_raw:
+            try:
+                facts = json.loads(facts_raw)
+            except Exception:
+                facts = []
+        else:
+            facts = RecommendationExplanationService.build_explanation_facts(
+                profile={"district": opp_row["district"] if opp_row else None},
+                qualification=qual_info,
+                matched_skills=json.loads(d.get("matched_skills") or "[]"),
+                skill_gaps=json.loads(d.get("skill_gaps") or "[]"),
+                match_state=d.get("match_state") or "INTEREST_MATCH",
+                best_opp=dict(opp_row) if opp_row else None
+            )
+
+        active_locale = locale if isinstance(locale, SupportedLocale) else SupportedLocale.EN
+        why_rec = RecommendationExplanationService.get_explanation(
+            locale=active_locale,
+            facts=facts,
+            title=qual_info["title"],
+            match_state=d.get("match_state") or "INTEREST_MATCH"
+        )
+
+        is_verified = (d.get("match_state") in ("Verified Match", "VERIFIED_MATCH"))
+
         return {
+            "id": d["id"],
             "recommendation_id": d["id"],
+            "qualification_id": d["qualification_id"],
+            "title": qual_info["title"],
+            "rank": d.get("rank", 1),
+            "score": d["score"],
+            "match_state": "VERIFIED_MATCH" if is_verified else "INTEREST_MATCH",
+            "matchState": "VERIFIED_MATCH" if is_verified else "INTEREST_MATCH",
             "qualification": qual_info,
             "matched_skills": json.loads(d.get("matched_skills") or "[]"),
             "skill_gaps": json.loads(d.get("skill_gaps") or "[]"),
+            "explanationFacts": facts,
+            "explanationVersion": "v1",
+            "whyRecommended": why_rec,
+            "why_recommended": [r["text"] for r in why_rec.get("reasons", [])] if why_rec.get("reasons") else ["Pathway matches confirmed profile."],
             "local_availability": {
                 "status": d.get("local_opportunity_status") or "unknown",
                 "district": opp_row["district"] if opp_row else None,
                 "source_url": opp_row.get("source_url") if opp_row else None,
                 "last_verified_at": opp_row.get("verified_at") if opp_row else None
             },
-            "caveat": d.get("caveat") or "This is a guidance recommendation, not confirmation of admission or placement.",
-            "score": d["score"]
+            "caveat": d.get("caveat") or "This is a guidance recommendation, not confirmation of admission or placement."
         }
 
     @staticmethod

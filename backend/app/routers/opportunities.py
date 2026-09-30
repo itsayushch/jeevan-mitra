@@ -17,7 +17,7 @@ from app.services.opportunity_service import OpportunityService
 from app.services.opportunity_verification_service import OpportunityVerificationService
 from app.services.match_state_service import MatchStateService
 from app.dependencies.auth import require_authenticated_user, get_current_actor, Actor
-from app.utils.audit_events import log_audit_event
+from app.utils.audit_events import log_audit_event, log_isolated_audit_event
 
 router = APIRouter(tags=["Opportunities"])
 
@@ -59,8 +59,7 @@ def get_staff_opportunity(opportunity_id: str, user: Actor = Depends(require_aut
             raise HTTPException(status_code=404, detail="Opportunity not found")
         
         if not user.check_scope(opp.get("district_id"), opp.get("block_id")):
-            log_audit_event(
-                conn=conn,
+            log_isolated_audit_event(
                 actor_id=user.actor_id,
                 actor_name=user.actor_name,
                 actor_role=user.actor_role,
@@ -69,7 +68,6 @@ def get_staff_opportunity(opportunity_id: str, user: Actor = Depends(require_aut
                 entity_id=opportunity_id,
                 metadata={"reason": "cross_scope_access_attempt"}
             )
-            conn.commit()
             raise HTTPException(status_code=403, detail="Access denied: outside assigned geographic scope.")
         
         return opp
@@ -85,8 +83,7 @@ def patch_staff_opportunity(opportunity_id: str, data: OpportunityUpdate, user: 
             raise HTTPException(status_code=404, detail="Opportunity not found")
         
         if not user.check_scope(opp.get("district_id"), opp.get("block_id")):
-            log_audit_event(
-                conn=conn,
+            log_isolated_audit_event(
                 actor_id=user.actor_id,
                 actor_name=user.actor_name,
                 actor_role=user.actor_role,
@@ -95,7 +92,6 @@ def patch_staff_opportunity(opportunity_id: str, data: OpportunityUpdate, user: 
                 entity_id=opportunity_id,
                 metadata={"reason": "cross_scope_access_attempt"}
             )
-            conn.commit()
             raise HTTPException(status_code=403, detail="Access denied: outside assigned geographic scope.")
 
         payload = data.model_dump(exclude_unset=True) if hasattr(data, "model_dump") else data.dict(exclude_unset=True)
@@ -112,8 +108,7 @@ def add_evidence(opportunity_id: str, data: EvidenceCreate, user: Actor = Depend
             raise HTTPException(status_code=404, detail="Opportunity not found")
         
         if not user.check_scope(opp.get("district_id"), opp.get("block_id")):
-            log_audit_event(
-                conn=conn,
+            log_isolated_audit_event(
                 actor_id=user.actor_id,
                 actor_name=user.actor_name,
                 actor_role=user.actor_role,
@@ -122,7 +117,6 @@ def add_evidence(opportunity_id: str, data: EvidenceCreate, user: Actor = Depend
                 entity_id=opportunity_id,
                 metadata={"reason": "cross_scope_access_attempt"}
             )
-            conn.commit()
             raise HTTPException(status_code=403, detail="Access denied: outside assigned geographic scope.")
 
         payload = data.model_dump(exclude_unset=True) if hasattr(data, "model_dump") else data.dict(exclude_unset=True)
@@ -154,8 +148,7 @@ def verify_opportunity(opportunity_id: str, action: str, data: VerificationActio
             raise HTTPException(status_code=404, detail="Opportunity not found")
         
         if not user.check_scope(opp.get("district_id"), opp.get("block_id")):
-            log_audit_event(
-                conn=conn,
+            log_isolated_audit_event(
                 actor_id=user.actor_id,
                 actor_name=user.actor_name,
                 actor_role=user.actor_role,
@@ -164,7 +157,6 @@ def verify_opportunity(opportunity_id: str, action: str, data: VerificationActio
                 entity_id=opportunity_id,
                 metadata={"reason": "cross_scope_access_attempt"}
             )
-            conn.commit()
             raise HTTPException(status_code=403, detail="Access denied: outside assigned geographic scope.")
 
         try:

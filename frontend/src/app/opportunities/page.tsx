@@ -1,25 +1,27 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { opportunitiesApi } from '../../lib/api/opportunities';
+import { OpportunitySubmissionForm } from '../../components/modules/OpportunitySubmissionForm';
 
 export default function Page() {
     const [opportunities, setOpportunities] = useState<any[]>([]);
     const [qualifications, setQualifications] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        async function fetchData() {
-            try {
-                const opps = await opportunitiesApi.listOpportunities();
-                setOpportunities(opps);
-                const quals = await opportunitiesApi.listQualifications();
-                setQualifications(quals);
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
+    const fetchData = async () => {
+        try {
+            const opps = await opportunitiesApi.listOpportunities();
+            setOpportunities(opps);
+            const quals = await opportunitiesApi.listQualifications();
+            setQualifications(quals);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
         }
+    };
+
+    useEffect(() => {
         fetchData();
     }, []);
 
@@ -30,6 +32,11 @@ export default function Page() {
             <div>
                 <h1 className="text-3xl font-bold mb-2">My Opportunities</h1>
                 <p className="text-gray-600">Explore local training and job opportunities based on your skills.</p>
+            </div>
+
+            {/* Multimodal Opportunity Submission Form */}
+            <div className="my-6">
+                <OpportunitySubmissionForm onSubmitted={fetchData} />
             </div>
 
             <div className="space-y-4">

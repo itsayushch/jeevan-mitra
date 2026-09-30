@@ -25,6 +25,10 @@ class UserResponse(BaseModel):
     is_superuser: bool
     roles: List[str]
     scopes: List[UserScopeResponse]
+    preferred_language: Optional[str] = "en"
+
+class UpdateLanguageRequest(BaseModel):
+    preferred_language: str
 
 class ChangePasswordRequest(BaseModel):
     current_password: str

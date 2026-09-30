@@ -68,3 +68,40 @@ def log_audit_event(
         raise e
 
     return event_id
+
+def log_isolated_audit_event(
+    actor_id: str,
+    actor_name: str,
+    actor_role: str,
+    action: str,
+    entity_type: str,
+    entity_id: str,
+    old_values: Optional[Dict[str, Any]] = None,
+    new_values: Optional[Dict[str, Any]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    timestamp: Optional[str] = None
+) -> str:
+    """
+    Logs an audit event using an independent, dedicated database transaction.
+    This guarantees that the audit record is committed even if the caller's
+    business transaction is rolled back or aborted with an HTTPException (e.g. 403 Forbidden),
+    without committing any uncommitted partial changes from the caller's transaction.
+    """
+    from app.database import get_db
+    with get_db() as audit_conn:
+        event_id = log_audit_event(
+            conn=audit_conn,
+            actor_id=actor_id,
+            actor_name=actor_name,
+            actor_role=actor_role,
+            action=action,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            old_values=old_values,
+            new_values=new_values,
+            metadata=metadata,
+            timestamp=timestamp
+        )
+        audit_conn.commit()
+        return event_id
+

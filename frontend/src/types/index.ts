@@ -1,4 +1,6 @@
-export type Language = 'hi' | 'en' | 'ta' | 'bn' | 'te';
+import type { SupportedLocale } from '../lib/i18n/locales';
+
+export type Language = SupportedLocale;
 
 export interface BeneficiaryProfile {
   name: string;

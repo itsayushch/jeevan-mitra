@@ -117,3 +117,35 @@ class MatchStateResponse(BaseModel):
     canRequestReferral: bool
     canRequestWorkerSupport: bool
     verificationUpdatedAt: Optional[datetime] = None
+
+from typing import Literal
+from app.schemas.locale import SupportedLocale
+
+class OpportunitySubmissionCreate(BaseModel):
+    input_mode: Literal["text", "voice"]
+    text: str
+    locale: Optional[SupportedLocale] = None
+    audio_storage_key: Optional[str] = None
+    transcript_confidence: Optional[float] = None
+
+class OpportunitySubmissionReview(BaseModel):
+    status: Literal["UNDER_REVIEW", "LINKED_TO_OPPORTUNITY", "REJECTED", "CLOSED"]
+    linked_opportunity_id: Optional[str] = None
+    review_notes: Optional[str] = None
+
+class OpportunitySubmissionResponse(BaseModel):
+    id: str
+    submitted_by_user_id: Optional[str] = None
+    input_mode: str
+    raw_text: str
+    normalized_text: str
+    locale: str
+    audio_storage_key: Optional[str] = None
+    transcript_confidence: Optional[float] = None
+    status: str
+    linked_opportunity_id: Optional[str] = None
+    reviewed_by_user_id: Optional[str] = None
+    review_notes: Optional[str] = None
+    created_at: str
+    updated_at: str
+

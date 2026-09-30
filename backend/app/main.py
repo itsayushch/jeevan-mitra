@@ -25,7 +25,10 @@ from app.routers import (
     journey,
     admin_catalogue,
     training,
-    auth
+    auth,
+    cases,
+    beneficiary_cases,
+    opportunity_submissions
 )
 
 @asynccontextmanager
@@ -162,15 +165,19 @@ api_routers = [
     training.router,
     training.learning_router,
     training.admin_router,
-    auth.router
+    auth.router,
+    cases.router,
+    beneficiary_cases.router,
+    opportunity_submissions.router
 ]
 
 for prefix in ["/api/v1", "/api"]:
     for r in api_routers:
         app.include_router(r, prefix=prefix)
 
-# Also expose health check at root /health for convenience
-app.include_router(health.router)
+# Also expose at root for direct path access
+for r in [health.router, cases.router, referrals.router, beneficiary_cases.router]:
+    app.include_router(r)
 
 if __name__ == "__main__":
     import uvicorn

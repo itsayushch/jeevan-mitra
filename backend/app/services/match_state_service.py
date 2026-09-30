@@ -77,10 +77,12 @@ class MatchStateService:
     def get_or_compute_match(
         conn: Connection,
         beneficiary_id: str,
-        qual_id: str,
+        qual_id: Optional[str] = None,
         district_id: Optional[str] = None,
-        block_id: Optional[str] = None
+        block_id: Optional[str] = None,
+        qualification_id: Optional[str] = None
     ) -> Dict[str, Any]:
+        qual_id = qual_id or qualification_id
         now_dt = datetime.now(timezone.utc)
         now_str = now_dt.isoformat()
 
