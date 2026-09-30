@@ -106,6 +106,117 @@ export interface SummaryExport {
   generated_at: string;
 }
 
+export interface StaffCaseItem {
+  id: string;
+  beneficiary_id: string;
+  assigned_worker_id?: string | null;
+  status: 'OPEN' | 'IN_PROGRESS' | 'REFERRED' | 'CLOSED';
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  district: string;
+  state: string;
+  target_sector?: string | null;
+  notes_count?: number;
+  follow_up_due_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CaseNoteItem {
+  id: string;
+  author_name: string;
+  author_role: string;
+  note_type: string;
+  content: string;
+  is_staff_only: boolean;
+  created_at: string;
+}
+
+export interface CaseAssignmentHistoryItem {
+  id: string;
+  from_worker_id?: string | null;
+  to_worker_id: string;
+  assigned_by_id: string;
+  reason?: string | null;
+  assigned_at: string;
+}
+
+export interface StaffCaseDetail {
+  case: StaffCaseItem;
+  notes: CaseNoteItem[];
+  assignments: CaseAssignmentHistoryItem[];
+}
+
+export interface StaffReferralItem {
+  id: string;
+  case_id: string;
+  opportunity_id: string;
+  opportunity_title?: string;
+  provider_name?: string;
+  qualification_title?: string;
+  district: string;
+  status:
+    | 'READY_TO_SEND'
+    | 'REFERRED'
+    | 'CONTACTED'
+    | 'ENROLLED'
+    | 'TRAINING_STARTED'
+    | 'COMPLETED'
+    | 'DROPPED_OUT'
+    | 'REJECTED'
+    | 'BENEFICIARY_DECLINED'
+    | 'CLOSED';
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContactAttemptRecord {
+  id: string;
+  referral_id: string;
+  channel: 'PHONE' | 'IN_PERSON' | 'SMS' | 'WHATSAPP';
+  successful: boolean;
+  notes?: string;
+  attempted_at: string;
+}
+
+export interface OutcomeRecord {
+  id: string;
+  referral_id: string;
+  outcome_type: 'ENROLLED' | 'COMPLETED' | 'JOB_OFFER' | 'SELF_EMPLOYMENT_STARTED' | 'DROPPED_OUT';
+  status: 'REPORTED' | 'VERIFIED' | 'REJECTED';
+  evidence_summary?: string;
+  reported_at: string;
+  verified_at?: string;
+  verified_by?: string;
+}
+
+export interface BeneficiaryCaseDisplay {
+  id: string;
+  status: string;
+  display_status: {
+    title: string;
+    description: string;
+  };
+  district: string;
+  follow_up_due_at?: string | null;
+  created_at: string;
+}
+
+export interface BeneficiaryReferralDisplay {
+  id: string;
+  case_id: string;
+  opportunity_title: string;
+  provider_name: string;
+  district: string;
+  status: string;
+  display_status: {
+    title: string;
+    description: string;
+  };
+  created_at: string;
+  updated_at: string;
+}
+
 class ApiService {
   private sessionToken: string | null = null;
   private sessionId: string | null = null;
@@ -332,6 +443,267 @@ class ApiService {
   async getOpportunities(district: string = 'Moradabad'): Promise<any> {
     const res = await fetch(`${API_BASE}/catalogue/opportunities?district=${encodeURIComponent(district)}`);
     if (!res.ok) throw new Error(`Failed to fetch opportunities: ${res.statusText}`);
+    return res.json();
+  }
+
+  // ==========================================
+  // SPRINT 5: STAFF CASE MANAGEMENT
+  // ==========================================
+
+  /**
+   * Fetch staff case inbox with optional filters
+   */
+  async listStaffCases(params?: { status?: string; district?: string; page?: number; limit?: number }): Promise<{ cases: StaffCaseItem[]; total: number }> {
+    const query = new URLSearchParams();
+    if (params?.status) query.set('status', params.status);
+    if (params?.district) query.set('district', params.district);
+    if (params?.page) query.set('page', params.page.toString());
+    if (params?.limit) query.set('limit', params.limit.toString());
+    const res = await fetch(`${API_BASE}/staff/cases?${query.toString()}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to list staff cases: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Get single case with notes and assignment history
+   */
+  async getStaffCase(caseId: string): Promise<StaffCaseDetail> {
+    const res = await fetch(`${API_BASE}/staff/cases/${caseId}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch case: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Create a new case for a beneficiary
+   */
+  async createStaffCase(data: {
+    beneficiary_id: string;
+    district: string;
+    state?: string;
+    priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+    target_sector?: string;
+  }): Promise<StaffCaseItem> {
+    const res = await fetch(`${API_BASE}/staff/cases`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(`Failed to create case: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Assign or transfer case to another field worker
+   */
+  async assignStaffCase(caseId: string, assignedWorkerId: string, reason?: string): Promise<{ success: boolean; case: StaffCaseItem }> {
+    const res = await fetch(`${API_BASE}/staff/cases/${caseId}/assign`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ assigned_worker_id: assignedWorkerId, reason }),
+    });
+    if (!res.ok) throw new Error(`Failed to assign case: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Add note to a case
+   */
+  async addStaffCaseNote(caseId: string, content: string, noteType: string = 'FIELD_UPDATE', isStaffOnly: boolean = false): Promise<CaseNoteItem> {
+    const res = await fetch(`${API_BASE}/staff/cases/${caseId}/notes`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ content, note_type: noteType, is_staff_only: isStaffOnly }),
+    });
+    if (!res.ok) throw new Error(`Failed to add note: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Schedule a follow-up date for a case
+   */
+  async scheduleStaffFollowUp(caseId: string, dueAt: string, reason?: string): Promise<{ success: boolean; follow_up_due_at: string }> {
+    const res = await fetch(`${API_BASE}/staff/cases/${caseId}/follow-up`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ follow_up_due_at: dueAt, reason }),
+    });
+    if (!res.ok) throw new Error(`Failed to schedule follow-up: ${res.statusText}`);
+    return res.json();
+  }
+
+  // ==========================================
+  // SPRINT 5: STAFF REFERRALS & OUTCOMES
+  // ==========================================
+
+  /**
+   * Create a canonical referral from a verified recommendation
+   */
+  async createCaseReferral(caseId: string, recommendationId: string, notes?: string): Promise<StaffReferralItem> {
+    const res = await fetch(`${API_BASE}/staff/cases/${caseId}/referrals`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ recommendation_id: recommendationId, notes }),
+    });
+    if (!res.ok) throw new Error(`Failed to create referral: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * List staff referrals with filters
+   */
+  async listStaffReferrals(params?: { case_id?: string; status?: string }): Promise<{ referrals: StaffReferralItem[] }> {
+    const query = new URLSearchParams();
+    if (params?.case_id) query.set('case_id', params.case_id);
+    if (params?.status) query.set('status', params.status);
+    const res = await fetch(`${API_BASE}/staff/referrals?${query.toString()}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to list referrals: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Get single referral detail
+   */
+  async getStaffReferral(referralId: string): Promise<StaffReferralItem> {
+    const res = await fetch(`${API_BASE}/staff/referrals/${referralId}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to get referral: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Transition referral status (State Machine Guarded)
+   */
+  async transitionReferral(referralId: string, toStatus: string, reason?: string): Promise<StaffReferralItem> {
+    const res = await fetch(`${API_BASE}/staff/referrals/${referralId}/transition`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ to_status: toStatus, reason }),
+    });
+    if (!res.ok) throw new Error(`Failed to transition referral: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Log contact attempt with beneficiary/provider
+   */
+  async logContactAttempt(referralId: string, channel: 'PHONE' | 'IN_PERSON' | 'SMS' | 'WHATSAPP', successful: boolean, notes?: string): Promise<ContactAttemptRecord> {
+    const res = await fetch(`${API_BASE}/staff/referrals/${referralId}/contact-attempts`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ channel, successful, notes }),
+    });
+    if (!res.ok) throw new Error(`Failed to log contact attempt: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Report an outcome for a referral
+   */
+  async recordOutcome(
+    referralId: string,
+    outcomeType: 'ENROLLED' | 'COMPLETED' | 'JOB_OFFER' | 'SELF_EMPLOYMENT_STARTED' | 'DROPPED_OUT',
+    evidenceSummary?: string
+  ): Promise<OutcomeRecord> {
+    const res = await fetch(`${API_BASE}/staff/referrals/${referralId}/outcomes`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ outcome_type: outcomeType, evidence_summary: evidenceSummary }),
+    });
+    if (!res.ok) throw new Error(`Failed to record outcome: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Verify an outcome (Supervisor / District Admin action)
+   */
+  async verifyOutcome(outcomeId: string, verified: boolean, notes?: string): Promise<OutcomeRecord> {
+    const res = await fetch(`${API_BASE}/staff/referrals/outcomes/${outcomeId}/verify`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ verified, notes }),
+    });
+    if (!res.ok) throw new Error(`Failed to verify outcome: ${res.statusText}`);
+    return res.json();
+  }
+
+  // ==========================================
+  // SPRINT 5: BENEFICIARY SAFE PORTAL
+  // ==========================================
+
+  /**
+   * Get authenticated beneficiary's own active cases (bilingual localized)
+   */
+  async getMyCases(): Promise<{ cases: BeneficiaryCaseDisplay[] }> {
+    const res = await fetch(`${API_BASE}/me/cases`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch cases: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Get single beneficiary case (bilingual localized)
+   */
+  async getMyCase(caseId: string): Promise<BeneficiaryCaseDisplay> {
+    const res = await fetch(`${API_BASE}/me/cases/${caseId}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch case: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Get authenticated beneficiary's own referrals (bilingual localized, no staff notes)
+   */
+  async getMyReferrals(): Promise<{ referrals: BeneficiaryReferralDisplay[] }> {
+    const res = await fetch(`${API_BASE}/me/referrals`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch referrals: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Get single referral with timeline
+   */
+  async getMyReferral(referralId: string): Promise<BeneficiaryReferralDisplay> {
+    const res = await fetch(`${API_BASE}/me/referrals/${referralId}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch referral: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Request field worker callback or support for a referral
+   */
+  async requestReferralSupport(referralId: string, note?: string): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`${API_BASE}/me/referrals/${referralId}/support-request`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ note }),
+    });
+    if (!res.ok) throw new Error(`Failed to request support: ${res.statusText}`);
+    return res.json();
+  }
+
+  /**
+   * Beneficiary self-decline for a referral
+   */
+  async declineReferral(referralId: string, reason?: string): Promise<{ success: boolean; referral: BeneficiaryReferralDisplay }> {
+    const res = await fetch(`${API_BASE}/me/referrals/${referralId}/decline`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ reason }),
+    });
+    if (!res.ok) throw new Error(`Failed to decline referral: ${res.statusText}`);
     return res.json();
   }
 }
