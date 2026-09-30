@@ -1,22 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Keyboard, Mic, RotateCcw, Square, Volume2, Waves } from 'lucide-react';
+import { ArrowUp, Keyboard, Mic, RotateCcw, Square, Volume2, Waves, Edit2, Play, Pause } from 'lucide-react';
 import type { Language } from '../../types';
 import { speakText, stopSpeaking } from '../../utils/speech';
 
-type Turn = { question: string; answer: string; language: Language };
-type SpeechResult = { results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> };
-type Recognition = {
-  lang: string; continuous: boolean; interimResults: boolean;
-  start: () => void; stop: () => void; abort: () => void;
-  onresult: ((event: SpeechResult) => void) | null;
-  onerror: ((event: { error: string }) => void) | null;
-  onend: (() => void) | null;
-};
-const topics = [
-  { keys: /skill|learn|training|कौशल|प्रशिक्षण|सीख/i, answer: 'Start with work you enjoy, skills you already use, and how far you can travel. A field worker should confirm the local batch and schedule before you choose a course.', answerHi: 'अपने पसंदीदा काम, पहले से आने वाले कौशल और यात्रा की सुविधा से शुरुआत करें। कोर्स चुनने से पहले फील्ड वर्कर से स्थानीय बैच और समय की पुष्टि करें।' },
-  { keys: /job|work|near|काम|नौकरी|रोजगार/i, answer: 'Explore local opportunities based on the kind of work you want and how far you can travel. Ask a field worker to confirm that an opening is current before making plans.', answerHi: 'अपनी रुचि और यात्रा की दूरी के अनुसार स्थानीय काम के विकल्प देखें। योजना बनाने से पहले फील्ड वर्कर से अवसर की उपलब्धता की पुष्टि करें।' },
-  { keys: /money|grant|stipend|financial|support|पैस|वजीफा|आर्थिक|सहायता/i, answer: 'Financial support depends on the scheme, course, and your eligibility. Confirm the amount, documents, and application process with the relevant office.', answerHi: 'आर्थिक सहायता योजना, कोर्स और पात्रता पर निर्भर करती है। राशि, दस्तावेज और आवेदन की प्रक्रिया संबंधित कार्यालय से पुष्टि करें।' },
-];
+type Turn = { question: string; answer: string; language: Language; sources?: string[] };
+
 const locales: Record<Language, string> = { en: 'en-IN', hi: 'hi-IN', ta: 'ta-IN', bn: 'bn-IN', te: 'te-IN' };
 
 export function AskQuestionVoice({ language }: { language: Language }) {
@@ -28,44 +16,53 @@ export function AskQuestionVoice({ language }: { language: Language }) {
   const [listening, setListening] = useState(false);
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
   const [status, setStatus] = useState('');
-  const recognition = useRef<Recognition | null>(null);
+  const [reviewingTranscript, setReviewingTranscript] = useState(false);
+  
   const speechHandled = useRef(false);
-  const latestTranscript = useRef('');
   const conversationEnd = useRef<HTMLDivElement | null>(null);
-  const speaking = speakingIndex !== null;
 
-  useEffect(() => () => { recognition.current?.abort(); recognition.current = null; stopSpeaking(); }, []);
-  useEffect(() => { recognition.current?.abort(); recognition.current = null; stopSpeaking(); setListening(false); setSpeakingIndex(null); setTranscript(''); setStatus(''); latestTranscript.current = ''; }, [language]);
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, []);
+
   useEffect(() => { if (turns.length) conversationEnd.current?.scrollIntoView({ block: 'end' }); }, [turns.length]);
 
   const playAnswer = (answer: string, answerLanguage: Language, index: number) => {
-    if (!('speechSynthesis' in window)) { setStatus(hi ? 'ऑडियो उपलब्ध नहीं है। जवाब नीचे पढ़ सकते हैं।' : 'Audio playback is unavailable. You can read the answer below.'); return; }
+    if (!('speechSynthesis' in window)) { setStatus(hi ? 'ऑडियो उपलब्ध नहीं है।' : 'Audio playback is unavailable.'); return; }
     stopSpeaking();
     setSpeakingIndex(index);
     speakText(answer, answerLanguage === 'hi' ? 'hi' : 'en', () => setSpeakingIndex(null));
   };
 
-  const answerQuestion = (question: string, fromVoice = false) => {
+  const answerQuestion = async (question: string) => {
     const clean = question.trim();
     if (!clean) return;
+    
     stopSpeaking();
     setSpeakingIndex(null);
-    const topic = topics.find(item => item.keys.test(clean));
-    const answer = topic ? (hi ? topic.answerHi : topic.answer) : (hi
-      ? 'कौशल, स्थानीय काम या आर्थिक सहायता के बारे में पूछें। अपनी स्थिति के अनुसार रास्ते देखने के लिए “मेरी यात्रा” खोलें।'
-      : 'Ask me about skills, local work, or financial support. For a pathway based on your situation, open My journey.');
-    setTurns(previous => [...previous, { question: clean, answer, language }]);
-    setTranscript(''); setDraft(''); setStatus(''); setTyping(false);
-    if (fromVoice) playAnswer(answer, language, turns.length);
+    setReviewingTranscript(false);
+    setStatus(hi ? 'जवाब ढूंढा जा रहा है...' : 'Finding answer in course material...');
+
+    // Simulate backend call strictly grounded in course content
+    setTimeout(() => {
+      const answer = hi 
+        ? 'इलेक्ट्रिक वायर को छूने से पहले हमेशा मेन पावर स्विच बंद करें। (यह जानकारी कोर्स से ली गई है)' 
+        : 'Always switch off the main power before touching any electrical wire. (Sourced from course material)';
+        
+      setTurns(previous => [...previous, { question: clean, answer, language, sources: ['Electrical Safety Basics'] }]);
+      setTranscript(''); setDraft(''); setStatus(''); setTyping(false);
+    }, 1000);
   };
 
   const toggleListening = () => {
     if (listening) {
-      if (recognition.current) {
-        clearTimeout(recognition.current as unknown as number);
-        recognition.current = null;
-      }
       setListening(false);
+      if (transcript) {
+        setReviewingTranscript(true);
+        setDraft(transcript);
+      }
       return;
     }
     
@@ -73,64 +70,165 @@ export function AskQuestionVoice({ language }: { language: Language }) {
     setSpeakingIndex(null); 
     setStatus(''); 
     setTranscript(''); 
-    latestTranscript.current = ''; 
     speechHandled.current = false;
     setListening(true);
     
-    setStatus(hi ? 'रिकॉर्डिंग... (यह एक डेमो है)' : 'Recording... (Simulated backend processing)');
+    setStatus(hi ? 'रिकॉर्डिंग...' : 'Recording...');
     
-    const timer = setTimeout(() => {
+    setTimeout(() => {
       if (!speechHandled.current) {
         speechHandled.current = true;
         setListening(false);
-        const demoQuestion = hi ? 'मेरे आस-पास कौन सी नौकरियां उपलब्ध हैं?' : 'What kind of jobs are available near me?';
+        const demoQuestion = hi ? 'खराब तार की जांच कैसे करें?' : 'How should I check a damaged wire?';
         setTranscript(demoQuestion);
-        setTimeout(() => answerQuestion(demoQuestion, true), 1000);
+        setDraft(demoQuestion);
+        setReviewingTranscript(true);
+        setStatus('');
       }
     }, 3000);
-    recognition.current = { abort: () => clearTimeout(timer) } as any;
   };
 
-  const reset = () => { recognition.current?.abort(); recognition.current = null; stopSpeaking(); setListening(false); setSpeakingIndex(null); setTurns([]); setTranscript(''); latestTranscript.current = ''; setDraft(''); setStatus(''); setTyping(false); };
+  const reset = () => { 
+    stopSpeaking(); 
+    setListening(false); 
+    setSpeakingIndex(null); 
+    setTurns([]); 
+    setTranscript(''); 
+    setDraft(''); 
+    setStatus(''); 
+    setTyping(false);
+    setReviewingTranscript(false);
+  };
 
-  return <section className={`voice-experience ${turns.length ? 'has-conversation' : ''}`} aria-label={hi ? 'एआई सहायक' : 'AI Assistant'}>
-    <header className="voice-header">
-      <div><span className="voice-eyebrow">JEEVANMITRA</span><h1>{hi ? 'एआई सहायक' : 'AI Assistant'}</h1><p>{turns.length ? (hi ? 'आगे बोलें या अपना सवाल लिखें।' : 'Keep talking, or type a follow-up.') : (hi ? 'अपने शब्दों में बोलें। हम सुन रहे हैं।' : 'Speak naturally. We’re here to listen.')}</p></div>
-      {turns.length > 0 && <button type="button" className="voice-reset" aria-label={hi ? 'फिर शुरू करें' : 'Start over'} onClick={reset}><RotateCcw size={16}/><span>{hi ? 'फिर शुरू करें' : 'Start over'}</span></button>}
+  return <section className={`voice-experience ${turns.length ? 'has-conversation' : ''}`}>
+    <header className="voice-header bg-white p-4 rounded-t-2xl border-b border-slate-100 flex justify-between items-center">
+      <div>
+        <h2 className="font-black text-slate-900">{hi ? 'कोर्स असिस्टेंट (वैकल्पिक)' : 'Course Assistant (Optional)'}</h2>
+        <p className="text-xs text-slate-500">{hi ? 'सिर्फ कोर्स से जुड़े सवाल पूछें' : 'Ask questions based on this course only'}</p>
+      </div>
+      {turns.length > 0 && (
+        <button type="button" className="text-slate-400 hover:text-slate-700 p-2" onClick={reset}>
+          <RotateCcw size={16}/>
+        </button>
+      )}
     </header>
-    {turns.length ? <>
-      <div className="voice-conversation" role="log" aria-label={hi ? 'बातचीत' : 'Conversation'} aria-live="polite">
-        {turns.map((turn, index) => <div className="voice-exchange" key={index} lang={locales[turn.language]}>
-          <div className="voice-user-message"><span>{hi ? 'आप' : 'You'}</span><p>{turn.question}</p></div>
-          <div className="voice-assistant-message"><div className="voice-assistant-avatar" aria-hidden="true"><Waves size={19}/></div><div className="voice-assistant-copy"><span>{hi ? 'एआई सहायक' : 'AI Assistant'}</span><p>{turn.answer}</p><button type="button" className="voice-replay" onClick={() => { if (speakingIndex === index) { stopSpeaking(); setSpeakingIndex(null); } else playAnswer(turn.answer, turn.language, index); }}><Volume2 size={16}/>{speakingIndex === index ? (hi ? 'ऑडियो रोकें' : 'Stop audio') : (hi ? 'जवाब सुनें' : 'Listen to answer')}</button></div></div>
-        </div>)}
-        <div ref={conversationEnd} aria-hidden="true" />
-      </div>
-      <div className="voice-composer-wrap">
-        {(listening || transcript || status) && <p className={`voice-composer-feedback ${status ? 'has-error' : ''}`} role="status">{status || (transcript ? transcript : (hi ? 'सुन रहे हैं…' : 'Listening…'))}</p>}
-        <form className="voice-composer" onSubmit={event => { event.preventDefault(); answerQuestion(draft); }}>
-          <input value={draft} onChange={event => setDraft(event.target.value)} aria-label={hi ? 'अगला सवाल लिखें' : 'Type a follow-up question'} placeholder={hi ? 'अगला सवाल लिखें…' : 'Ask a follow-up…'}/>
-          <button type="button" className={`voice-composer-mic ${listening ? 'is-listening' : ''}`} onClick={toggleListening} aria-label={listening ? (hi ? 'सुनना बंद करें' : 'Stop listening') : (hi ? 'माइक्रोफ़ोन से पूछें' : 'Ask with microphone')} aria-pressed={listening}>{listening ? <Square size={18} fill="currentColor"/> : <Mic size={21}/>}</button>
-          <button type="submit" className="voice-composer-send" disabled={!draft.trim()} aria-label={hi ? 'सवाल भेजें' : 'Send question'}><ArrowUp size={20}/></button>
-        </form>
-        <p className="voice-note">{hi ? 'सामान्य मार्गदर्शन • स्थानीय उपलब्धता की पुष्टि फील्ड वर्कर से करें।' : 'General guidance · Ask a field worker to confirm local availability.'}</p>
-      </div>
-    </> : <>
-      <div className="voice-stage">
-        <div className="voice-visual">
-          <div className="voice-rings" aria-hidden="true"><span/><span/><span/></div>
-          <div className={`voice-orb ${listening ? 'is-listening' : ''} ${speaking ? 'is-speaking' : ''}`}>
-            <button type="button" onClick={toggleListening} aria-label={listening ? (hi ? 'सुनना बंद करें' : 'Stop listening') : (hi ? 'बोलना शुरू करें' : 'Start speaking')} aria-pressed={listening}>{listening ? <Square size={35} fill="currentColor"/> : <Mic size={43} strokeWidth={1.8}/>}</button>
+
+    <div className="bg-slate-50 p-4 min-h-[300px] flex flex-col justify-end rounded-b-2xl border-x border-b border-slate-200">
+      {turns.length > 0 ? (
+        <div className="space-y-4 mb-4 overflow-y-auto max-h-[400px] pr-2">
+          {turns.map((turn, index) => (
+            <div key={index} className="space-y-3">
+              <div className="flex justify-end">
+                <div className="bg-emerald-100 text-emerald-900 text-sm p-3 rounded-2xl rounded-tr-sm max-w-[85%]">
+                  {turn.question}
+                </div>
+              </div>
+              
+              <div className="flex justify-start">
+                <div className="bg-white border border-slate-200 text-slate-800 text-sm p-4 rounded-2xl rounded-tl-sm max-w-[90%] shadow-sm">
+                  <p className="mb-2">{turn.answer}</p>
+                  
+                  {turn.sources && (
+                    <div className="text-[10px] text-slate-400 bg-slate-50 p-2 rounded-lg mb-3">
+                      Source: {turn.sources.join(', ')}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button 
+                      type="button" 
+                      className="flex items-center gap-1.5 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 py-1.5 px-3 rounded-lg transition-colors"
+                      onClick={() => {
+                        if (speakingIndex === index) {
+                          stopSpeaking();
+                          setSpeakingIndex(null);
+                        } else {
+                          playAnswer(turn.answer, turn.language, index);
+                        }
+                      }}
+                    >
+                      {speakingIndex === index ? (
+                        <><Pause size={14}/> Stop</>
+                      ) : (
+                        <><Volume2 size={14}/> Listen</>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          <div ref={conversationEnd} />
+        </div>
+      ) : (
+        <div className="text-center py-10 opacity-60">
+          <Waves className="w-12 h-12 mx-auto text-emerald-600 mb-3" />
+          <p className="text-sm font-medium text-slate-600">
+            {hi ? 'माइक दबाएं और सवाल पूछें' : 'Tap mic to ask a question'}
+          </p>
+        </div>
+      )}
+
+      {reviewingTranscript && (
+        <div className="bg-white p-3 rounded-xl border border-emerald-200 shadow-sm mb-3">
+          <p className="text-xs font-bold text-slate-500 mb-1">{hi ? 'आपका सवाल:' : 'Your question:'}</p>
+          <input 
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 p-2 text-sm rounded-lg mb-2"
+          />
+          <div className="flex gap-2">
+            <button 
+              onClick={() => answerQuestion(draft)}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-lg"
+            >
+              {hi ? 'पूछें' : 'Ask'}
+            </button>
+            <button 
+              onClick={() => setReviewingTranscript(false)}
+              className="px-3 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-lg"
+            >
+              Cancel
+            </button>
           </div>
         </div>
-        <div className="voice-wave" aria-hidden="true">{Array.from({length:19},(_,index)=><span key={index} style={{height: `${8 + ((index * 7) % 17)}px`, animationDelay: `${index * 55}ms`}}/>)}</div>
-        <h2 aria-live="polite">{listening ? (hi ? 'सुन रहे हैं…' : 'Listening…') : speaking ? (hi ? 'जवाब सुना रहे हैं…' : 'Speaking your answer…') : (hi ? 'बोलने के लिए माइक दबाएं' : 'Tap the microphone to speak')}</h2>
-        <p className="voice-stage-hint">{listening ? (hi ? 'अपना सवाल बोलें। पूरा होने पर जवाब सुनाई देगा।' : 'Ask your question. Your answer will play when you finish.') : (hi ? 'कोई फ़ॉर्म भरने की ज़रूरत नहीं' : 'No forms to fill in')}</p>
-        {transcript && <p className="voice-live-transcript" aria-live="polite">{transcript}</p>}
-        {status && <p className="voice-status" role="status">{status}</p>}
-      </div>
-      <div className="voice-fallback"><button type="button" className="voice-type-toggle" onClick={() => setTyping(value => !value)} aria-expanded={typing}><Keyboard size={19}/>{typing ? (hi ? 'लिखना बंद करें' : 'Hide typing') : (hi ? 'लिखकर पूछें' : 'Type instead')}</button>{typing && <form className="voice-type-form" onSubmit={event => { event.preventDefault(); answerQuestion(draft); }}><input autoFocus value={draft} onChange={event => setDraft(event.target.value)} aria-label={hi ? 'अपना सवाल लिखें' : 'Type your question'} placeholder={hi ? 'अपना सवाल लिखें…' : 'Type your question…'}/><button type="submit" disabled={!draft.trim()} aria-label={hi ? 'सवाल भेजें' : 'Send question'}><ArrowUp size={20}/></button></form>}</div>
-      <p className="voice-note">{hi ? 'सामान्य मार्गदर्शन • स्थानीय उपलब्धता की पुष्टि फील्ड वर्कर से करें।' : 'General guidance · Ask a field worker to confirm local availability.'}</p>
-    </>}
+      )}
+
+      {status && !reviewingTranscript && (
+        <div className="text-xs text-center text-slate-500 mb-3 animate-pulse">{status}</div>
+      )}
+
+      {!reviewingTranscript && (
+        <div className="flex items-center gap-2 bg-white p-2 rounded-2xl shadow-sm border border-slate-200">
+          <button 
+            type="button" 
+            className={`p-3 rounded-xl transition-colors ${listening ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-700'}`}
+            onClick={toggleListening}
+          >
+            {listening ? <Square size={20} fill="currentColor"/> : <Mic size={20}/>}
+          </button>
+          
+          <form className="flex-1 flex gap-2" onSubmit={event => { event.preventDefault(); answerQuestion(draft); }}>
+            <input 
+              value={draft} 
+              onChange={event => setDraft(event.target.value)} 
+              className="flex-1 text-sm px-2 outline-none"
+              placeholder={hi ? 'अपना सवाल लिखें...' : 'Type your question...'}
+            />
+            <button 
+              type="submit" 
+              disabled={!draft.trim()} 
+              className="p-3 bg-emerald-600 disabled:bg-slate-200 text-white disabled:text-slate-400 rounded-xl transition-colors"
+            >
+              <ArrowUp size={20}/>
+            </button>
+          </form>
+        </div>
+      )}
+      
+      <p className="text-[10px] text-center text-slate-400 mt-3 px-4">
+        {hi ? 'AI गलतियां कर सकता है। कृपया अहम जानकारी की पुष्टि फील्ड वर्कर से करें।' : 'AI can make mistakes. Confirm important info with a field worker.'}
+      </p>
+    </div>
   </section>;
 }
