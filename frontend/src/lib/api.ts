@@ -111,6 +111,14 @@ class ApiService {
     if (this.sessionToken) {
       headers['X-Session-Token'] = this.sessionToken;
     }
+    if (typeof window !== 'undefined') {
+      const jwtToken = window.localStorage.getItem('jm_jwt_token');
+      if (jwtToken) {
+        headers['Authorization'] = `Bearer ${jwtToken}`;
+      }
+      const locale = window.localStorage.getItem('jeevanmitra.locale') || window.localStorage.getItem('jeevanmitra-language') || 'en';
+      headers['Accept-Language'] = locale;
+    }
     return headers;
   }
 

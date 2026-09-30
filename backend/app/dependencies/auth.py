@@ -15,7 +15,8 @@ class Actor:
         beneficiary_id: Optional[str] = None,
         db_user: Optional[Dict[str, Any]] = None,
         roles: Optional[List[str]] = None,
-        scopes: Optional[List[Dict[str, Any]]] = None
+        scopes: Optional[List[Dict[str, Any]]] = None,
+        preferred_language: Optional[str] = None
     ):
         self.actor_id = actor_id
         self.actor_role = actor_role
@@ -25,6 +26,7 @@ class Actor:
         self.db_user = db_user
         self.roles = roles or [actor_role] if actor_role else []
         self.scopes = scopes or []
+        self.preferred_language = (db_user.get("preferred_language") if db_user else None) or preferred_language or "en"
 
     def is_staff(self) -> bool:
         # Legacy check plus new roles

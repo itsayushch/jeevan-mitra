@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Request, Response, Cookie, HTTPException
-from app.schemas.auth import LoginRequest, TokenResponse, ChangePasswordRequest, BootstrapAdminRequest, UserResponse, UserScopeResponse
+from app.schemas.auth import LoginRequest, TokenResponse, ChangePasswordRequest, BootstrapAdminRequest, UserResponse, UserScopeResponse, UpdateLanguageRequest
 from app.services.auth_service import AuthService
 from app.dependencies.auth import get_current_user, Actor, get_current_actor, require_authenticated_user
 from app.database import get_db
@@ -69,8 +69,25 @@ def get_me(actor: Actor = Depends(get_current_user)):
         is_active=bool(actor.db_user["is_active"]),
         is_superuser=bool(actor.db_user.get("is_superuser")),
         roles=actor.roles,
-        scopes=[UserScopeResponse(**s) for s in actor.scopes]
+        scopes=[UserScopeResponse(**s) for s in actor.scopes],
+        preferred_language=actor.db_user.get("preferred_language") or "en"
     )
+
+@router.patch("/me/language", response_model=UserResponse)
+def update_language(req: UpdateLanguageRequest, actor: Actor = Depends(get_current_user)):
+    from app.schemas.locale import parse_locale, ENABLED_LOCALES
+    parsed = parse_locale(req.preferred_language)
+    if not parsed or parsed not in ENABLED_LOCALES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Language '{req.preferred_language}' is not currently supported or enabled. Enabled: {[e.value for e in ENABLED_LOCALES]}"
+        )
+    with get_db() as conn:
+        conn.execute("UPDATE users SET preferred_language = ? WHERE id = ?", (parsed.value, actor.actor_id))
+        if actor.beneficiary_id:
+            conn.execute("UPDATE beneficiaries SET preferred_language = ? WHERE id = ?", (parsed.value, actor.beneficiary_id))
+        actor.db_user["preferred_language"] = parsed.value
+        return get_me(actor)
 
 @router.post("/change-password")
 def change_password(req: ChangePasswordRequest, actor: Actor = Depends(get_current_user)):

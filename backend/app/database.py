@@ -52,6 +52,9 @@ def run_migrations(conn: sqlite3.Connection):
     _add_column_if_missing(conn, "beneficiaries", "owner_type TEXT DEFAULT 'authenticated_user'", "owner_type")
     _add_column_if_missing(conn, "beneficiaries", "owner_id TEXT", "owner_id")
 
+    # users
+    _add_column_if_missing(conn, "users", "preferred_language TEXT NOT NULL DEFAULT 'en'", "preferred_language")
+
     # interview_sessions
     _add_column_if_missing(conn, "interview_sessions", "session_id TEXT", "session_id")
     _add_column_if_missing(conn, "consent_records", "session_id TEXT", "session_id")
