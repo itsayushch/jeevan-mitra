@@ -107,7 +107,7 @@ def test_refresh_token_rotation(client):
     assert revoked_res.status_code == 401
 
 def test_training_progress_requires_auth(client):
-    res = client.get("/api/v1/learning/me/courses")
+    res = client.get("/api/v1/learning/me/overview")
     assert res.status_code == 401
 
 def test_training_progress_with_auth(client):
@@ -117,6 +117,6 @@ def test_training_progress_with_auth(client):
     })
     token = login.json()["access_token"]
     
-    res = client.get("/api/v1/learning/me/courses", headers={"Authorization": f"Bearer {token}"})
+    res = client.get("/api/v1/learning/me/overview", headers={"Authorization": f"Bearer {token}"})
     # Might be empty array since no courses started, but it shouldn't be 401
     assert res.status_code == 200

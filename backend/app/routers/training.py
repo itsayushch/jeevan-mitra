@@ -6,7 +6,6 @@ from app.schemas.training import (
     TrainingModuleCreate, TrainingModuleUpdate,
     TrainingLessonCreate, TrainingLessonUpdate,
     TrainingResourceCreate,
-    LearnerCourseProgressUpdate, LearnerLessonProgressUpdate,
     ContentFeedbackCreate
 )
 from app.services.training_service import TrainingService
@@ -68,35 +67,43 @@ def get_lesson_resources(lesson_id: str):
 # Learning Progress Endpoints
 # ============================================================================
 
-@learning_router.get("/me/courses")
-def get_my_courses(actor: Actor = Depends(require_authenticated_user)):
-    with get_db() as conn:
-        return TrainingService.get_user_courses(conn, actor.beneficiary_id)
+from app.services.learning_progress_service import LearningProgressService
+from app.schemas.training import LearningOverviewResponse, CourseProgressDetailResponse
 
-@learning_router.get("/me/courses/{course_id}/progress")
+@learning_router.get("/me/overview", response_model=LearningOverviewResponse)
+def get_user_learning_overview(actor: Actor = Depends(require_authenticated_user)):
+    with get_db() as conn:
+        return LearningProgressService.get_user_learning_overview(conn, actor.actor_id)
+
+@learning_router.get("/me/courses/{course_id}", response_model=CourseProgressDetailResponse)
 def get_course_progress(course_id: str, actor: Actor = Depends(require_authenticated_user)):
     with get_db() as conn:
-        return TrainingService.get_course_progress(conn, actor.beneficiary_id, course_id)
+        return LearningProgressService.get_course_progress(conn, actor.actor_id, course_id)
 
-@learning_router.post("/courses/{course_id}/start")
-def start_course(course_id: str, actor: Actor = Depends(require_authenticated_user)):
+@learning_router.post("/me/lessons/{lesson_id}/access")
+def record_lesson_access(lesson_id: str, actor: Actor = Depends(require_authenticated_user)):
     with get_db() as conn:
-        return TrainingService.start_course(conn, actor.beneficiary_id, course_id)
+        return LearningProgressService.record_lesson_access(conn, actor.actor_id, lesson_id)
 
-@learning_router.patch("/lessons/{lesson_id}/progress")
-def update_lesson_progress(lesson_id: str, data: LearnerLessonProgressUpdate, actor: Actor = Depends(require_authenticated_user)):
+@learning_router.put("/me/lessons/{lesson_id}/completion")
+def mark_lesson_complete(lesson_id: str, actor: Actor = Depends(require_authenticated_user)):
     with get_db() as conn:
-        return TrainingService.update_lesson_progress(conn, actor.beneficiary_id, lesson_id, data)
+        return LearningProgressService.mark_lesson_complete(conn, actor.actor_id, lesson_id)
 
-@learning_router.post("/lessons/{lesson_id}/bookmark")
-def bookmark_lesson(lesson_id: str, actor: Actor = Depends(require_authenticated_user)):
+@learning_router.delete("/me/lessons/{lesson_id}/completion")
+def reset_lesson_completion(lesson_id: str, actor: Actor = Depends(require_authenticated_user)):
     with get_db() as conn:
-        return TrainingService.bookmark_lesson(conn, actor.beneficiary_id, lesson_id, bookmark=True)
+        return LearningProgressService.reset_lesson_completion(conn, actor.actor_id, lesson_id)
 
-@learning_router.delete("/lessons/{lesson_id}/bookmark")
-def unbookmark_lesson(lesson_id: str, actor: Actor = Depends(require_authenticated_user)):
+@learning_router.put("/me/lessons/{lesson_id}/bookmark")
+def add_bookmark(lesson_id: str, actor: Actor = Depends(require_authenticated_user)):
     with get_db() as conn:
-        return TrainingService.bookmark_lesson(conn, actor.beneficiary_id, lesson_id, bookmark=False)
+        return LearningProgressService.add_bookmark(conn, actor.actor_id, lesson_id)
+
+@learning_router.delete("/me/lessons/{lesson_id}/bookmark")
+def remove_bookmark(lesson_id: str, actor: Actor = Depends(require_authenticated_user)):
+    with get_db() as conn:
+        return LearningProgressService.remove_bookmark(conn, actor.actor_id, lesson_id)
 
 @learning_router.post("/feedback")
 def submit_feedback(data: ContentFeedbackCreate, actor: Actor = Depends(require_authenticated_user)):

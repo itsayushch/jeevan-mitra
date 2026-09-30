@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from sqlite3 import Connection
 from app.schemas.training import (
     TrainingCourseCreate, TrainingCourseUpdate,
-    LearnerLessonProgressUpdate, ContentFeedbackCreate
+    ContentFeedbackCreate
 )
 
 class TrainingService:
@@ -68,71 +68,6 @@ class TrainingService:
     def get_lesson_resources(conn: Connection, lesson_id: str):
         cursor = conn.execute("SELECT * FROM training_resources WHERE lesson_id = ?", (lesson_id,))
         return [dict(row) for row in cursor.fetchall()]
-
-    @staticmethod
-    def get_user_courses(conn: Connection, beneficiary_id: str):
-        query = """
-        SELECT c.*, p.status as progress_status, p.progress_percent, p.last_opened_at
-        FROM training_courses c
-        JOIN learner_course_progress p ON c.id = p.course_id
-        WHERE p.beneficiary_id = ?
-        """
-        cursor = conn.execute(query, (beneficiary_id,))
-        return [dict(row) for row in cursor.fetchall()]
-
-    @staticmethod
-    def get_course_progress(conn: Connection, beneficiary_id: str, course_id: str):
-        row = conn.execute("SELECT * FROM learner_course_progress WHERE beneficiary_id = ? AND course_id = ?", (beneficiary_id, course_id)).fetchone()
-        return dict(row) if row else None
-
-    @staticmethod
-    def start_course(conn: Connection, beneficiary_id: str, course_id: str):
-        progress = TrainingService.get_course_progress(conn, beneficiary_id, course_id)
-        if not progress:
-            progress_id = f"prog_{uuid.uuid4().hex[:8]}"
-            now = TrainingService._now()
-            conn.execute("""
-                INSERT INTO learner_course_progress (id, beneficiary_id, course_id, status, progress_percent, started_at, last_opened_at)
-                VALUES (?, ?, ?, 'In Progress', 0, ?, ?)
-            """, (progress_id, beneficiary_id, course_id, now, now))
-            return TrainingService.get_course_progress(conn, beneficiary_id, course_id)
-        else:
-            conn.execute("UPDATE learner_course_progress SET last_opened_at = ? WHERE id = ?", (TrainingService._now(), progress['id']))
-            return TrainingService.get_course_progress(conn, beneficiary_id, course_id)
-
-    @staticmethod
-    def update_lesson_progress(conn: Connection, beneficiary_id: str, lesson_id: str, data: LearnerLessonProgressUpdate):
-        row = conn.execute("SELECT * FROM learner_lesson_progress WHERE beneficiary_id = ? AND lesson_id = ?", (beneficiary_id, lesson_id)).fetchone()
-        now = TrainingService._now()
-        if not row:
-            pid = f"lprog_{uuid.uuid4().hex[:8]}"
-            conn.execute("""
-                INSERT INTO learner_lesson_progress (id, beneficiary_id, lesson_id, is_completed, last_position, completed_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (pid, beneficiary_id, lesson_id, 1 if data.is_completed else 0, data.last_position, now if data.is_completed else None))
-        else:
-            is_comp = 1 if data.is_completed or dict(row)['is_completed'] else 0
-            conn.execute("""
-                UPDATE learner_lesson_progress 
-                SET is_completed = ?, last_position = ?, completed_at = COALESCE(completed_at, ?)
-                WHERE beneficiary_id = ? AND lesson_id = ?
-            """, (is_comp, data.last_position, now if data.is_completed else None, beneficiary_id, lesson_id))
-        
-        return {"success": True}
-
-    @staticmethod
-    def bookmark_lesson(conn: Connection, beneficiary_id: str, lesson_id: str, bookmark: bool):
-        row = conn.execute("SELECT * FROM learner_lesson_progress WHERE beneficiary_id = ? AND lesson_id = ?", (beneficiary_id, lesson_id)).fetchone()
-        now = TrainingService._now()
-        if not row:
-            pid = f"lprog_{uuid.uuid4().hex[:8]}"
-            conn.execute("""
-                INSERT INTO learner_lesson_progress (id, beneficiary_id, lesson_id, bookmarked_at)
-                VALUES (?, ?, ?, ?)
-            """, (pid, beneficiary_id, lesson_id, now if bookmark else None))
-        else:
-            conn.execute("UPDATE learner_lesson_progress SET bookmarked_at = ? WHERE beneficiary_id = ? AND lesson_id = ?", (now if bookmark else None, beneficiary_id, lesson_id))
-        return {"success": True}
 
     @staticmethod
     def submit_feedback(conn: Connection, beneficiary_id: str, data: ContentFeedbackCreate):

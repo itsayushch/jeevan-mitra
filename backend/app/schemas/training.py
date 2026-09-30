@@ -124,33 +124,44 @@ class TrainingResourceResponse(TrainingResourceBase):
     id: str
     uploaded_at: str
 
-class LearnerCourseProgressUpdate(BaseModel):
-    status: Optional[str] = None
-    progress_percent: Optional[int] = None
+class CourseOverviewItem(BaseModel):
+    courseId: str
+    title: str
+    thumbnailUrl: Optional[str] = None
+    completedLessons: int
+    totalLessons: int
+    completionPercent: int
+    lastAccessedAt: Optional[str] = None
+    resumeLessonId: Optional[str] = None
+    resumeLessonTitle: Optional[str] = None
+    courseStatus: str
 
-class LearnerCourseProgressResponse(BaseModel):
+class LearningOverviewResponse(BaseModel):
+    inProgressCourses: int
+    completedCourses: int
+    bookmarkedLessons: int
+    recentCourses: List[CourseOverviewItem]
+
+class UserLessonProgressResponse(BaseModel):
     id: str
-    beneficiary_id: str
+    lesson_id: str
     course_id: str
     status: str
-    progress_percent: int
-    started_at: str
-    last_opened_at: str
+    started_at: Optional[str] = None
     completed_at: Optional[str] = None
+    last_accessed_at: str
 
-class LearnerLessonProgressUpdate(BaseModel):
-    is_completed: Optional[bool] = None
-    last_position: Optional[int] = None
-    time_spent_seconds: Optional[int] = None
-
-class LearnerLessonProgressResponse(BaseModel):
-    id: str
-    beneficiary_id: str
-    lesson_id: str
-    is_completed: bool
-    last_position: Optional[int] = None
-    completed_at: Optional[str] = None
-    bookmarked_at: Optional[str] = None
+class CourseProgressDetailResponse(BaseModel):
+    courseId: str
+    title: str
+    completedLessons: int
+    totalLessons: int
+    completionPercent: int
+    courseStatus: str
+    lastAccessedAt: Optional[str] = None
+    resumeLessonId: Optional[str] = None
+    lessons_progress: List[UserLessonProgressResponse]
+    bookmarked_lesson_ids: List[str]
 
 class ContentFeedbackCreate(BaseModel):
     course_id: str
