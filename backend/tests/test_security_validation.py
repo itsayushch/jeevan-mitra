@@ -70,6 +70,17 @@ def setup_security_fixtures():
             INSERT OR REPLACE INTO user_scopes (id, user_id, district_id, scope_type, assigned_at)
             VALUES ('scope_sec_worker_mbd', 'usr_sec_worker_mbd', 'Moradabad', 'district', ?);
         """, (now_iso,))
+        conn.commit()
+
+    yield
+
+    with get_db() as conn:
+        conn.execute("DELETE FROM beneficiary_cases WHERE id = 'case_sec_b';")
+        conn.execute("DELETE FROM beneficiaries WHERE id IN ('ben_sec_a', 'ben_sec_b');")
+        conn.execute("DELETE FROM user_scopes WHERE id IN ('scope_sec_admin_mbd', 'scope_sec_worker_mbd');")
+        conn.execute("DELETE FROM user_roles WHERE user_id IN ('usr_sec_ben_a', 'usr_sec_ben_b', 'usr_sec_admin_mbd', 'usr_sec_worker_mbd');")
+        conn.execute("DELETE FROM users WHERE id IN ('usr_sec_ben_a', 'usr_sec_ben_b', 'usr_sec_admin_mbd', 'usr_sec_worker_mbd');")
+        conn.commit()
 
 
 def _token_for(user_id: str) -> str:
@@ -183,6 +194,11 @@ def test_xss_payload_in_submission_stored_safely(setup_security_fixtures):
     data = response.json()
     assert data["status"] == "SUBMITTED"
     assert "<script>" in data["normalized_text"]  # Stored verbatim, not executed
+    # Clean up submission
+    if "id" in data:
+        with get_db() as conn:
+            conn.execute("DELETE FROM opportunity_submissions WHERE id = ?", (data["id"],))
+            conn.commit()
 
 
 def test_refresh_token_missing_or_invalid_rejected():
@@ -227,8 +243,10 @@ def test_scope_revocation_prevents_export_download(setup_security_fixtures):
         res = client.get("/api/v1/planning/exports/exp_sec_rev/download", headers=headers)
         assert res.status_code == 403
     finally:
-        # Restore scope for any subsequent tests
+        # Restore scope and cleanup snapshot & export
         with get_db() as conn:
+            conn.execute("DELETE FROM planning_exports WHERE id = 'exp_sec_rev';")
+            conn.execute("DELETE FROM planning_snapshots WHERE id = 'snap_sec_rev';")
             conn.execute("""
                 INSERT OR REPLACE INTO user_scopes (id, user_id, district_id, scope_type, assigned_at)
                 VALUES ('scope_sec_admin_mbd', 'usr_sec_admin_mbd', 'Moradabad', 'district', ?);
@@ -258,8 +276,8 @@ def test_file_upload_abuse_prevention_for_evidence(setup_security_fixtures):
     now = datetime.now(timezone.utc).isoformat()
     with get_db() as conn:
         conn.execute("""
-            INSERT OR REPLACE INTO qualifications (id, title, description, sector, nsqf_level, verification_status, created_at, updated_at)
-            VALUES ('q_sec_upload', 'Test Course', 'Description', 'Electronics', 4, 'VERIFIED', ?, ?);
+            INSERT OR REPLACE INTO qualifications (id, title, description, sector, nsqf_level, min_education_rank, verification_status, created_at, updated_at)
+            VALUES ('q_sec_upload', 'Test Course', 'Description', 'Electronics', 4, 3, 'VERIFIED', ?, ?);
         """, (now, now))
         conn.execute("""
             INSERT OR REPLACE INTO local_opportunities (
@@ -272,23 +290,31 @@ def test_file_upload_abuse_prevention_for_evidence(setup_security_fixtures):
         """, (now, now))
         conn.commit()
 
-        # Path traversal rejection
-        with pytest.raises(ValueError, match="path traversal"):
-            OpportunityVerificationService.submit_evidence(
-                conn=conn,
-                opp_id="opp_sec_upload",
-                data={"evidence_type": "DOCUMENT", "storage_key": "../../etc/passwd"},
-                user_id="usr_sec_worker_mbd"
-            )
+    try:
+        with get_db() as conn:
+            # Path traversal rejection
+            with pytest.raises(ValueError, match="path traversal"):
+                OpportunityVerificationService.submit_evidence(
+                    conn=conn,
+                    opp_id="opp_sec_upload",
+                    data={"evidence_type": "DOCUMENT", "storage_key": "../../etc/passwd"},
+                    user_id="usr_sec_worker_mbd"
+                )
 
-        # Executable file rejection
-        with pytest.raises(ValueError, match="prohibited"):
-            OpportunityVerificationService.submit_evidence(
-                conn=conn,
-                opp_id="opp_sec_upload",
-                data={"evidence_type": "DOCUMENT", "storage_key": "uploads/malicious_payload.exe"},
-                user_id="usr_sec_worker_mbd"
-            )
+            # Executable file rejection
+            with pytest.raises(ValueError, match="prohibited"):
+                OpportunityVerificationService.submit_evidence(
+                    conn=conn,
+                    opp_id="opp_sec_upload",
+                    data={"evidence_type": "DOCUMENT", "storage_key": "uploads/malicious_payload.exe"},
+                    user_id="usr_sec_worker_mbd"
+                )
+    finally:
+        with get_db() as conn:
+            conn.execute("DELETE FROM opportunity_evidence WHERE opportunity_id = 'opp_sec_upload';")
+            conn.execute("DELETE FROM local_opportunities WHERE id = 'opp_sec_upload';")
+            conn.execute("DELETE FROM qualifications WHERE id = 'q_sec_upload';")
+            conn.commit()
 
 
 def test_locale_code_abuse_sanitization():
@@ -313,7 +339,7 @@ def test_state_machine_bypass_prevention(setup_security_fixtures):
 
     # Verify invalid action is rejected
     res = client.post(
-        "/api/v1/staff/opportunities/opp_sec_upload/INVALID_ACTION",
+        "/api/v1/staff/opportunities/opp_nonexistent_or_draft/INVALID_ACTION",
         json={"action": "HACK_ACTIVE"},
         headers=headers
     )
