@@ -199,7 +199,7 @@ def seed_database(conn: sqlite3.Connection):
     ]
 
     conn.executemany("""
-        INSERT OR IGNORE INTO qualifications (
+        -- INSERT OR IGNORE INTO qualifications (
             id, nqr_code, title, sector, nsqf_level, duration_hours,
             min_education, min_education_rank, work_type, physical_intensity,
             skills_acquired, curriculum_summary, entry_criteria, certification_body,
@@ -252,7 +252,7 @@ def seed_database(conn: sqlite3.Connection):
     ]
 
     conn.executemany("""
-        INSERT OR IGNORE INTO local_opportunities (
+        -- INSERT OR IGNORE INTO local_opportunities (
             id, qualification_id, centre_or_employer_name, type, district, block,
             address, latitude, longitude, batch_start_date, batch_end_date,
             total_seats, available_seats, sc_reserved_seats, batch_status,
@@ -318,7 +318,7 @@ def seed_database(conn: sqlite3.Connection):
 
     # 7. Seed Recommendation
     conn.execute("""
-        INSERT OR IGNORE INTO recommendations (
+        -- INSERT OR IGNORE INTO recommendations (
             id, beneficiary_id, session_id, qualification_id, local_opportunity_id,
             rank, score, score_breakdown, match_state, explanation_text,
             audio_explanation_script, tradeoff_summary, skill_gap_summary,
@@ -339,7 +339,7 @@ def seed_database(conn: sqlite3.Connection):
 
     # 8. Seed Referral
     conn.execute("""
-        INSERT OR IGNORE INTO referrals (
+        -- INSERT OR IGNORE INTO referrals (
             id, beneficiary_id, recommendation_id, local_opportunity_id, assigned_worker_id,
             status, notes, caste_document_verified, income_criteria_verified, residence_proof_verified,
             sms_sent, whatsapp_sent, next_follow_up, created_at, updated_at

@@ -43,12 +43,29 @@ export const learningApi = {
   },
 
   async loginForDemo() {
-    // Auto-login for demo purposes since full UI auth flow isn't in scope for this specific file,
-    // but we need a valid JWT token to satisfy Sprint 3 requirements.
+    const DEMO_AUTH_FALLBACK = process.env.NEXT_PUBLIC_DEMO_AUTH_FALLBACK === "true";
+    if (!DEMO_AUTH_FALLBACK) return null;
+
+    const email = process.env.NEXT_PUBLIC_DEMO_EMAIL || 'learn@example.com';
+    const password = process.env.NEXT_PUBLIC_DEMO_PASSWORD || 'SecurePassword123!';
+
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email_or_phone: 'learn@example.com', password: 'SecurePassword123!' })
+      body: JSON.stringify({ email_or_phone: email, password })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      localStorage.setItem('jm_jwt_token', data.access_token);
+      return data.access_token;
+    }
+    return null;
+  },
+
+  async refreshToken() {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
     });
     if (res.ok) {
       const data = await res.json();
@@ -60,9 +77,26 @@ export const learningApi = {
 
   async ensureAuth(res: Response) {
     if (res.status === 401) {
-      console.warn("Session expired or missing, attempting re-login for demo...");
-      const token = await this.loginForDemo();
-      if (!token) throw new Error("Auth failed");
+      // Attempt normal refresh-token flow once
+      let token = await this.refreshToken();
+      
+      if (!token) {
+        // Fallback for local demo ONLY
+        const DEMO_AUTH_FALLBACK = process.env.NEXT_PUBLIC_DEMO_AUTH_FALLBACK === "true";
+        if (DEMO_AUTH_FALLBACK) {
+          console.warn("Session expired, attempting re-login for demo...");
+          token = await this.loginForDemo();
+        }
+      }
+
+      if (!token) {
+        // refresh fails: clear client session state and redirect to login
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('jm_jwt_token');
+          window.location.href = '/login';
+        }
+        throw new Error("Auth failed");
+      }
       return token;
     }
     return null;
