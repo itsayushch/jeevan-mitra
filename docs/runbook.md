@@ -55,11 +55,8 @@ python scripts/backup_db.py --dest /var/backups/jeevanmitra
 Validates backup checksum, PRAGMA integrity, Alembic revision, and table counts:
 ```bash
 cd backend
-# Automated Pytest Drill
-pytest tests/test_restore_drill.py -v
-
-# Standalone CLI Drill
-python scripts/restore_drill.py /path/to/backup.db /path/to/backup.json
+# Automated Recovery & Integrity Restore Drill
+python scripts/db_backup_restore_drill.py
 ```
 
 ---
