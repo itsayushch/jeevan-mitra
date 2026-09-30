@@ -24,3 +24,17 @@ JeevanMitra is transitioning to a **Modular Monolith**. We will avoid microservi
 - No frontend directly calls the LLM, transcription, database, or storage.
 - All AI extraction, text-to-speech, speech-to-text, matching is server-side.
 - AI must NOT directly update system state (e.g., no auto-enrollment).
+
+## 5. District Planning, Aggregations & Controlled Exports Architecture (Sprint 6)
+- **Authoritative Aggregation Engine (`PlanningAggregationService`)**:
+  - Consumes authoritative operational records directly from Sprint 4 (`local_opportunities`, `qualifications`, `opportunity_providers`) and Sprint 5 (`beneficiary_cases`, `referrals`, `referral_outcomes`).
+  - Strict domain boundaries: Unverified or expired opportunities are excluded from verified capacity; full opportunities count as full rather than available capacity; reported outcomes are never conflated with verified livelihoods.
+  - $k$-Anonymity Suppression ($k=5$): Groups with fewer than 5 unique beneficiaries are masked (`is_suppressed=True`), designed to support DPDP-aligned practices.
+- **Immutable Snapshot Pipeline (`PlanningSnapshotService`)**:
+  - Captures complete frozen district planning aggregations into `planning_snapshots` with JSON payloads and normalized dimensional metric records in `planning_snapshot_metrics`.
+  - Immutable lifecycle: `GENERATED` -> `REVIEWED` -> `APPROVED`.
+- **Controlled Export Subsystem (`PlanningExportService`)**:
+  - Exports (CSV and PDF) are generated exclusively from immutable snapshots, ensuring deterministic reproducibility.
+  - Generates SHA-256 cryptographic checksums for tamper detection.
+  - **Re-authorization at Download**: Geographic authorization is re-verified at download time. Expired exports return HTTP 410 Gone.
+  - Complete omission of beneficiary PII, casework notes, or provider private contacts.

@@ -95,14 +95,65 @@
 
 ---
 
+### Planning, Aggregations & Controlled Exports (Sprint 6)
+19. **planning_snapshots**:
+    - `id` (PK, VARCHAR)
+    - `district_id` (VARCHAR, Indexed)
+    - `block_id` (VARCHAR, Nullable)
+    - `period_start` (VARCHAR)
+    - `period_end` (VARCHAR)
+    - `generated_by_user_id` (FK -> users.id)
+    - `generated_at` (DATETIME)
+    - `status` (`GENERATED`, `REVIEWED`, `APPROVED`, `ARCHIVED`)
+    - `metric_version` (VARCHAR, default `v1`)
+    - `aggregation_snapshot_json` (TEXT: Full JSON payload of frozen aggregations)
+    - `reviewed_by_user_id` (FK -> users.id, Nullable)
+    - `reviewed_at` (DATETIME, Nullable)
+    - `approved_by_user_id` (FK -> users.id, Nullable)
+    - `approved_at` (DATETIME, Nullable)
+    - `notes` (TEXT)
+    - `created_at`, `updated_at`
+
+20. **planning_snapshot_metrics**:
+    - `id` (PK, VARCHAR)
+    - `snapshot_id` (FK -> planning_snapshots.id ON DELETE CASCADE)
+    - `metric_group` (`DEMAND`, `SUPPLY`, `GAP`, `REFERRAL_FUNNEL`, `OUTCOME`, `DATA_QUALITY`)
+    - `metric_key` (VARCHAR)
+    - `dimension_json` (TEXT)
+    - `metric_value` (FLOAT)
+    - `is_suppressed` (BOOLEAN, default 0)
+    - `created_at` (DATETIME)
+
+21. **planning_exports**:
+    - `id` (PK, VARCHAR)
+    - `snapshot_id` (FK -> planning_snapshots.id ON DELETE RESTRICT)
+    - `export_type` (`CSV`, `PDF`)
+    - `export_scope` (`FULL_REPORT`, `EXECUTIVE_BRIEF`, `GAP_MATRIX_ONLY`, `FUNNEL_ONLY`)
+    - `requested_by_user_id` (FK -> users.id)
+    - `generated_at` (DATETIME)
+    - `expires_at` (DATETIME)
+    - `status` (`GENERATED`, `EXPIRED`, `REVOKED`)
+    - `file_content` (TEXT / BLOB)
+    - `checksum` (VARCHAR: SHA-256 hex string)
+    - `download_count` (INTEGER, default 0)
+    - `last_downloaded_at` (DATETIME, Nullable)
+    - `created_at` (DATETIME)
+
+---
+
 ## Critical Invariants Enforced
 
 1. **Verified Match Invariant**:
    - A referral requires `recommendation.match_state == 'VERIFIED_MATCH'`.
-   - The associated `local_opportunity` must have `status == 'ACTIVE'`, unexpired date (`expiry_date > NOW()`), and open capacity (`enrolled_count < total_capacity`).
+   - The associated `local_opportunity` must have `status == 'ACTIVE'`, unexpired date (`verification_expires_at > NOW()`), and open capacity (`seats_available > 0`).
 2. **Geographic Scoping Invariant**:
-   - Field workers can only access, modify, or create cases/referrals in their assigned district.
+   - Field workers and district planners can only access, modify, or create cases/referrals/snapshots in their assigned district.
    - Cross-district actions trigger `SECURITY_ACCESS_DENIED` written via an isolated audit transaction before returning HTTP 403 Forbidden.
 3. **Data Isolation Invariant**:
    - Beneficiary-facing APIs (`/me/cases`, `/me/referrals`) strictly filter by authenticated user ID.
    - Staff casework notes (`is_staff_only = 1`), internal eligibility snapshots, and provider private phone numbers are never returned in beneficiary read models.
+4. **Planning Privacy & Aggregation Invariants (Sprint 6)**:
+   - Aggregations are strictly computed from authoritative verified records. `DRAFT`, `PENDING_VERIFICATION`, or `EXPIRED` opportunities are excluded from verified capacity.
+   - Designed to support DPDP-aligned practices: cells representing $< 5$ unique beneficiaries are suppressed (`is_suppressed = true`).
+   - Planning exports and snapshots are derived exclusively from immutable snapshots and strictly contain zero beneficiary PII, casework diaries, or provider private contacts.
+   - Export download access is re-verified at download time against the caller's geographic scope.
