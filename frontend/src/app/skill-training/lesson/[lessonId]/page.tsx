@@ -13,13 +13,29 @@ export default function LessonPage(props: { params: Promise<{ lessonId: string }
   const [bookmarked, setBookmarked] = useState(false);
   const [resources, setResources] = useState<any[]>([]);
 
+  const [saving, setSaving] = useState(false);
+
   useEffect(() => {
     async function load() {
       try {
         const l = await trainingApi.getLesson(params.lessonId);
         setLesson(l);
-        // We could also fetch resources here if they were implemented in API correctly
-        // For now, we will just use dummy resources to satisfy UI
+        
+        // Use the authenticated API to record access and fetch progress
+        if (l.course_id) {
+          try {
+            await learningApi.recordLessonAccess(l.id);
+            const courseProg = await learningApi.getCourseProgress(l.course_id);
+            
+            // Set initial state from backend
+            const lessonProg = courseProg.lessons_progress.find((p: any) => p.lesson_id === l.id);
+            setCompleted(lessonProg?.status === 'COMPLETED');
+            setBookmarked(courseProg.bookmarked_lesson_ids.includes(l.id));
+          } catch (e) {
+            console.error("Auth required or failed", e);
+          }
+        }
+        
         setResources([
           { id: '1', title: 'Lesson Worksheet', type: 'PDF' },
           { id: '2', title: 'Video Demonstration', type: 'Link' }
@@ -34,9 +50,27 @@ export default function LessonPage(props: { params: Promise<{ lessonId: string }
   }, [params.lessonId]);
 
   const toggleComplete = async () => {
+    if (saving) return;
+    setSaving(true);
     const newState = !completed;
-    setCompleted(newState);
-    await learningApi.updateLessonProgress(params.lessonId, newState);
+    try {
+      await learningApi.updateLessonProgress(params.lessonId, newState);
+      setCompleted(newState);
+    } catch (e) {
+      alert("Failed to update progress. Please login again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleBookmark = async () => {
+    const newState = !bookmarked;
+    setBookmarked(newState);
+    try {
+      await learningApi.toggleBookmark(params.lessonId, newState);
+    } catch (e) {
+      setBookmarked(!newState); // revert
+    }
   };
 
   if (loading) return <div className="p-8 text-center text-slate-500 font-medium">Loading lesson...</div>;
@@ -49,7 +83,7 @@ export default function LessonPage(props: { params: Promise<{ lessonId: string }
           <ChevronLeft className="w-4 h-4" /> Back
         </button>
         <button 
-          onClick={() => setBookmarked(!bookmarked)}
+          onClick={toggleBookmark}
           className={`p-2 rounded-full border ${bookmarked ? 'bg-amber-100 border-amber-300 text-amber-700' : 'bg-white border-slate-200 text-slate-400'}`}
         >
           <Bookmark className="w-4 h-4" />

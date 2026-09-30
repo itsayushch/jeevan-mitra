@@ -53,7 +53,12 @@ class TrainingService:
 
     @staticmethod
     def get_lesson(conn: Connection, lesson_id: str):
-        row = conn.execute("SELECT * FROM training_lessons WHERE id = ?", (lesson_id,)).fetchone()
+        row = conn.execute("""
+            SELECT l.*, m.course_id 
+            FROM training_lessons l
+            JOIN training_modules m ON l.module_id = m.id
+            WHERE l.id = ?
+        """, (lesson_id,)).fetchone()
         if not row:
             return None
         l = dict(row)

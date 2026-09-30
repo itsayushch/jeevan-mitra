@@ -105,6 +105,7 @@ class TrainingLessonUpdate(BaseModel):
 
 class TrainingLessonResponse(TrainingLessonBase):
     id: str
+    course_id: Optional[str] = None
     last_reviewed_at: str
     reviewed_by: Optional[str] = None
 

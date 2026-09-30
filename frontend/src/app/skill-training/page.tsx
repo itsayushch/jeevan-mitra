@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppSettings } from '../../components/AppShell';
-import { trainingApi } from '../../lib/api/training';
+import { trainingApi, learningApi } from '../../lib/api/training';
 import { BookOpen, MapPin, MessageSquare, PlayCircle } from 'lucide-react';
 import Link from 'next/link';
 import { AskQuestionVoice } from '../../components/modules/AskQuestionVoice';
@@ -11,6 +11,7 @@ export default function SkillTrainingPage() {
   const { language } = useAppSettings();
   const router = useRouter();
   const [courses, setCourses] = useState<any[]>([]);
+  const [overview, setOverview] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'learn' | 'my-learning' | 'opportunities' | 'ask'>('learn');
   const [searchQuery, setSearchQuery] = useState('');
@@ -29,6 +30,12 @@ export default function SkillTrainingPage() {
     }
     load();
   }, [language]);
+
+  useEffect(() => {
+    if (activeTab === 'my-learning' && !overview) {
+      learningApi.getMyOverview().then(setOverview).catch(e => console.error("Failed to load overview", e));
+    }
+  }, [activeTab, overview]);
 
   const filteredCourses = courses.filter(course => {
     const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -135,8 +142,51 @@ export default function SkillTrainingPage() {
 
       {activeTab === 'my-learning' && (
         <div className="p-4 bg-white rounded-2xl border border-slate-200">
-          <h3 className="font-black text-slate-900 mb-2">My Learning</h3>
-          <p className="text-sm text-slate-500">Coming soon: Track your progress here.</p>
+          <h3 className="font-black text-slate-900 mb-4">My Learning</h3>
+          {!overview ? (
+            <p className="text-sm text-slate-500">Loading progress...</p>
+          ) : overview.inProgressCourses === 0 && overview.completedCourses === 0 ? (
+            <p className="text-sm text-slate-500">No learning activity yet. Explore the Learn tab to start a course.</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex gap-4 mb-4">
+                <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex-1">
+                  <div className="text-emerald-800 text-xs font-bold mb-1">In Progress</div>
+                  <div className="text-xl font-black text-emerald-900">{overview.inProgressCourses}</div>
+                </div>
+                <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 flex-1">
+                  <div className="text-blue-800 text-xs font-bold mb-1">Completed</div>
+                  <div className="text-xl font-black text-blue-900">{overview.completedCourses}</div>
+                </div>
+              </div>
+              
+              {overview.recentCourses?.length > 0 && (
+                <div>
+                  <h4 className="font-bold text-slate-800 text-sm mb-3">Recent Courses</h4>
+                  {overview.recentCourses.map((c: any) => (
+                    <div key={c.courseId} className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-3">
+                      <div className="flex justify-between mb-1">
+                        <span className="font-bold text-slate-900 text-sm">{c.title || 'Course'}</span>
+                        <span className="text-xs font-bold text-emerald-700">{c.completionPercent}%</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden mb-3">
+                        <div 
+                          className="h-full bg-emerald-500 transition-all"
+                          style={{ width: `${c.completionPercent}%` }}
+                        />
+                      </div>
+                      <Link 
+                        href={`/skill-training/${c.resumeLessonId ? 'lesson/' + c.resumeLessonId : 'course/' + c.courseId}`}
+                        className="block w-full text-center bg-white border border-slate-200 hover:border-emerald-300 text-slate-700 hover:text-emerald-700 text-xs font-bold py-2 rounded-lg transition-all"
+                      >
+                        {c.completionPercent === 100 ? 'Review' : 'Continue'}
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

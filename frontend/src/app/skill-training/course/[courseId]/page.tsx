@@ -10,15 +10,20 @@ export default function CoursePage(props: { params: Promise<{ courseId: string }
   const router = useRouter();
   const [course, setCourse] = useState<any>(null);
   const [modules, setModules] = useState<any[]>([]);
+  const [progress, setProgress] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const c = await trainingApi.getCourse(params.courseId);
-        const m = await trainingApi.getCourseModules(params.courseId);
+        const [c, m, p] = await Promise.all([
+          trainingApi.getCourse(params.courseId),
+          trainingApi.getCourseModules(params.courseId),
+          learningApi.getCourseProgress(params.courseId).catch(() => null)
+        ]);
         setCourse(c);
         setModules(m);
+        setProgress(p);
       } catch (e) {
         console.error(e);
       } finally {
@@ -30,6 +35,15 @@ export default function CoursePage(props: { params: Promise<{ courseId: string }
 
   if (loading) return <div className="p-8 text-center text-slate-500 font-medium">Loading course...</div>;
   if (!course) return <div className="p-8 text-center text-rose-500 font-medium">Course not found.</div>;
+
+  const handleStartContinue = () => {
+    if (progress?.resume_lesson_id) {
+      router.push(`/skill-training/lesson/${progress.resume_lesson_id}`);
+    } else {
+      // Best effort fallback: let the user just click a lesson below
+      alert("Please select a lesson below to start.");
+    }
+  };
 
   return (
     <div className="module-content">
@@ -59,25 +73,40 @@ export default function CoursePage(props: { params: Promise<{ courseId: string }
           )}
         </div>
 
+        {progress && (
+          <div className="mb-4">
+            <div className="flex justify-between text-xs font-bold text-slate-700 mb-1">
+              <span>Progress</span>
+              <span>{progress.completion_percent}%</span>
+            </div>
+            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-emerald-500 transition-all duration-500"
+                style={{ width: `${progress.completion_percent}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         <button 
-          onClick={() => learningApi.startCourse(course.id)} 
+          onClick={handleStartContinue} 
           className="w-full bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold py-3 rounded-xl transition-colors shadow-sm"
         >
-          Start / Continue Learning
+          {progress?.completion_percent > 0 ? (progress.completion_percent === 100 ? 'Review Course' : 'Continue Learning') : 'Start Learning'}
         </button>
       </div>
 
       <h2 className="text-base font-black text-slate-900 mb-3">Course Modules</h2>
       <div className="space-y-3">
         {modules.map((mod, i) => (
-          <ModuleCard key={mod.id} module={mod} index={i} />
+          <ModuleCard key={mod.id} module={mod} index={i} progress={progress} />
         ))}
       </div>
     </div>
   );
 }
 
-function ModuleCard({ module, index }: { module: any, index: number }) {
+function ModuleCard({ module, index, progress }: { module: any, index: number, progress: any }) {
   const [lessons, setLessons] = useState<any[]>([]);
   const [expanded, setExpanded] = useState(index === 0);
   const [loading, setLoading] = useState(false);
@@ -110,21 +139,30 @@ function ModuleCard({ module, index }: { module: any, index: number }) {
             <p className="text-xs text-slate-400">Loading lessons...</p>
           ) : (
             <div className="space-y-2">
-              {lessons.map((lesson) => (
-                <Link 
-                  key={lesson.id} 
-                  href={`/skill-training/lesson/${lesson.id}`}
-                  className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 hover:border-emerald-300 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
-                      {lesson.sequence_number}
+              {lessons.map((lesson) => {
+                const isCompleted = progress?.lessons_progress?.find((p: any) => p.lesson_id === lesson.id)?.status === 'COMPLETED';
+                return (
+                  <Link 
+                    key={lesson.id} 
+                    href={`/skill-training/lesson/${lesson.id}`}
+                    className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                      isCompleted 
+                        ? 'bg-emerald-50 border-emerald-200' 
+                        : 'bg-white border-slate-200 hover:border-emerald-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                        isCompleted ? 'bg-emerald-600 text-white' : 'bg-emerald-100 text-emerald-700'
+                      }`}>
+                        {isCompleted ? '✓' : lesson.sequence_number}
+                      </div>
+                      <span className="text-xs font-bold text-slate-800">{lesson.title}</span>
                     </div>
-                    <span className="text-xs font-bold text-slate-800">{lesson.title}</span>
-                  </div>
-                  <PlayCircle className="w-4 h-4 text-emerald-600" />
-                </Link>
-              ))}
+                    <PlayCircle className={`w-4 h-4 ${isCompleted ? 'text-emerald-700' : 'text-emerald-600'}`} />
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>
