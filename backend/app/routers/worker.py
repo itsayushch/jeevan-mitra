@@ -8,21 +8,21 @@ from app.core.settings import settings
 from app.models import ProfileCorrectionRequest, BatchVerificationRequest, ApproveReferralRequest
 from app.ai_layers.layer3_matching.state_machine import MatchStateMachine
 from app.dependencies.auth import require_admin_or_worker, Actor
+from app.utils.audit_events import log_audit_event
 
 def _record_worker_audit(conn, worker: Actor, action, entity_type, entity_id, old_values=None, new_values=None, metadata=None):
-    conn.execute("""
-        INSERT INTO audit_events (
-            id, actor_id, actor_name, actor_role, action, entity_type,
-            entity_id, old_values, new_values, metadata, timestamp
-        ) VALUES (?, ?, ?, 'field_worker', ?, ?, ?, ?, ?, ?, ?);
-    """, (
-        f"aud_{uuid.uuid4().hex[:8]}", worker.actor_id, worker.actor_role, action,
-        entity_type, entity_id,
-        json.dumps(old_values) if old_values is not None else None,
-        json.dumps(new_values) if new_values is not None else None,
-        json.dumps(metadata) if metadata is not None else None,
-        datetime.now(timezone.utc).isoformat()
-    ))
+    log_audit_event(
+        conn=conn,
+        actor_id=worker.actor_id,
+        actor_name="Unknown",  # Assuming fallback, actor_name was hardcoded as actor_role in old insert
+        actor_role=worker.actor_role or 'field_worker',
+        action=action,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        old_values=old_values,
+        new_values=new_values,
+        metadata=metadata
+    )
 
 router = APIRouter(
     prefix="/worker",

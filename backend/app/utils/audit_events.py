@@ -43,14 +43,23 @@ def log_audit_event(
     meta_json = json.dumps(metadata) if metadata is not None else None
 
     try:
+        # Migrate old kwargs into metadata_json if provided
+        meta_dict = metadata or {}
+        if actor_name:
+            meta_dict['legacy_actor_name'] = actor_name
+        if actor_role:
+            meta_dict['legacy_actor_role'] = actor_role
+            
+        final_meta_json = json.dumps(meta_dict) if meta_dict else None
+            
         conn.execute("""
             INSERT INTO audit_events (
-                id, actor_id, actor_name, actor_role, action,
-                entity_type, entity_id, old_values, new_values, metadata, timestamp
+                id, actor_user_id, action,
+                entity_type, entity_id, before_json, after_json, metadata_json, created_at, request_id, outcome
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """, (
-            event_id, actor_id, actor_name, actor_role, action,
-            entity_type, entity_id, old_json, new_json, meta_json, now
+            event_id, actor_id, action,
+            entity_type, entity_id, old_json, new_json, final_meta_json, now, None, "SUCCESS"
         ))
         logger.debug(f"Audit event recorded: {event_id} | {action} on {entity_type}:{entity_id} by {actor_role}:{actor_id}")
     except Exception as e:

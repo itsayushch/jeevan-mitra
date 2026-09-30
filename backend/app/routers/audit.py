@@ -27,7 +27,7 @@ def list_audit_events(
             query += " AND action = ?"
             params.append(action)
 
-        query += f" ORDER BY timestamp DESC LIMIT {limit};"
+        query += f" ORDER BY created_at DESC LIMIT {limit};"
         rows = conn.execute(query, params).fetchall()
 
         results = []

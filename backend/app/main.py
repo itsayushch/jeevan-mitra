@@ -22,7 +22,8 @@ from app.routers import (
     chat,
     journey,
     admin_catalogue,
-    training
+    training,
+    auth
 )
 
 @asynccontextmanager
@@ -156,7 +157,8 @@ api_routers = [
     admin_catalogue.router,
     training.router,
     training.learning_router,
-    training.admin_router
+    training.admin_router,
+    auth.router
 ]
 
 for prefix in ["/api/v1", "/api"]:
