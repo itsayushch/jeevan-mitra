@@ -62,6 +62,11 @@ export interface RecommendationItem {
     last_verified_at?: string;
   };
   caveat: string;
+  match_state?: 'VERIFIED_MATCH' | 'INTEREST_MATCH';
+  can_request_referral?: boolean;
+  can_request_worker_support?: boolean;
+  canRequestReferral?: boolean;
+  canRequestWorkerSupport?: boolean;
 }
 
 export interface RecommendationsResponse {

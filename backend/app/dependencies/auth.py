@@ -34,6 +34,25 @@ class Actor:
     def has_role(self, role: str) -> bool:
         return role in self.roles
 
+    def check_scope(self, district_id: Optional[str] = None, block_id: Optional[str] = None) -> bool:
+        if "super_admin" in self.roles or "admin" in self.roles:
+            return True
+        if not self.scopes:
+            return False
+        for s in self.scopes:
+            s_dist = s.get("district_id")
+            s_block = s.get("block_id")
+            # If scope specifies a district, it must match
+            if s_dist and district_id:
+                if s_dist.strip().lower() != district_id.strip().lower():
+                    continue
+            # If scope specifies a block, it must match
+            if s_block and block_id:
+                if s_block.strip().lower() != block_id.strip().lower():
+                    continue
+            return True
+        return False
+
 def get_current_actor(
     request: Request,
     x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),

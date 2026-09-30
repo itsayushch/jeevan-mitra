@@ -79,3 +79,17 @@ class QualificationCatalogueService:
             conn.execute(query, tuple(params))
             
         return QualificationCatalogueService.get_qualification(conn, qual_id)
+
+    @staticmethod
+    def map_course(conn: Connection, qual_id: str, course_id: str, relationship_type: str = "direct") -> Dict[str, Any]:
+        now = QualificationCatalogueService._now()
+        conn.execute("""
+            INSERT OR REPLACE INTO training_course_qualifications (
+                training_course_id, qualification_id, relationship_type, created_at
+            ) VALUES (?, ?, ?, ?)
+        """, (course_id, qual_id, relationship_type, now))
+        return {
+            "training_course_id": course_id,
+            "qualification_id": qual_id,
+            "relationship_type": relationship_type
+        }

@@ -46,7 +46,8 @@ class MatchingEngine:
 
         for qual in quals:
             # Hard Filter 1: Education rank
-            if user_edu_rank < qual.get("min_education_rank", 0):
+            min_rank = qual.get("min_education_rank") or 0
+            if user_edu_rank < min_rank:
                 continue
 
             # Find matching opportunities within radius

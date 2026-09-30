@@ -3,6 +3,7 @@ import uuid
 import json
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
+from app.utils.audit_events import log_audit_event
 
 class OpportunityService:
     @staticmethod
@@ -28,7 +29,19 @@ class OpportunityService:
             data.get('source_name'), data.get('source_reference'), user_id, now, now
         ))
         
-        return dict(conn.execute("SELECT * FROM opportunity_providers WHERE id = ?", (provider_id,)).fetchone())
+        provider = dict(conn.execute("SELECT * FROM opportunity_providers WHERE id = ?", (provider_id,)).fetchone())
+        
+        log_audit_event(
+            conn=conn,
+            actor_id=user_id,
+            actor_name="Field Worker",
+            actor_role="field_worker",
+            action="OPPORTUNITY_PROVIDER_CREATED",
+            entity_type="opportunity_provider",
+            entity_id=provider_id,
+            new_values={"name": data["name"], "district_id": data.get("district_id")}
+        )
+        return provider
 
     @staticmethod
     def create_opportunity(conn: Connection, data: Dict, user_id: str) -> Dict:
@@ -57,12 +70,102 @@ class OpportunityService:
             None, data.get('source_url'), 'DRAFT', user_id, user_id, now, now
         ))
         
-        return OpportunityService.get_opportunity(conn, opp_id)
+        opp = OpportunityService.get_opportunity(conn, opp_id)
+        
+        log_audit_event(
+            conn=conn,
+            actor_id=user_id,
+            actor_name="Field Worker",
+            actor_role="field_worker",
+            action="LOCAL_OPPORTUNITY_CREATED",
+            entity_type="local_opportunity",
+            entity_id=opp_id,
+            new_values={"title": data["title"], "status": "DRAFT", "district_id": data["district_id"]}
+        )
+        return opp
 
     @staticmethod
-    def get_opportunity(conn: Connection, opp_id: str) -> Optional[Dict]:
+    def get_opportunity(conn: Connection, opp_id: str, include_staff_details: bool = False) -> Optional[Dict]:
         row = conn.execute("SELECT * FROM local_opportunities WHERE id = ?", (opp_id,)).fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+        d = dict(row)
+        if include_staff_details:
+            ev_rows = conn.execute("SELECT * FROM opportunity_evidence WHERE opportunity_id = ? ORDER BY created_at ASC", (opp_id,)).fetchall()
+            d['evidence'] = [dict(r) for r in ev_rows]
+            
+            hist_rows = conn.execute("SELECT * FROM opportunity_verification_events WHERE opportunity_id = ? ORDER BY created_at ASC", (opp_id,)).fetchall()
+            d['verification_history'] = [dict(r) for r in hist_rows]
+        return d
+
+    @staticmethod
+    def update_opportunity_fields(conn: Connection, opp_id: str, data: Dict, user_id: str) -> Dict:
+        existing = OpportunityService.get_opportunity(conn, opp_id)
+        if not existing:
+            raise ValueError("Opportunity not found")
+        
+        now = OpportunityService._now()
+        updates = ["updated_by_user_id = ?", "updated_at = ?"]
+        params = [user_id, now]
+        
+        seats_avail = data.get("seats_available")
+        is_marking_full = False
+        if seats_avail is not None:
+            updates.append("seats_available = ?")
+            params.append(seats_avail)
+            # If seats set to zero, transition status to FULL
+            if seats_avail == 0 and existing["status"] == "ACTIVE":
+                updates.append("status = ?")
+                params.append("FULL")
+                is_marking_full = True
+
+        for k in ["title", "summary", "seats_total", "vacancies_total", "vacancies_available", "location_text", "stipend_amount"]:
+            if k in data and data[k] is not None:
+                updates.append(f"{k} = ?")
+                params.append(data[k])
+
+        params.append(opp_id)
+        conn.execute(f"UPDATE local_opportunities SET {', '.join(updates)} WHERE id = ?", tuple(params))
+
+        if is_marking_full:
+            # Record verification history event for marking full
+            event_id = f"ver_ev_{uuid.uuid4().hex[:8]}"
+            conn.execute("""
+                INSERT INTO opportunity_verification_events (
+                    id, opportunity_id, actor_user_id, previous_status, new_status,
+                    verification_action, reason, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (event_id, opp_id, user_id, "ACTIVE", "FULL", "MARKED_FULL", "Capacity depleted (seats set to 0)", now))
+
+            log_audit_event(
+                conn=conn,
+                actor_id=user_id,
+                actor_name="Field Worker",
+                actor_role="field_worker",
+                action="OPPORTUNITY_MARKED_FULL",
+                entity_type="local_opportunity",
+                entity_id=opp_id,
+                new_values={"status": "FULL", "seats_available": 0}
+            )
+            
+            # Recalculate match state for linked records
+            from app.services.match_state_service import MatchStateService
+            recs = conn.execute("SELECT beneficiary_id, qualification_id FROM recommendation_match_state WHERE local_opportunity_id = ?", (opp_id,)).fetchall()
+            for r in recs:
+                MatchStateService.recalculate_match(conn, r["beneficiary_id"], r["qualification_id"], opp_id)
+        else:
+            log_audit_event(
+                conn=conn,
+                actor_id=user_id,
+                actor_name="Field Worker",
+                actor_role="field_worker",
+                action="LOCAL_OPPORTUNITY_UPDATED",
+                entity_type="local_opportunity",
+                entity_id=opp_id,
+                new_values=data
+            )
+
+        return OpportunityService.get_opportunity(conn, opp_id, include_staff_details=True)
 
     @staticmethod
     def update_opportunity_status(conn: Connection, opp_id: str, new_status: str, user_id: str, verified_at: Optional[str] = None, verification_expires_at: Optional[str] = None):
@@ -78,6 +181,10 @@ class OpportunityService:
         if verification_expires_at:
             updates.append("verification_expires_at = ?")
             params.append(verification_expires_at)
+
+        if new_status == "CLOSED":
+            updates.append("closed_at = ?")
+            params.append(now)
             
         params.append(opp_id)
         

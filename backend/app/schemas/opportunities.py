@@ -51,10 +51,22 @@ class OpportunityBase(BaseModel):
     eligibility_notes: Optional[str] = None
     accessibility_notes: Optional[str] = None
     source_url: Optional[str] = None
-    status: str
+    status: Optional[str] = 'DRAFT'
 
 class OpportunityCreate(OpportunityBase):
     pass
+
+class OpportunityUpdate(BaseModel):
+    title: Optional[str] = None
+    summary: Optional[str] = None
+    seats_total: Optional[int] = None
+    seats_available: Optional[int] = None
+    vacancies_total: Optional[int] = None
+    vacancies_available: Optional[int] = None
+    location_text: Optional[str] = None
+    stipend_amount: Optional[float] = None
+    travel_support_available: Optional[bool] = None
+    hostel_available: Optional[bool] = None
 
 class OpportunityStaffResponse(OpportunityBase):
     id: str
@@ -68,6 +80,8 @@ class OpportunityStaffResponse(OpportunityBase):
     updated_at: datetime
     closed_at: Optional[datetime] = None
     archived_at: Optional[datetime] = None
+    evidence: Optional[List[Dict[str, Any]]] = None
+    verification_history: Optional[List[Dict[str, Any]]] = None
 
 class OpportunityBeneficiaryResponse(BaseModel):
     id: str
@@ -89,9 +103,10 @@ class EvidenceCreate(BaseModel):
     storage_key: Optional[str] = None
     external_url: Optional[str] = None
     note: Optional[str] = None
+    is_approved: Optional[bool] = False
 
 class VerificationAction(BaseModel):
-    action: str # VERIFIED, REVERIFIED, MARKED_FULL, PAUSED, CLOSED, REJECTED
+    action: Optional[str] = None # VERIFIED, REVERIFIED, MARKED_FULL, PAUSED, CLOSED, REJECTED
     reason: Optional[str] = None
     verification_expires_at: Optional[datetime] = None
     metadata_json: Optional[Dict[str, Any]] = None

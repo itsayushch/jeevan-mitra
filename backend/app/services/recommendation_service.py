@@ -110,21 +110,26 @@ class RecommendationService:
         for qual in quals:
             qual_id = qual["id"]
             qual_title = qual.get("title", "")
-            qual_skills = json.loads(qual.get("skills_acquired") or "[]")
-            qual_work_type = qual.get("work_type", "both")
+            skills_raw = qual.get("skills_acquired") or qual.get("skills_json") or "[]"
+            try:
+                qual_skills = json.loads(skills_raw)
+            except Exception:
+                qual_skills = []
+            qual_work_type = qual.get("work_type") or "both"
 
             # HARD FILTER 1: Explicit "do not recommend"
             if any(dnr in qual_title.lower() or dnr in qual.get("sector", "").lower() for dnr in do_not_recommend):
                 continue
 
             # HARD FILTER 2: Education requirement (officially known)
-            min_rank = qual.get("min_education_rank", 0)
+            min_rank = qual.get("min_education_rank") or 0
             if user_edu_rank < min_rank:
                 continue
 
             # HARD FILTER 3: Accessibility / Physical intensity
             if "limited" in access_needs or "wheelchair" in access_needs:
-                if qual.get("physical_intensity") in ["high", "medium_high"]:
+                phys = qual.get("physical_intensity")
+                if phys in ["high", "medium_high"]:
                     continue
 
             # HARD FILTER 4: User work preference
@@ -159,9 +164,21 @@ class RecommendationService:
                         opp_avail = opp.get("availability", "unknown")
 
                     # HARD FILTER 5: Travel / Mobility radius
+                    opp_lat = opp.get("latitude")
+                    opp_lon = opp.get("longitude")
+                    if opp_lat is None or opp_lon is None:
+                        opp_block = opp.get("block_id") or opp.get("block")
+                        if opp_block:
+                            block_coords = get_block_coordinates(opp_block)
+                            opp_lat = opp_lat if opp_lat is not None else block_coords["lat"]
+                            opp_lon = opp_lon if opp_lon is not None else block_coords["lon"]
+                        else:
+                            opp_lat = opp_lat if opp_lat is not None else user_coords["lat"]
+                            opp_lon = opp_lon if opp_lon is not None else user_coords["lon"]
+
                     dist = calculate_distance_km(
                         user_coords["lat"], user_coords["lon"],
-                        opp.get("latitude", user_coords["lat"]), opp.get("longitude", user_coords["lon"])
+                        opp_lat, opp_lon
                     )
 
                     if dist <= mobility_radius:
@@ -241,12 +258,12 @@ class RecommendationService:
 
             candidate_list.append({
                 "qualification": {
-                    "id": qual["nqr_code"],
+                    "id": qual.get("nqr_code") or qual.get("external_reference") or qual["id"],
                     "internal_id": qual["id"],
                     "title": qual_title,
                     "nsqf_level": f"Level {qual['nsqf_level']}",
                     "sector": qual["sector"],
-                    "official_url": qual.get("official_source_url") or qual.get("nqr_link"),
+                    "official_url": qual.get("official_source_url") or qual.get("nqr_link") or qual.get("source_url"),
                     "duration_hours": qual.get("duration_hours")
                 },
                 "why_recommended": why_reasons[:3],
@@ -256,7 +273,7 @@ class RecommendationService:
                     "status": local_status,
                     "district": district,
                     "source_url": best_opp.get("source_url") if best_opp else None,
-                    "centre_name": best_opp.get("centre_or_employer_name") if best_opp else None,
+                    "centre_name": (best_opp.get("centre_or_employer_name") or best_opp.get("title")) if best_opp else None,
                     "last_verified_at": best_opp.get("verified_at") if best_opp else None
                 },
                 "caveat": "This is a guidance recommendation, not confirmation of admission or placement.",
@@ -313,6 +330,16 @@ class RecommendationService:
                 item["local_availability"]["status"], item["caveat"], now, now
             ))
 
+            # Persist to recommendation_match_state table
+            from app.services.match_state_service import MatchStateService
+            item_local_status = item["local_availability"]["status"]
+            item_best_opp = item["best_opp"]
+            MatchStateService.recalculate_match(
+                conn, target_ben_id or "anonymous", qual_internal_id,
+                item_best_opp["id"] if (item_best_opp and item_local_status == "verified_open") else None
+            )
+
+            is_verified = (item["match_state"] in ("Verified Match", "VERIFIED_MATCH"))
             clean_response = {
                 "recommendation_id": rec_id,
                 "qualification": item["qualification"],
@@ -322,7 +349,12 @@ class RecommendationService:
                 "local_availability": item["local_availability"],
                 "ranking_factors": item["ranking_factors"],
                 "caveat": item["caveat"],
-                "score": item["score"]
+                "score": item["score"],
+                "match_state": "VERIFIED_MATCH" if is_verified else "INTEREST_MATCH",
+                "can_request_referral": is_verified,
+                "can_request_worker_support": True,
+                "canRequestReferral": is_verified,
+                "canRequestWorkerSupport": True
             }
             saved_recs.append(clean_response)
 

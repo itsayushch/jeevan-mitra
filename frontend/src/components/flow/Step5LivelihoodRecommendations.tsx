@@ -99,25 +99,28 @@ export const Step5LivelihoodRecommendations: React.FC<Step5Props> = ({
                       </h3>
                     </div>
 
-                    {/* Verified Local Status Badge */}
-                    <div className="shrink-0">
-                      {isAvailOpen && (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          Verified Batch Open
-                        </span>
-                      )}
-                      {isAvailUnknown && (
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1" title="Qualification pathway exists; no active batch currently verified in district">
-                          <AlertCircle className="w-3 h-3 text-amber-600" />
-                          Batch Status: Unknown
-                        </span>
-                      )}
-                      {isAvailExpired && (
-                        <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <ShieldAlert className="w-3 h-3 text-rose-600" />
-                          Batch Expired
-                        </span>
+                    {/* Match State & Local Status Badge */}
+                    <div className="shrink-0 flex flex-col items-end gap-1">
+                      {rec.match_state === 'VERIFIED_MATCH' || isAvailOpen ? (
+                        <>
+                          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-700" />
+                            Verified Match
+                          </span>
+                          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                            Verified Batch Open
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs" title="Qualification matches your profile, but local batch verification is pending.">
+                            <AlertCircle className="w-3 h-3 text-amber-700" />
+                            Interest Match
+                          </span>
+                          <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                            {isAvailExpired ? 'Batch Expired' : 'Local Batch Pending'}
+                          </span>
+                        </>
                       )}
                     </div>
                   </div>
@@ -193,7 +196,22 @@ export const Step5LivelihoodRecommendations: React.FC<Step5Props> = ({
 
                   {/* Action buttons */}
                   <div className="flex items-center gap-2 mt-3 pt-2">
-                    {isAvailUnknown && (
+                    {rec.can_request_referral && (
+                      <button
+                        onClick={(e) => handleRequestReferral(rec, e)}
+                        disabled={isReferred || referralLoading === rec.recommendation_id}
+                        className={`text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors border ${
+                          isReferred
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-2xs'
+                        }`}
+                      >
+                        <UserCheck className="w-3.5 h-3.5" />
+                        <span>{isReferred ? 'Referral Requested' : 'Apply / Batch Referral'}</span>
+                      </button>
+                    )}
+
+                    {!rec.can_request_referral && (isAvailUnknown || isAvailExpired) && (
                       <button
                         onClick={(e) => handleRequestReferral(rec, e)}
                         disabled={isReferred || referralLoading === rec.recommendation_id}
@@ -204,7 +222,7 @@ export const Step5LivelihoodRecommendations: React.FC<Step5Props> = ({
                         }`}
                       >
                         <UserCheck className="w-3.5 h-3.5" />
-                        <span>{isReferred ? 'Counselor Requested' : 'Ask Career Counselor'}</span>
+                        <span>{isReferred ? 'Counselor Requested' : 'Ask Field Worker Support'}</span>
                       </button>
                     )}
 
