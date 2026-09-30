@@ -198,16 +198,52 @@ def seed_database(conn: sqlite3.Connection):
         )
     ]
 
-    conn.executemany("""
-        -- INSERT OR IGNORE INTO qualifications (
-            id, nqr_code, title, sector, nsqf_level, duration_hours,
+    qual_rows = []
+    for q in quals:
+        (
+            qid, nqr_code, title, sector, nsqf_level, duration_hours,
             min_education, min_education_rank, work_type, physical_intensity,
             skills_acquired, curriculum_summary, entry_criteria, certification_body,
             nqr_link, verification_status, verification_date
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-    """, quals)
+        ) = q
+        entry_req = json.dumps({"min_education": min_education, "entry_criteria": entry_criteria})
+        v_status = 'VERIFIED' if verification_status.lower() == 'verified' else verification_status
+        qual_rows.append((
+            qid, nqr_code, nqr_code, title, curriculum_summary, sector, nsqf_level, duration_hours,
+            entry_req, skills_acquired, min_education, min_education_rank, work_type, physical_intensity,
+            skills_acquired, curriculum_summary, entry_criteria, certification_body, nqr_link,
+            certification_body, nqr_link, '1.0', f"{verification_date}T00:00:00Z",
+            v_status, verification_date, now, now
+        ))
 
-    # 2. Local Opportunities (Dated batches)
+    conn.executemany("""
+        INSERT OR IGNORE INTO qualifications (
+            id, external_reference, nqr_code, title, description, sector, nsqf_level, duration_hours,
+            entry_requirements_json, skills_json, min_education, min_education_rank, work_type, physical_intensity,
+            skills_acquired, curriculum_summary, entry_criteria, certification_body, nqr_link,
+            source_name, source_url, source_version, source_verified_at, verification_status,
+            verification_date, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """, qual_rows)
+
+    # 2. Opportunity Providers
+    providers = [
+        ('prov_solar_moradabad_01', 'training_centre', 'Govt ITI Moradabad Training Centre', 'Moradabad', 'Moradabad Rural', 28.8386, 78.7733, 'ACTIVE', 'pm_ajay_portal', now, now),
+        ('prov_sewing_chhajlet_02', 'training_centre', 'Pradhan Mantri Kaushal Kendra Chhajlet', 'Moradabad', 'Chhajlet', 28.9856, 78.6811, 'ACTIVE', 'pm_ajay_portal', now, now),
+        ('prov_food_chhajlet_04', 'enterprise_cluster', 'Chhajlet Agro-Processing Enterprise Cluster', 'Moradabad', 'Chhajlet', 28.9800, 78.6900, 'ACTIVE', 'pm_ajay_portal', now, now),
+        ('prov_retail_moradabad_06', 'training_centre', 'Skill India Hub Moradabad Civil Lines', 'Moradabad', 'Moradabad Rural', 28.8400, 78.7800, 'ACTIVE', 'pm_ajay_portal', now, now),
+        ('prov_mushroom_chhajlet_07', 'training_centre', 'Krishi Vigyan Kendra Mushroom Training Unit', 'Moradabad', 'Chhajlet', 28.9870, 78.6850, 'ACTIVE', 'pm_ajay_portal', now, now),
+        ('prov_gda_moradabad_09', 'training_centre', 'District Hospital Allied Healthcare Training Cell', 'Moradabad', 'Moradabad Urban', 28.8350, 78.7750, 'ACTIVE', 'pm_ajay_portal', now, now),
+        ('prov_plumber_moradabad_08', 'training_centre', 'Jan Shikshan Sansthan Moradabad', 'Moradabad', 'Moradabad Rural', 28.8200, 78.7200, 'ACTIVE', 'pm_ajay_portal', now, now),
+        ('prov_dataentry_ghaziabad_10', 'training_centre', 'Ghaziabad Skill Development Center', 'Ghaziabad', 'Ghaziabad Urban', 28.6700, 77.4400, 'ACTIVE', 'pm_ajay_portal', now, now)
+    ]
+    conn.executemany("""
+        INSERT OR IGNORE INTO opportunity_providers (
+            id, provider_type, name, district_id, block_id, latitude, longitude, status, source_name, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """, providers)
+
+    # 3. Local Opportunities (Dated batches)
     opps = [
         (
             'opp_solar_moradabad_01', 'qual_solar_01', 'Govt ITI Moradabad Training Centre', 'training_centre',
@@ -251,17 +287,38 @@ def seed_database(conn: sqlite3.Connection):
         )
     ]
 
-    conn.executemany("""
-        -- INSERT OR IGNORE INTO local_opportunities (
-            id, qualification_id, centre_or_employer_name, type, district, block,
-            address, latitude, longitude, batch_start_date, batch_end_date,
-            total_seats, available_seats, sc_reserved_seats, batch_status,
-            hostel_available, stipend_amount_inr, free_toolkit_provided, source,
-            verified_by_worker_id, verified_at, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-    """, opps)
+    opp_rows = []
+    for op_item in opps:
+        (
+            opp_id, qid, centre_name, otype,
+            dist, blk, addr, lat, lon,
+            b_start, b_end, t_seats, a_seats, sc_seats, b_status,
+            hostel, stipend, toolkit, src, v_worker, v_at, c_at
+        ) = op_item
+        prov_id = f"prov_{opp_id.split('opp_')[1]}"
+        status_map = 'ACTIVE' if b_status in ('active', 'upcoming') else ('FULL' if b_status == 'full' else 'CLOSED')
+        expires_at = "2027-12-31T23:59:59Z"
+        opp_rows.append((
+            opp_id, qid, prov_id, otype, centre_name, f"Batch for {centre_name}",
+            dist, blk, dist, blk, centre_name, otype, addr, lat, lon, addr,
+            'offline_centre', b_start, b_end, b_start, b_end,
+            t_seats, a_seats, t_seats, a_seats, sc_seats,
+            stipend, stipend, toolkit, hostel,
+            src, status_map, b_status, v_worker, v_at, expires_at, c_at, c_at
+        ))
 
-    # 3. Seed Beneficiary (Rajesh Kumar)
+    conn.executemany("""
+        INSERT OR IGNORE INTO local_opportunities (
+            id, qualification_id, provider_id, opportunity_type, title, summary,
+            district_id, block_id, district, block, centre_or_employer_name, type, address, latitude, longitude, location_text,
+            delivery_mode, start_date, end_date, batch_start_date, batch_end_date,
+            seats_total, seats_available, total_seats, available_seats, sc_reserved_seats,
+            stipend_amount, stipend_amount_inr, free_toolkit_provided, hostel_available,
+            source, status, batch_status, verified_by_worker_id, verified_at, verification_expires_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """, opp_rows)
+
+    # 4. Seed Beneficiary (Rajesh Kumar)
     conn.execute("""
         INSERT OR IGNORE INTO beneficiaries (
             id, name, phone, gender, age, category, preferred_language,
@@ -272,7 +329,7 @@ def seed_database(conn: sqlite3.Connection):
         'hi', 'Moradabad', 'Chhajlet', 'Village Chhajlet', 'voice', now, now
     ))
 
-    # 4. Seed Consent
+    # 5. Seed Consent
     conn.execute("""
         INSERT OR IGNORE INTO consents (
             id, beneficiary_id, purpose, notice_version, audio_consent_recorded,
@@ -284,7 +341,15 @@ def seed_database(conn: sqlite3.Connection):
         '1.0', 1, 'do_not_keep', 1, now
     ))
 
-    # 5. Seed Interview Session
+    conn.execute("""
+        INSERT OR IGNORE INTO consent_records (
+            id, session_id, beneficiary_id, consent_type, policy_version, status, user_language, capture_channel, timestamp
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """, (
+        'cr_ben_rajesh_01', 'sess_rajesh_01', 'ben_rajesh_kumar', 'ai_processing', '1.0', 'granted', 'hi', 'web_app', now
+    ))
+
+    # 6. Seed Interview Session
     conn.execute("""
         INSERT OR IGNORE INTO interview_sessions (
             id, beneficiary_id, channel, status, current_question_index,
@@ -301,7 +366,7 @@ def seed_database(conn: sqlite3.Connection):
         ]), now, now
     ))
 
-    # 6. Seed Profile Answers
+    # 7. Seed Profile Answers
     answers = [
         ('ans_1', 'ben_rajesh_kumar', 'sess_rajesh_01', 'education_level', 'Class 10 Pass', 0.95, 'confirmed', 'voice_extraction', now, now),
         ('ans_2', 'ben_rajesh_kumar', 'sess_rajesh_01', 'interests', json.dumps(['Farming', 'Agri-Business', 'Repair work']), 0.90, 'confirmed', 'voice_extraction', now, now),
@@ -316,16 +381,17 @@ def seed_database(conn: sqlite3.Connection):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     """, answers)
 
-    # 7. Seed Recommendation
+    # 8. Seed Recommendation
     conn.execute("""
-        -- INSERT OR IGNORE INTO recommendations (
-            id, beneficiary_id, session_id, qualification_id, local_opportunity_id,
+        INSERT OR IGNORE INTO recommendations (
+            id, beneficiary_id, session_id, interview_id, qualification_id, local_opportunity_id,
             rank, score, score_breakdown, match_state, explanation_text,
             audio_explanation_script, tradeoff_summary, skill_gap_summary,
-            data_snapshot, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            data_snapshot, ranking_factors, hard_constraint_result, matched_skills, skill_gaps,
+            local_opportunity_status, caveat, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     """, (
-        'rec_seed_01', 'ben_rajesh_kumar', 'sess_rajesh_01',
+        'rec_seed_01', 'ben_rajesh_kumar', 'sess_rajesh_01', 'sess_rajesh_01',
         'qual_mushroom_07', 'opp_mushroom_chhajlet_07', 1, 0.91,
         json.dumps({'interest': 0.95, 'skills': 0.85, 'access': 0.90, 'demand': 0.85, 'preference': 1.0}),
         'Verified Match',
@@ -334,12 +400,18 @@ def seed_database(conn: sqlite3.Connection):
         'The training is nearby and supports self-employment.',
         'Practical cultivation experience may help build on your existing farming skills.',
         json.dumps({'qualification_id': 'qual_mushroom_07', 'opportunity_id': 'opp_mushroom_chhajlet_07'}),
+        json.dumps({'interest': 0.95, 'skills': 0.85, 'access': 0.90, 'demand': 0.85, 'preference': 1.0}),
+        json.dumps({'passed': True}),
+        json.dumps(['Compost Preparation', 'Spawning']),
+        json.dumps(['Cropping Management', 'Harvesting']),
+        'verified_open',
+        'This is a guidance recommendation, not confirmation of admission or placement.',
         now, now
     ))
 
-    # 8. Seed Referral
+    # 9. Seed Referral
     conn.execute("""
-        -- INSERT OR IGNORE INTO referrals (
+        INSERT OR IGNORE INTO referrals (
             id, beneficiary_id, recommendation_id, local_opportunity_id, assigned_worker_id,
             status, notes, caste_document_verified, income_criteria_verified, residence_proof_verified,
             sms_sent, whatsapp_sent, next_follow_up, created_at, updated_at
@@ -350,7 +422,18 @@ def seed_database(conn: sqlite3.Connection):
         '2026-10-05', now, now
     ))
 
-    # 9. Seed Planning Brief (District Moradabad)
+    conn.execute("""
+        INSERT OR IGNORE INTO referral_cases (
+            id, beneficiary_id, interview_id, recommendation_id, local_opportunity_id,
+            referral_reason, consent_verification_state, assigned_counselor_id, status, priority,
+            follow_up_date, notes, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'verified', 'worker_sunita_01', 'assigned', 'medium', '2026-10-05', 'Verified resident of Chhajlet. SC Certificate valid.', ?, ?);
+    """, (
+        'case_rajesh_01', 'ben_rajesh_kumar', 'sess_rajesh_01', 'rec_seed_01', 'opp_mushroom_chhajlet_07',
+        'user_requested_human_help', now, now
+    ))
+
+    # 10. Seed Planning Brief (District Moradabad)
     conn.execute("""
         INSERT OR IGNORE INTO planning_briefs (
             id, district, period, total_beneficiaries_interviewed, total_verified_matches,

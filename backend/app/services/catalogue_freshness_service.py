@@ -46,11 +46,11 @@ class CatalogueFreshnessService:
             
             updates = 0
             try:
-                # Find stale verified_open opportunities
+                # Find stale active opportunities using Sprint 4 status field
                 cursor.execute('''
                     SELECT id FROM local_opportunities 
                     WHERE (verified_at < ? OR verified_at IS NULL) 
-                    AND availability = 'verified_open'
+                    AND status = 'ACTIVE'
                 ''', (opp_threshold,))
                 stale_opp_ids = [r[0] for r in cursor.fetchall()]
                 
@@ -58,7 +58,7 @@ class CatalogueFreshnessService:
                     placeholders = ','.join('?' * len(stale_opp_ids))
                     cursor.execute(f'''
                         UPDATE local_opportunities 
-                        SET availability = 'unknown' 
+                        SET status = 'DRAFT'
                         WHERE id IN ({placeholders})
                     ''', stale_opp_ids)
                     updates = cursor.rowcount

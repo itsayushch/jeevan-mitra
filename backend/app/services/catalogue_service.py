@@ -15,18 +15,18 @@ class CatalogueService:
         if not verified_at_str:
             return True
         try:
-            # Handle YYYY-MM-DD or ISO strings
-            if len(verified_at_str) == 10:
+            if len(str(verified_at_str)) == 10:
                 v_date = datetime.strptime(verified_at_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
             else:
-                v_date = datetime.fromisoformat(verified_at_str.replace("Z", "+00:00"))
+                v_date = datetime.fromisoformat(str(verified_at_str).replace("Z", "+00:00"))
             return (datetime.now(timezone.utc) - v_date) > timedelta(days=CatalogueService.STALE_DATA_THRESHOLD_DAYS)
         except Exception:
             return True
 
     @staticmethod
     def list_qualifications(conn: sqlite3.Connection, sector: Optional[str] = None) -> List[Dict[str, Any]]:
-        query = "SELECT * FROM qualifications WHERE verification_status = 'verified'"
+        # Accept both legacy 'verified' (lowercase) and Sprint 4 'VERIFIED' (uppercase)
+        query = "SELECT * FROM qualifications WHERE UPPER(verification_status) = 'VERIFIED'"
         params = []
         if sector:
             query += " AND sector = ?"
@@ -38,8 +38,9 @@ class CatalogueService:
         for r in rows:
             d = dict(r)
             d["skills_acquired"] = json.loads(d.get("skills_acquired") or "[]")
-            d["official_source_url"] = d.get("official_source_url") or d.get("nqr_link")
-            d["last_verified_at"] = d.get("last_verified_at") or d.get("verification_date")
+            # Backwards-compat aliases
+            d["official_source_url"] = d.get("source_url") or d.get("nqr_link")
+            d["last_verified_at"] = d.get("verified_at") or d.get("verification_date")
             results.append(d)
         return results
 
@@ -51,19 +52,27 @@ class CatalogueService:
 
         qual = dict(row)
         qual["skills_acquired"] = json.loads(qual.get("skills_acquired") or "[]")
-        qual["official_source_url"] = qual.get("official_source_url") or qual.get("nqr_link")
+        qual["official_source_url"] = qual.get("source_url") or qual.get("nqr_link")
 
-        # Fetch linked non-archived opportunities
+        # Fetch linked non-closed/archived opportunities (use new status column)
         opp_rows = conn.execute("""
             SELECT * FROM local_opportunities
-            WHERE qualification_id = ? AND is_archived = 0;
+            WHERE qualification_id = ? AND status NOT IN ('CLOSED', 'ARCHIVED');
         """, (qual["id"],)).fetchall()
 
         opps = []
         for o in opp_rows:
             od = dict(o)
-            # Apply stale-data rule
-            if CatalogueService._is_stale(od.get("verified_at")):
+            # Apply stale-data rule using verification_expires_at or verified_at
+            expires = od.get("verification_expires_at")
+            if expires:
+                try:
+                    exp_dt = datetime.fromisoformat(str(expires).replace("Z", "+00:00"))
+                    if exp_dt <= datetime.now(timezone.utc):
+                        od["availability"] = "unknown"
+                except Exception:
+                    pass
+            elif CatalogueService._is_stale(od.get("verified_at")):
                 od["availability"] = "unknown"
             opps.append(od)
 
@@ -83,13 +92,13 @@ class CatalogueService:
         query = "SELECT * FROM local_opportunities WHERE 1=1"
         params = []
         if not include_archived:
-            query += " AND is_archived = 0"
+            query += " AND status NOT IN ('CLOSED', 'ARCHIVED')"
         if district:
-            query += " AND LOWER(district) = LOWER(?)"
-            params.append(district)
+            query += " AND (LOWER(district) = LOWER(?) OR LOWER(district_id) = LOWER(?))"
+            params.extend([district, district])
         if block:
-            query += " AND LOWER(block) = LOWER(?)"
-            params.append(block)
+            query += " AND (LOWER(block) = LOWER(?) OR LOWER(block_id) = LOWER(?))"
+            params.extend([block, block])
         if qualification_id:
             query += " AND qualification_id = ?"
             params.append(qualification_id)
@@ -100,9 +109,29 @@ class CatalogueService:
         results = []
         for r in rows:
             d = dict(r)
-            # Apply stale-data rule
-            if CatalogueService._is_stale(d.get("verified_at")):
+            expires = d.get("verification_expires_at")
+            is_expired = False
+            if expires:
+                try:
+                    exp_dt = datetime.fromisoformat(str(expires).replace("Z", "+00:00"))
+                    is_expired = exp_dt <= datetime.now(timezone.utc)
+                except Exception:
+                    is_expired = True
+            elif CatalogueService._is_stale(d.get("verified_at")):
+                is_expired = True
+
+            # Derive 'availability' from Sprint 4 status + staleness (backwards-compat field for tests)
+            opp_status = (d.get("status") or "").upper()
+            if is_expired or opp_status in ("EXPIRED", "CLOSED", "ARCHIVED"):
                 d["availability"] = "unknown"
+            elif opp_status == "ACTIVE":
+                # Only mark as verified_open if verification is not stale via verified_at
+                if CatalogueService._is_stale(d.get("verified_at")):
+                    d["availability"] = "unknown"
+                else:
+                    d["availability"] = "verified_open"
+            else:
+                d["availability"] = d.get("availability") or "unknown"
             results.append(d)
         return results
 
@@ -114,17 +143,20 @@ class CatalogueService:
 
         conn.execute("""
             INSERT INTO qualifications (
-                id, nqr_code, title, sector, nsqf_level, duration_hours,
+                id, nqr_code, external_reference, title, description, sector, nsqf_level, duration_hours,
                 min_education, min_education_rank, work_type, physical_intensity,
                 skills_acquired, curriculum_summary, entry_criteria, certification_body,
-                nqr_link, official_source_url, verification_status, verification_date, last_verified_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                nqr_link, source_name, source_url, verification_status, verification_date,
+                source_verified_at, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """, (
-            qual_id, data.nqr_code, data.title, data.sector, data.nsqf_level, data.duration_hours,
+            qual_id, data.nqr_code, data.nqr_code, data.title,
+            data.curriculum_summary or data.title, data.sector, data.nsqf_level, data.duration_hours,
             data.min_education, data.min_education_rank, data.work_type, data.physical_intensity,
             json.dumps(data.skills_acquired), data.curriculum_summary, data.entry_criteria,
-            data.certification_body, data.official_source_url, data.official_source_url,
-            data.verification_status or "verified", v_date, now
+            data.certification_body, data.official_source_url, data.certification_body or "NQR",
+            data.official_source_url,
+            data.verification_status or "VERIFIED", v_date, now, now, now
         ))
 
         log_audit_event(
@@ -151,8 +183,9 @@ class CatalogueService:
             update_dict["skills_acquired"] = json.dumps(update_dict["skills_acquired"])
         if "official_source_url" in update_dict:
             update_dict["nqr_link"] = update_dict["official_source_url"]
+            update_dict["source_url"] = update_dict["official_source_url"]
 
-        update_dict["last_verified_at"] = datetime.now(timezone.utc).isoformat()
+        update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
 
         set_clauses = [f"{k} = ?" for k in update_dict.keys()]
         params = list(update_dict.values()) + [qual_id]
@@ -185,21 +218,26 @@ class CatalogueService:
 
         conn.execute("""
             INSERT INTO local_opportunities (
-                id, qualification_id, centre_or_employer_name, type, district, block, state,
-                address, latitude, longitude, batch_start_date, batch_end_date,
-                total_seats, available_seats, sc_reserved_seats, batch_status, availability,
+                id, qualification_id, opportunity_type, title, summary,
+                district_id, block_id, district, block, centre_or_employer_name, type,
+                address, latitude, longitude, location_text,
+                delivery_mode, batch_start_date, batch_end_date,
+                total_seats, available_seats, seats_total, seats_available, sc_reserved_seats,
                 hostel_available, stipend_amount_inr, free_toolkit_provided, source, source_url,
-                contact_details, is_archived, verified_by_worker_id, verified_at, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                status, batch_status, verified_by_worker_id, verified_at, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """, (
-            opp_id, data.qualification_id, data.centre_or_employer_name, data.type,
-            data.district, data.block, data.state or "Uttar Pradesh", data.address,
-            data.latitude, data.longitude, data.batch_start_date, data.batch_end_date,
-            data.total_seats, data.available_seats, data.sc_reserved_seats,
-            data.batch_status, data.availability or "verified_open",
+            opp_id, data.qualification_id,
+            data.type or 'training_centre', data.centre_or_employer_name, data.centre_or_employer_name,
+            data.district, data.block, data.district, data.block,
+            data.centre_or_employer_name, data.type or 'training_centre',
+            data.address, data.latitude, data.longitude, data.address,
+            'offline_centre', data.batch_start_date, data.batch_end_date,
+            data.total_seats, data.available_seats, data.total_seats, data.available_seats, data.sc_reserved_seats,
             1 if data.hostel_available else 0, data.stipend_amount_inr,
             1 if data.free_toolkit_provided else 0, "pm_ajay_portal",
-            data.source_url, data.contact_details, 0, actor_id, now, now
+            data.source_url, "DRAFT", data.batch_status or "upcoming",
+            actor_id, now, now, now
         ))
 
         log_audit_event(
@@ -230,6 +268,7 @@ class CatalogueService:
 
         update_dict["verified_at"] = datetime.now(timezone.utc).isoformat()
         update_dict["verified_by_worker_id"] = actor_id
+        update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
 
         set_clauses = [f"{k} = ?" for k in update_dict.keys()]
         params = list(update_dict.values()) + [opp_id]
@@ -259,9 +298,9 @@ class CatalogueService:
 
         conn.execute("""
             UPDATE local_opportunities
-            SET is_archived = 1, availability = 'closed'
+            SET status = 'ARCHIVED', archived_at = ?
             WHERE id = ?;
-        """, (opp_id,))
+        """, (datetime.now(timezone.utc).isoformat(), opp_id))
 
         log_audit_event(
             conn=conn,
@@ -271,7 +310,7 @@ class CatalogueService:
             action="LOCAL_OPPORTUNITY_ARCHIVED",
             entity_type="local_opportunity",
             entity_id=opp_id,
-            new_values={"is_archived": 1, "availability": "closed"}
+            new_values={"status": "ARCHIVED"}
         )
 
         return {"status": "archived", "opportunity_id": opp_id}

@@ -90,19 +90,19 @@ class RecommendationService:
         user_edu_rank = education_to_rank(str(user_edu))
         user_coords = get_block_coordinates(block)
 
-        # 2. Fetch all verified qualifications
-        quals_cursor = conn.execute("SELECT * FROM qualifications WHERE verification_status = 'verified';")
+        # 2. Fetch all verified qualifications (support both legacy 'verified' and Sprint 4 'VERIFIED')
+        quals_cursor = conn.execute("SELECT * FROM qualifications WHERE UPPER(verification_status) = 'VERIFIED';")
         quals = [dict(r) for r in quals_cursor.fetchall()]
 
-        # 3. Fetch non-archived local opportunities for district
+        # 3. Fetch active, non-expired local opportunities for district
         opp_cursor = conn.execute("""
             SELECT * FROM local_opportunities
-            WHERE LOWER(district) = LOWER(?)
-              AND is_archived = 0
-              AND batch_status IN ('active', 'upcoming')
-              AND available_seats > 0
-              AND batch_end_date >= date('now');
-        """, (district,))
+            WHERE (LOWER(district) = LOWER(?) OR LOWER(district_id) = LOWER(?))
+              AND status NOT IN ('CLOSED', 'ARCHIVED')
+              AND (available_seats > 0 OR seats_available > 0)
+              AND (batch_end_date >= date('now') OR end_date >= date('now') OR batch_end_date IS NULL)
+              AND (verification_expires_at IS NULL OR verification_expires_at > datetime('now'));
+        """, (district, district))
         raw_opps = [dict(r) for r in opp_cursor.fetchall()]
 
         candidate_list = []
@@ -136,9 +136,27 @@ class RecommendationService:
             matching_opps = []
             for opp in raw_opps:
                 if opp.get("qualification_id") == qual_id:
-                    # Apply stale-data check
-                    is_stale = CatalogueService._is_stale(opp.get("verified_at"))
-                    opp_avail = "unknown" if is_stale else opp.get("availability", "verified_open")
+                    # Apply stale-data check using Sprint 4 verification_expires_at first
+                    expires_at = opp.get("verification_expires_at")
+                    is_expired = False
+                    if expires_at:
+                        try:
+                            exp_dt = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+                            is_expired = exp_dt <= datetime.now(timezone.utc)
+                        except Exception:
+                            is_expired = True
+                    elif CatalogueService._is_stale(opp.get("verified_at")):
+                        is_expired = True
+
+                    # Determine availability from Sprint 4 status field
+                    opp_status = opp.get("status", "").upper()
+                    if is_expired or opp_status in ("EXPIRED", "CLOSED", "ARCHIVED"):
+                        opp_avail = "unknown"
+                    elif opp_status == "ACTIVE":
+                        opp_avail = "verified_open"
+                    else:
+                        # Legacy: check batch_status
+                        opp_avail = opp.get("availability", "unknown")
 
                     # HARD FILTER 5: Travel / Mobility radius
                     dist = calculate_distance_km(
