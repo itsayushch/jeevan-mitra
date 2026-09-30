@@ -223,9 +223,27 @@ class PlanningExportService:
             )
 
     @staticmethod
-    def _generate_csv(snap_row: Any, agg: Dict[str, Any], scope: str) -> str:
+    def _sanitize_csv_cell(val: Any) -> Any:
+        if val is None:
+            return ""
+        s = str(val)
+        if s and s[0] in ("=", "+", "-", "@", "\t", "\r"):
+            s = "'" + s
+        s = s.replace("<script>", "&lt;script&gt;").replace("</script>", "&lt;/script&gt;")
+        return s
+
+    @classmethod
+    def _generate_csv(cls, snap_row: Any, agg: Dict[str, Any], scope: str) -> str:
         output = io.StringIO()
-        writer = csv.writer(output)
+        raw_writer = csv.writer(output)
+
+        class SanitizingWriter:
+            def __init__(self, inner):
+                self.inner = inner
+            def writerow(self, row):
+                self.inner.writerow([cls._sanitize_csv_cell(c) for c in row])
+
+        writer = SanitizingWriter(raw_writer)
 
         # Header metadata block
         writer.writerow(["# JeevanMitra 2.0 District Planning Export"])
