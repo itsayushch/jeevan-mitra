@@ -1,0 +1,656 @@
+JEEVANMITRA 2.0 — LLM INTERVIEWER INTEGRATION CONTRACT
+===============================================================
+
+PURPOSE
+-------
+This document is for any AI coding agent or developer working on the
+JeevanMitra 2.0 repository.
+
+The LLM Interviewer is being contributed as an independent module.
+The goal is to integrate it with the existing backend and frontend
+WITHOUT breaking or rewriting existing backend, frontend, ML model,
+ranking, prediction, dataset, or API logic.
+
+IMPORTANT:
+Treat the existing backend, frontend, and ML recommendation pipeline
+as existing working code. Do not redesign them unless explicitly asked.
+
+---------------------------------------------------------------
+1. OWNERSHIP / MODULE BEING CONTRIBUTED
+---------------------------------------------------------------
+
+The LLM Interviewer module is located at:
+
+Llm_nterviewer/
+
+Current important files:
+
+Llm_nterviewer/
+    interviwer.py
+    mapper.py
+    user_profile.json
+    ml_profile.json
+
+NOTE:
+The folder name "Llm_nterviewer" is intentional in the current project.
+DO NOT rename it unless explicitly requested.
+
+The interviewer uses:
+
+- Ollama
+- Qwen3:8b
+- Python ollama package
+- JSON structured output
+
+The interviewer collects beneficiary information through a
+one-question-at-a-time conversational interview.
+
+---------------------------------------------------------------
+2. DO NOT BREAK THESE EXISTING SYSTEMS
+---------------------------------------------------------------
+
+The following are OUT OF SCOPE for the LLM Interviewer integration:
+
+1. Existing React frontend
+2. Existing FastAPI backend architecture
+3. Existing ML model
+4. Existing prediction.py
+5. Existing ranker.py
+6. Existing fallback recommendation system
+7. Existing trained model files
+8. Existing course dataset
+9. Existing recommendation scoring logic
+10. Existing /predict API contract
+11. Existing database/data pipeline
+12. Existing authentication/security logic
+13. Existing frontend UI design
+
+DO NOT:
+
+- Rewrite the ML model.
+- Retrain or replace the ML model.
+- Change model features just to fit the interviewer.
+- Change ranker.py to accommodate the interviewer unless explicitly requested.
+- Change prediction.py unnecessarily.
+- Change course datasets.
+- Change recommendation scoring.
+- Change Top-K behavior.
+- Automatically call /predict from inside the interviewer.
+- Replace FastAPI with another framework.
+- Replace React.
+- Move the ML model into the LLM module.
+- Make the LLM generate recommendations itself.
+- Let the LLM invent missing beneficiary information.
+- Introduce a second recommendation system that competes with the ML model.
+
+The LLM is ONLY an information-collection/profile-generation layer.
+
+---------------------------------------------------------------
+3. CORE ARCHITECTURE
+---------------------------------------------------------------
+
+The intended architecture is:
+
+User
+  |
+  v
+Frontend
+  |
+  | POST /interview/start
+  v
+FastAPI Interview Endpoint
+  |
+  v
+Llm_nterviewer
+  |
+  v
+Qwen3:8b via Ollama
+  |
+  v
+Interview conversation
+  |
+  | POST /interview/message
+  v
+Interview completed
+  |
+  v
+user_profile
+  |
+  v
+mapper.py
+  |
+  v
+ml_profile
+  |
+  | USER EXPLICITLY CLICKS
+  | "Get Recommendations"
+  v
+POST /predict
+  |
+  v
+Existing prediction.py
+  |
+  v
+Existing ranker.py
+  |
+  v
+Existing trained ML model
+  |
+  v
+Top 3 recommendations
+  |
+  v
+Frontend results
+
+CRITICAL FLOW RULE:
+
+INTERVIEW COMPLETION MUST NOT AUTOMATICALLY CALL /predict.
+
+The user must explicitly request recommendations.
+
+---------------------------------------------------------------
+4. RESPONSIBILITY OF THE LLM INTERVIEWER
+---------------------------------------------------------------
+
+The interviewer is responsible for:
+
+- Asking useful questions.
+- Asking one question at a time.
+- Collecting beneficiary information.
+- Extracting structured profile information.
+- Avoiding repeated questions.
+- Adapting the next question based on known information.
+- Returning valid structured JSON.
+- Marking the interview as complete when sufficient information
+  has been collected.
+- Passing the collected profile to mapper.py.
+
+The interviewer is NOT responsible for:
+
+- Course recommendation.
+- Course ranking.
+- ML prediction.
+- NSQF ranking.
+- Recommendation scoring.
+- Training the ML model.
+- Selecting Top 3 courses.
+- Modifying the trained model.
+
+---------------------------------------------------------------
+5. LLM OUTPUT CONTRACT
+---------------------------------------------------------------
+
+The LLM should return JSON containing:
+
+{
+    "message": "...",
+    "profile": {
+        ...
+    },
+    "interview_complete": false
+}
+
+When the interview is complete:
+
+{
+    "message": "...",
+    "profile": {
+        ...
+    },
+    "interview_complete": true
+}
+
+The exact existing implementation should be preserved where possible.
+
+IMPORTANT:
+
+The LLM must NOT invent values.
+
+If information is unknown:
+
+    null
+
+should be used rather than guessing.
+
+For example:
+
+User did not provide income.
+
+Correct:
+
+"annual_family_income": null
+
+Incorrect:
+
+"annual_family_income": 120000
+
+---------------------------------------------------------------
+6. PROFILE FIELDS
+---------------------------------------------------------------
+
+The interviewer may collect fields such as:
+
+- age
+- gender
+- state
+- district
+- rural_urban
+- education_level
+- education_stream
+- annual_family_income
+- employment_status
+- current_occupation
+- work_experience_years
+- digital_literacy
+- communication_skill
+- numerical_skill
+- technical_skill
+- entrepreneurial_skill
+- existing_skill_level
+- career_interest
+- preferred_occupation
+- preferred_industry
+- preferred_work_type
+- preferred_training_mode
+- preferred_language
+- previous_training
+- previous_training_count
+- preferred_duration
+
+Backend-derived fields must NOT be invented by the LLM.
+
+Examples:
+
+- beneficiary_id
+- latitude
+- longitude
+- distance_to_training_center_km
+- training_center_availability
+- local_job_demand
+- local_industry
+- training_completion_rate
+- social_category
+
+If these values are not supplied by a trusted backend/data source,
+leave them null or allow the existing backend defaults to handle them.
+
+---------------------------------------------------------------
+7. mapper.py RESPONSIBILITY
+---------------------------------------------------------------
+
+mapper.py converts the conversational LLM profile into the profile
+format expected by the existing ML prediction pipeline.
+
+Conceptually:
+
+user_profile.json
+       |
+       v
+mapper.py
+       |
+       v
+ml_profile.json
+       |
+       v
+existing /predict
+       |
+       v
+existing ML model
+
+The mapper may normalize:
+
+- education values
+- skill levels
+- career/industry names
+- employment status
+- work type
+- training mode
+- duration
+- language
+
+Do NOT change mappings casually.
+
+IMPORTANT EXAMPLE:
+
+12th should map to:
+
+"Senior_Secondary"
+
+Do not change it to "Secondary" unless the existing ML schema explicitly
+requires that value.
+
+---------------------------------------------------------------
+8. ML INTEGRATION RULE
+---------------------------------------------------------------
+
+The LLM interviewer must feed the existing ML pipeline.
+
+It must NOT replace the ML pipeline.
+
+Correct:
+
+LLM
+  -> profile
+  -> mapper
+  -> ml_profile
+  -> existing /predict
+  -> existing prediction.py
+  -> existing ranker.py
+  -> existing ML model
+  -> Top 3
+
+Incorrect:
+
+LLM
+  -> directly chooses courses
+
+Incorrect:
+
+LLM
+  -> generates course recommendations
+
+Incorrect:
+
+LLM
+  -> replaces ranker.py
+
+Incorrect:
+
+LLM
+  -> changes ML model weights
+
+---------------------------------------------------------------
+9. TOP 3 RECOMMENDATIONS
+---------------------------------------------------------------
+
+The existing recommendation system is responsible for Top-K prediction.
+
+For the normal frontend flow:
+
+top_k = 3
+
+The LLM interviewer should NOT manually select the Top 3.
+
+It only supplies the beneficiary profile.
+
+The existing ML system decides the ranking.
+
+The expected flow is:
+
+ml_profile
+    |
+    v
+/predict
+    |
+    v
+prediction.py
+    |
+    v
+ranker.py
+    |
+    v
+trained ML model
+    |
+    v
+Top 3 courses
+
+Do not modify this ranking logic simply to integrate the interviewer.
+
+---------------------------------------------------------------
+10. FRONTEND INTEGRATION CONTRACT
+---------------------------------------------------------------
+
+The frontend team/agent may build any UI they want.
+
+The LLM module must expose the information required by the existing
+backend API.
+
+Expected frontend flow:
+
+SCREEN 1
+Welcome
+    |
+    v
+POST /interview/start
+    |
+    v
+Receive session_id
+    |
+    v
+CHAT SCREEN
+    |
+    v
+POST /interview/message
+    |
+    v
+Continue until:
+interview_complete = true
+    |
+    v
+Receive ml_profile
+    |
+    v
+Show "Get My Recommendations"
+    |
+    v
+User clicks button
+    |
+    v
+POST /predict
+    |
+    v
+Display Top 3 recommendations
+
+IMPORTANT:
+
+Do NOT automatically request recommendations immediately when the
+interview finishes.
+
+The recommendation request must happen only after explicit user action.
+
+---------------------------------------------------------------
+11. BACKEND INTEGRATION CONTRACT
+---------------------------------------------------------------
+
+The backend should remain the integration layer.
+
+The interviewer should NOT create a second independent backend.
+
+Existing backend endpoints include:
+
+GET /
+GET /health
+POST /interview/start
+POST /interview/message
+POST /predict
+POST /predict/fallback
+
+The backend should connect:
+
+/interview/start
+        |
+        v
+LLM interviewer session
+
+/interview/message
+        |
+        v
+LLM interviewer
+        |
+        v
+mapper.py
+        |
+        v
+ml_profile
+
+/predict
+        |
+        v
+existing ML prediction pipeline
+
+Do not duplicate /predict logic inside Llm_nterviewer.
+
+---------------------------------------------------------------
+12. SESSION MANAGEMENT
+---------------------------------------------------------------
+
+The interview uses a session-based conversation.
+
+A session contains the conversation history needed by Qwen3.
+
+The backend should:
+
+1. Create a session ID.
+2. Store/init the conversation.
+3. Receive user messages.
+4. Send conversation to Qwen3.
+5. Return the assistant response.
+6. Continue until interview_complete = true.
+7. Return the final profile/ml_profile.
+
+Do not mix different users' conversation histories.
+
+Do not use a single global conversation for every user.
+
+---------------------------------------------------------------
+13. FILE WRITING
+---------------------------------------------------------------
+
+The current implementation may save:
+
+Llm_nterviewer/user_profile.json
+Llm_nterviewer/ml_profile.json
+
+These are useful for local testing.
+
+However, for production/multi-user deployment, do not assume that a
+single shared JSON file is safe for concurrent users.
+
+If production persistence is later required, introduce a proper
+session/database/storage design separately.
+
+Do NOT redesign this now unless explicitly requested.
+
+---------------------------------------------------------------
+14. OLLAMA REQUIREMENT
+---------------------------------------------------------------
+
+Current local LLM:
+
+Model:
+qwen3:8b
+
+Provider:
+Ollama
+
+The existing interviewer uses the Python ollama package.
+
+Do not replace Qwen3 with another model automatically.
+
+Do not add Gemini/Groq/OpenAI API calls unless explicitly requested.
+
+If a future deployment needs a cloud model, make it configurable
+without breaking the interviewer interface.
+
+---------------------------------------------------------------
+15. ERROR HANDLING
+---------------------------------------------------------------
+
+The integration must handle:
+
+- Ollama unavailable
+- Qwen3 model unavailable
+- invalid JSON from LLM
+- missing profile fields
+- invalid mapper value
+- invalid /predict request
+- ML prediction failure
+
+If ML prediction fails, use the existing backend fallback behavior.
+
+Do not silently replace the ML model with LLM-generated recommendations.
+
+---------------------------------------------------------------
+16. SAFE CHANGE POLICY FOR AI CODING AGENTS
+---------------------------------------------------------------
+
+Before modifying anything:
+
+1. Inspect the existing code.
+2. Identify which files belong to the requested task.
+3. Do not rewrite unrelated files.
+4. Do not refactor working code unnecessarily.
+5. Preserve existing API contracts.
+6. Preserve existing ML inputs.
+7. Preserve existing Top-K ranking.
+8. Preserve existing datasets.
+9. Run existing tests if available.
+10. Test the integration after changes.
+
+If an integration requires changing another team's file:
+
+- Explain why the change is required.
+- Make the smallest possible change.
+- Do not rewrite the entire file.
+- Preserve all unrelated behavior.
+
+---------------------------------------------------------------
+17. DEFINITION OF DONE
+---------------------------------------------------------------
+
+The integration is successful when:
+
+[ ] Frontend can start an interview.
+[ ] Backend creates an interview session.
+[ ] Qwen3 conducts the interview.
+[ ] User can answer multiple questions.
+[ ] Interview does not repeat known information unnecessarily.
+[ ] Interview eventually returns interview_complete=true.
+[ ] Profile is mapped into ml_profile.
+[ ] No information is invented.
+[ ] /predict is NOT called automatically.
+[ ] User clicks "Get Recommendations".
+[ ] Frontend sends ml_profile to /predict.
+[ ] Existing prediction.py receives the profile.
+[ ] Existing ranker.py remains responsible for ranking.
+[ ] Existing trained ML model remains unchanged.
+[ ] Existing Top 3 recommendation behavior remains unchanged.
+[ ] Recommendation results reach the frontend.
+[ ] Existing backend functionality still works.
+[ ] Existing frontend functionality still works.
+
+---------------------------------------------------------------
+18. GOLDEN RULE
+---------------------------------------------------------------
+
+The LLM Interviewer is an INPUT/PROFILE COLLECTION component.
+
+It is NOT the recommendation engine.
+
+FINAL PIPELINE:
+
+USER
+  ↓
+LLM INTERVIEWER
+  ↓
+PROFILE
+  ↓
+MAPPER
+  ↓
+ML_PROFILE
+  ↓
+EXISTING ML /predict
+  ↓
+EXISTING RANKER
+  ↓
+EXISTING TRAINED MODEL
+  ↓
+TOP 3 RECOMMENDATIONS
+
+KEEP THESE RESPONSIBILITIES SEPARATE.
+
+Do not let one component take over another component's responsibility.
+
+---------------------------------------------------------------
+END OF INTEGRATION CONTRACT
+---------------------------------------------------------------

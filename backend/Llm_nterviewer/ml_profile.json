@@ -1,0 +1,13 @@
+{
+    "age": 20,
+    "state": "West bengal",
+    "district": "Malda",
+    "education_level": "Secondary",
+    "education_stream": "Science",
+    "employment_status": "Unemployed",
+    "career_interest": "data science",
+    "preferred_work_type": "Full_Time",
+    "preferred_training_mode": "Hybrid",
+    "preferred_language": "Bengali",
+    "preferred_duration": "Medium"
+}
