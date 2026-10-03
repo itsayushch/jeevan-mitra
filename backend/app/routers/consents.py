@@ -20,9 +20,8 @@ def record_consent(data: Dict[str, Any], actor: Actor = Depends(get_current_acto
 
     with get_db() as conn:
         if "consent_type" in data:
-	    if not data.get("session_id") and actor.session_id:
+            if not data.get("session_id") and actor.session_id:
                 data["session_id"] = actor.session_id
-
         if not data.get("beneficiary_id") and actor.beneficiary_id:
             data["beneficiary_id"] = actor.beneficiary_id
             req = ConsentRecordCreate(**data)
