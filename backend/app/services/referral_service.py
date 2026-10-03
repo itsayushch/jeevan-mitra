@@ -146,9 +146,9 @@ class ReferralService:
         current_status = existing["status"]
         valid_transitions = {
             "new": ["assigned"],
-            "assigned": ["contacted"],
-            "contacted": ["documents_verified"],
-            "documents_verified": ["enrolled"],
+            "assigned": ["contacted", "in_progress"],
+            "contacted": ["documents_verified", "in_progress"],
+            "documents_verified": ["enrolled", "in_progress"],
             "enrolled": ["in_progress"],
             "in_progress": ["completed", "dropped_out"],
             "completed": [],
