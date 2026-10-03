@@ -7,8 +7,9 @@ from datetime import datetime
 # 1. Consent Models (A1)
 # ============================================================================
 class ConsentCreate(BaseModel):
-    beneficiary_id: str
-    purpose: str
+    beneficiary_id: Optional[str] = None
+    session_id: Optional[str] = None
+    purpose: Optional[str] = "PM-AJAY livelihood guidance"
     notice_version: Optional[str] = "1.0"
     audio_consent_recorded: Optional[bool] = True
     voice_retention_choice: Optional[str] = "do_not_keep"

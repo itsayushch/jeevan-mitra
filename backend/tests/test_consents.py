@@ -147,3 +147,96 @@ def test_counselor_referral_consent_required_and_revocation(client):
     cases = my_refs.json()
     assert len(cases) > 0
     assert cases[0]["status"] == "closed"
+
+def test_anonymous_session_consent_with_dual_headers(client):
+    # Create anonymous session
+    sess_res = client.post("/api/v1/sessions", json={"owner_type": "anonymous"})
+    assert sess_res.status_code == 201
+    session_id = sess_res.json()["session_id"]
+    session_token = sess_res.json()["session_token"]
+    
+    headers = {
+        "X-Session-ID": session_id,
+        "X-Session-Token": session_token
+    }
+
+    # Record consent with standard anonymous payload
+    consent_res = client.post("/api/v1/consents", json={
+        "session_id": session_id,
+        "consent_type": "ai_processing",
+        "granted": True
+    }, headers=headers)
+    assert consent_res.status_code == 201
+    consent_data = consent_res.json()
+    assert consent_data["session_id"] == session_id
+    assert consent_data["consent_type"] == "ai_processing"
+    assert consent_data["status"] == "granted"
+
+    # Start interview should succeed now
+    start_res = client.post("/api/v1/interviews/start", json={
+        "session_id": session_id,
+        "language": "hi"
+    }, headers=headers)
+    assert start_res.status_code == 201
+    assert start_res.json()["status"] == "collecting"
+
+def test_anonymous_session_consent_inferred_from_headers(client):
+    sess_res = client.post("/api/v1/sessions")
+    session_id = sess_res.json()["session_id"]
+    session_token = sess_res.json()["session_token"]
+    headers = {
+        "X-Session-ID": session_id,
+        "X-Session-Token": session_token
+    }
+
+    # Record consent without session_id in the json body
+    consent_res = client.post("/api/v1/consents", json={
+        "consent_type": "ai_processing",
+        "granted": True
+    }, headers=headers)
+    assert consent_res.status_code == 201
+    assert consent_res.json()["session_id"] == session_id
+
+def test_legacy_consent_payload_with_session(client):
+    sess_res = client.post("/api/v1/sessions")
+    session_id = sess_res.json()["session_id"]
+    session_token = sess_res.json()["session_token"]
+    headers = {
+        "X-Session-ID": session_id,
+        "X-Session-Token": session_token
+    }
+
+    # Legacy format consent with session_id
+    consent_res = client.post("/api/v1/consents", json={
+        "session_id": session_id,
+        "dpdp_affirmative_consent": True
+    }, headers=headers)
+    assert consent_res.status_code == 201
+    assert consent_res.json()["session_id"] == session_id
+    assert consent_res.json()["status"] == "granted"
+
+def test_legacy_consent_with_beneficiary(client):
+    # Record legacy consent for an existing beneficiary via field worker
+    worker_headers = {"X-Worker-API-Key": settings.WORKER_API_KEY}
+    consent_res = client.post("/api/v1/consents", json={
+        "beneficiary_id": "ben_rajesh_kumar",
+        "purpose": "PM-AJAY livelihood guidance",
+        "dpdp_affirmative_consent": True
+    }, headers=worker_headers)
+    assert consent_res.status_code == 201
+    assert consent_res.json()["beneficiary_id"] == "ben_rajesh_kumar"
+    assert consent_res.json()["status"] == "granted"
+
+def test_consent_security_mismatched_session_rejected(client):
+    sess_res = client.post("/api/v1/sessions")
+    session_token = sess_res.json()["session_token"]
+    headers = {"X-Session-Token": session_token}
+
+    # Attempt to record consent for a different session_id -> 403 Forbidden
+    consent_res = client.post("/api/v1/consents", json={
+        "session_id": "sess_another_session_123",
+        "consent_type": "ai_processing",
+        "granted": True
+    }, headers=headers)
+    assert consent_res.status_code == 403
+

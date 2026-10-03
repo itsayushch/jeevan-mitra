@@ -13,38 +13,70 @@ def record_consent(data: Dict[str, Any], actor: Actor = Depends(get_current_acto
     Records versioned consent under A1. Supports both ConsentRecordCreate and legacy ConsentCreate payloads.
     """
     if not actor.is_staff():
-        if data.get("session_id") and data["session_id"] != actor.session_id:
+        if data.get("session_id") and actor.session_id and data["session_id"] != actor.session_id:
             raise HTTPException(status_code=403, detail="Session does not belong to caller")
-        if data.get("beneficiary_id") and data["beneficiary_id"] != actor.beneficiary_id:
+        if data.get("beneficiary_id") and actor.beneficiary_id and data["beneficiary_id"] != actor.beneficiary_id:
             raise HTTPException(status_code=403, detail="Beneficiary does not belong to caller")
 
     with get_db() as conn:
-        if "consent_type" in data:
-            if not data.get("session_id") and actor.session_id:
-                data["session_id"] = actor.session_id
+        if not data.get("session_id") and actor.session_id:
+            data["session_id"] = actor.session_id
         if not data.get("beneficiary_id") and actor.beneficiary_id:
             data["beneficiary_id"] = actor.beneficiary_id
+
+        if "consent_type" in data:
+            sess_id = data.get("session_id")
+            ben_id = data.get("beneficiary_id")
+
+            if not sess_id and not ben_id:
+                raise HTTPException(status_code=422, detail="Either session_id or beneficiary_id is required")
+
+            if ben_id and ben_id.startswith("ben_"):
+                ben = conn.execute("SELECT id FROM beneficiaries WHERE id = ?;", (ben_id,)).fetchone()
+                if not ben:
+                    raise HTTPException(status_code=404, detail="Beneficiary not found")
+
             req = ConsentRecordCreate(**data)
             return ConsentService.record_consent(conn, req, actor_id=actor.actor_id)
         else:
             # Legacy consent model mapping
             ben_id = data.get("beneficiary_id")
-            if not ben_id:
+            sess_id = data.get("session_id")
+
+            if ben_id:
+                # Check beneficiary exists
+                ben = conn.execute("SELECT id FROM beneficiaries WHERE id = ?;", (ben_id,)).fetchone()
+                if not ben:
+                    raise HTTPException(status_code=404, detail="Beneficiary not found")
+
+                # Record in both legacy and versioned consent systems
+                rec = ConsentRecordCreate(
+                    beneficiary_id=ben_id,
+                    session_id=sess_id,
+                    consent_type="dpdp_general",
+                    policy_version=data.get("notice_version", "1.0"),
+                    user_language=data.get("user_language", "hi"),
+                    capture_channel=data.get("capture_channel", "web_app"),
+                    granted=bool(data.get("dpdp_affirmative_consent", data.get("granted", True)))
+                )
+                return ConsentService.record_consent(conn, rec, actor_id=actor.actor_id)
+            elif sess_id:
+                # Check session exists
+                sess = conn.execute("SELECT id FROM anonymous_sessions WHERE id = ?;", (sess_id,)).fetchone()
+                if not sess:
+                    raise HTTPException(status_code=404, detail="Session not found")
+
+                rec = ConsentRecordCreate(
+                    session_id=sess_id,
+                    consent_type="dpdp_general",
+                    policy_version=data.get("notice_version", "1.0"),
+                    user_language=data.get("user_language", "hi"),
+                    capture_channel=data.get("capture_channel", "web_app"),
+                    granted=bool(data.get("dpdp_affirmative_consent", data.get("granted", True)))
+                )
+                return ConsentService.record_consent(conn, rec, actor_id=actor.actor_id)
+            else:
                 raise HTTPException(status_code=422, detail="beneficiary_id is required")
-
-            # Check beneficiary exists
-            ben = conn.execute("SELECT id FROM beneficiaries WHERE id = ?;", (ben_id,)).fetchone()
-            if not ben:
-                raise HTTPException(status_code=404, detail="Beneficiary not found")
-
-            # Record in both legacy and versioned consent systems
-            rec = ConsentRecordCreate(
-                beneficiary_id=ben_id,
-                consent_type="dpdp_general",
-                policy_version=data.get("notice_version", "1.0"),
-                granted=bool(data.get("dpdp_affirmative_consent", True))
-            )
-            return ConsentService.record_consent(conn, rec, actor_id=actor.actor_id)
 
 @router.get("/{session_or_beneficiary_id}")
 def get_consents_by_id(

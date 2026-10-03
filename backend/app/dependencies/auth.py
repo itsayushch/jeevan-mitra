@@ -75,6 +75,8 @@ def get_current_actor(
 
             if sess:
                 expires_at = datetime.fromisoformat(sess["expires_at"])
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
                 if expires_at > datetime.now(timezone.utc):
                     return Actor(
                         actor_id=sess["id"],

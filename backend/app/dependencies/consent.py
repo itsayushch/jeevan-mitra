@@ -18,25 +18,25 @@ def verify_consent(
     if not beneficiary_id and not session_id:
         raise ConsentRequiredException(consent_type, "Neither beneficiary_id nor session_id was provided to verify consent.")
 
-    # 1. Query latest versioned consent record for this type
+    # 1. Query latest versioned consent record for this type (or general DPDP consent)
     query = """
-        SELECT status, revocation_reason
+        SELECT consent_type, status, revocation_reason
         FROM consent_records
-        WHERE consent_type = ?
+        WHERE (consent_type = ? OR consent_type = 'dpdp_general')
           AND (
             (session_id IS NOT NULL AND session_id = ?)
             OR (beneficiary_id IS NOT NULL AND beneficiary_id = ?)
           )
-        ORDER BY timestamp DESC, rowid DESC
+        ORDER BY (CASE WHEN consent_type = ? THEN 1 ELSE 2 END) ASC, timestamp DESC, rowid DESC
         LIMIT 1;
     """
-    row = conn.execute(query, (consent_type, session_id or "", beneficiary_id or "")).fetchone()
+    row = conn.execute(query, (consent_type, session_id or "", beneficiary_id or "", consent_type)).fetchone()
 
     if row:
         if row["status"] == "revoked":
             raise ConsentRevokedException(
                 consent_type,
-                f"Consent for '{consent_type}' was explicitly revoked: {row['revocation_reason'] or 'No reason provided.'}"
+                f"Consent for '{row['consent_type']}' was explicitly revoked: {row['revocation_reason'] or 'No reason provided.'}"
             )
         elif row["status"] == "granted":
             return  # Consent verified
