@@ -58,6 +58,76 @@ def test_provider_failure_rolls_back_turn(client, monkeypatch):
     assert len(client.get(f'/api/v1/interviews/{iid}', headers=headers).json()['turns']) == 1
 
 
+def test_gpt_oss_requests_enforced_profile_schema(client, monkeypatch):
+    monkeypatch.setattr(settings, 'GROQ_API_KEY', 'test-key')
+    monkeypatch.setattr(settings, 'GROQ_MODEL', 'openai/gpt-oss-120b')
+    def groq(url, **kwargs):
+        payload = kwargs['json']
+        output = payload['response_format']['json_schema']
+        assert output['strict'] is True
+        schema = output['schema']
+        assert set(schema['required']) == {'message', 'profile'}
+        profile = schema['properties']['profile']
+        assert set(profile['required']) == set(profile['properties'])
+        assert profile['additionalProperties'] is False
+        assert profile['properties']['interests']['type'] == 'array'
+        assert {'type': 'null'} in profile['properties']['district']['anyOf']
+        assert payload['reasoning_effort'] == 'low'
+        content = {'message': 'Where do you live?', 'profile': {'current_work': 'Tailor'}}
+        return httpx.Response(200, request=httpx.Request('POST', url), json={'choices': [{'finish_reason': 'stop', 'message': {'content': json.dumps(content)}}]})
+    monkeypatch.setattr('Llm_nterviewer.interviwer.httpx.post', groq)
+    sid, headers = session(client)
+    iid = client.post('/api/v1/interviews/start', headers=headers, json={'session_id': sid}).json()['interview_id']
+    result = client.post(f'/api/v1/interviews/{iid}/turns', headers=headers, json={'text': 'I work as a tailor.', 'mode': 'voice'})
+    assert result.status_code == 200
+    assert result.json()['inferred_profile']['district'] is None
+
+
+def test_invalid_profile_reports_fields_without_personal_values(client, monkeypatch, caplog):
+    def invalid(*args):
+        return {'message': 'Next question', 'profile': {'interests': None, 'unexpected': 'private-test-value'}}
+    monkeypatch.setattr('Llm_nterviewer.interviwer.interview_turn', invalid)
+    sid, headers = session(client)
+    iid = client.post('/api/v1/interviews/start', headers=headers, json={'session_id': sid}).json()['interview_id']
+    result = client.post(f'/api/v1/interviews/{iid}/turns', headers=headers, json={'text': 'My answer', 'mode': 'voice'})
+    assert result.status_code == 502
+    assert result.json()['detail']['code'] == 'VOICE_INVALID_RESPONSE'
+    assert 'profile.interests' in caplog.text
+    assert 'private-test-value' not in caplog.text + result.text
+    detail = client.get(f'/api/v1/interviews/{iid}', headers=headers).json()
+    assert len(detail['turns']) == 1
+    assert not detail['fields']
+
+
+@pytest.mark.parametrize('finish,content', [('length', '{"message":"partial"}'), ('stop', '{invalid json')])
+def test_incomplete_provider_json_does_not_commit(client, monkeypatch, finish, content):
+    monkeypatch.setattr(settings, 'GROQ_API_KEY', 'test-key')
+    def groq(url, **kwargs):
+        return httpx.Response(200, request=httpx.Request('POST', url), json={'choices': [{'finish_reason': finish, 'message': {'content': content}}]})
+    monkeypatch.setattr('Llm_nterviewer.interviwer.httpx.post', groq)
+    sid, headers = session(client)
+    iid = client.post('/api/v1/interviews/start', headers=headers, json={'session_id': sid}).json()['interview_id']
+    result = client.post(f'/api/v1/interviews/{iid}/turns', headers=headers, json={'text': 'My answer', 'mode': 'voice'})
+    assert result.status_code == 502
+    assert result.json()['detail']['code'] == 'VOICE_INVALID_RESPONSE'
+    assert len(client.get(f'/api/v1/interviews/{iid}', headers=headers).json()['turns']) == 1
+
+
+@pytest.mark.parametrize('status', [401, 429])
+def test_provider_errors_explain_failure_without_leaking_response(client, monkeypatch, status):
+    monkeypatch.setattr(settings, 'GROQ_API_KEY', 'test-key')
+    def groq(url, **kwargs):
+        return httpx.Response(status, request=httpx.Request('POST', url), json={'error': {'message': 'private-test-value'}})
+    monkeypatch.setattr('Llm_nterviewer.interviwer.httpx.post', groq)
+    sid, headers = session(client)
+    iid = client.post('/api/v1/interviews/start', headers=headers, json={'session_id': sid}).json()['interview_id']
+    result = client.post(f'/api/v1/interviews/{iid}/turns', headers=headers, json={'text': 'My answer', 'mode': 'voice'})
+    assert result.status_code == 503
+    assert result.json()['detail']['code'] == 'VOICE_PROVIDER_ERROR'
+    assert ('busy' if status == 429 else 'credentials') in result.json()['detail']['message']
+    assert 'private-test-value' not in result.text
+
+
 def test_audio_adapter_forwards_real_audio_and_rejects_silence(client, monkeypatch):
     monkeypatch.setattr(settings, 'GROQ_API_KEY', 'test-key')
     payload = {'text': 'नमस्ते', 'segments': [{'no_speech_prob': 0.1}]}

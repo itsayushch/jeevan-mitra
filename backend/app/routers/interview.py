@@ -215,32 +215,37 @@ def process_interview_turn(
             next_turn["mode"], json.dumps(extracted), now
         ))
 
-        # Save AI-inferred fields into profile_field_values as unconfirmed
+        # Load field history once and batch writes while preserving revisions.
+        existing_fields = {row['field_name']: row for row in conn.execute(
+            'SELECT id, field_name, field_value, version FROM profile_field_values WHERE interview_id = ?;',
+            (interview_id,)).fetchall()}
+        updates, inserts = [], []
         for field, val in extracted.items():
             if field in ["confidence_scores", "clarification_needed"]:
                 continue
             conf = extracted.get("confidence_scores", {}).get(field, 0.85)
 
-            existing_f = conn.execute("""
-                SELECT id, field_value, version FROM profile_field_values
-                WHERE interview_id = ? AND field_name = ?;
-            """, (interview_id, field)).fetchone()
+            existing_f = existing_fields.get(field)
 
             val_str = json.dumps(val) if val is None or isinstance(val, (list, dict)) else str(val)
 
             if existing_f:
-                conn.execute("""
+                updates.append((val_str, conf, existing_f["field_value"], now, existing_f["id"]))
+            else:
+                inserts.append((f"pfv_{uuid.uuid4().hex[:10]}", interview_id, target_ben_id, field, val_str, conf, now, now))
+        if updates:
+            conn.executemany("""
                     UPDATE profile_field_values
                     SET field_value = ?, confidence = ?, previous_value = ?, user_confirmed = 0, source = 'ai_inferred', version = version + 1, updated_at = ?
                     WHERE id = ?;
-                """, (val_str, conf, existing_f["field_value"], now, existing_f["id"]))
-            else:
-                conn.execute("""
+                """, updates)
+        if inserts:
+            conn.executemany("""
                     INSERT INTO profile_field_values (
                         id, interview_id, beneficiary_id, field_name, field_value,
                         source, confidence, user_confirmed, version, created_at, updated_at
                     ) VALUES (?, ?, ?, ?, ?, 'ai_inferred', ?, 0, 1, ?, ?);
-                """, (f"pfv_{uuid.uuid4().hex[:10]}", interview_id, target_ben_id, field, val_str, conf, now, now))
+                """, inserts)
 
         # State transition
         new_status = "awaiting_confirmation" if next_turn["is_final"] else "collecting"

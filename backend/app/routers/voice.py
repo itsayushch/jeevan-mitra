@@ -8,6 +8,7 @@ from app.config import settings
 from app.dependencies.auth import Actor, get_current_actor
 from app.dependencies.consent import verify_consent
 from app.database import get_db
+from fastapi.responses import StreamingResponse
 
 router = APIRouter(prefix='/voice', tags=['Voice'])
 Language = Literal['hi', 'en']
@@ -37,11 +38,17 @@ async def transcribe(request: Request, language: Language = 'hi', actor: Actor =
             raise HTTPException(413, 'Please speak in shorter turns.')
     if len(audio) < 100:
         raise HTTPException(422, 'No audio was recorded.')
+    return {'text': await recognize_audio(bytes(audio), mime, extensions[mime], language)}
+
+
+async def recognize_audio(audio: bytes, mime: str, extension: str, language: str) -> str:
+    if not settings.GROQ_API_KEY:
+        raise HTTPException(503, 'Speech recognition is not configured.')
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             result = await client.post('https://api.groq.com/openai/v1/audio/transcriptions',
                 headers={'Authorization': f'Bearer {settings.GROQ_API_KEY}'},
-                files={'file': (f'turn.{extensions[mime]}', bytes(audio), mime)},
+                files={'file': (f'turn.{extension}', audio, mime)},
                 data={'model': settings.GROQ_STT_MODEL, 'language': language, 'response_format': 'verbose_json'})
             result.raise_for_status()
             payload = result.json()
@@ -51,7 +58,7 @@ async def transcribe(request: Request, language: Language = 'hi', actor: Actor =
         text = payload.get('text', '').strip()
         if not text:
             raise HTTPException(422, 'No clear speech was detected. Please repeat.')
-        return {'text': text[:4000]}
+        return text[:4000]
     except (httpx.HTTPError, ValueError, KeyError) as exc:
         raise HTTPException(503, 'Speech recognition is temporarily unavailable.') from exc
 
@@ -62,12 +69,35 @@ class SpeechRequest(BaseModel):
     slow: bool = False
 
 
+async def neural_speech(data: SpeechRequest):
+    """Stream MPEG frames as soon as the cloud voice produces them."""
+    import edge_tts
+    voice = settings.VOICE_HI_VOICE if data.language == 'hi' else settings.VOICE_EN_VOICE
+    async for chunk in edge_tts.Communicate(data.text, voice, rate='-20%' if data.slow else '+0%',
+                                           connect_timeout=8, receive_timeout=12).stream():
+        if chunk['type'] == 'audio':
+            yield chunk['data']
+
+
+@router.get('/notice')
+async def voice_notice(language: Language = 'hi'):
+    # Fixed public notice: no arbitrary input, credentials or personal data sent.
+    text = ('शुरू करने पर आवाज़ का AI द्वारा उपयोग और उत्तर सुरक्षित रखने की अनुमति मिलती है। '
+            'ऐप ऑडियो सुरक्षित नहीं रखता। सलाहकार से साझा करने के लिए अलग अनुमति ली जाएगी।'
+            if language == 'hi' else
+            'Starting gives permission to process your speech with AI and store your answers for guidance. '
+            'Your audio is not saved by this app. Sharing with a counselor requires separate permission.')
+    return StreamingResponse(neural_speech(SpeechRequest(text=text, language=language)),
+                             media_type='audio/mpeg', headers={'Cache-Control': 'public, max-age=86400'})
+
+
 @router.post('/speak')
 async def speak(data: SpeechRequest, actor: Actor = Depends(get_current_actor)):
     require_voice_consent(actor)
+    if settings.VOICE_TTS_PROVIDER == 'edge':
+        return StreamingResponse(neural_speech(data), media_type='audio/mpeg', headers={'Cache-Control': 'no-store'})
     if not settings.SARVAM_API_KEY:
-        # Explicit capability response lets the client choose a matching device voice.
-        return Response(status_code=204)
+        raise HTTPException(503, 'Configure the selected cloud speech provider.')
     try:
         async with httpx.AsyncClient(timeout=25) as client:
             result = await client.post('https://api.sarvam.ai/text-to-speech',

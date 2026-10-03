@@ -3,7 +3,7 @@ import json
 import re
 from typing import Literal
 import httpx
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, ValidationError
 from app.config import settings
 from app.utils.logger import logger
 
@@ -140,11 +140,33 @@ class SpokenInterviewResult(BaseModel):
 
 def extract_voice_conversation(history, language):
     from fastapi import HTTPException
-    from Llm_nterviewer.interviwer import interview_turn
+    from Llm_nterviewer.interviwer import interview_turn, InterviewOutputError
     try:
         result = SpokenInterviewResult.model_validate(interview_turn(
             history, language, ConversationProfile.model_json_schema(),
             settings.GROQ_API_KEY, settings.GROQ_MODEL))
+    except ValidationError as exc:
+        # Field names/error types are diagnostic; never log profile values or
+        # the validation exception's repr, which includes beneficiary inputs.
+        errors = [{'field': '.'.join(map(str, error['loc'])), 'type': error['type']}
+                  for error in exc.errors()]
+        logger.warning('Groq interviewer invalid response model=%s errors=%s', settings.GROQ_MODEL, errors)
+        raise HTTPException(502, {'code': 'VOICE_INVALID_RESPONSE',
+            'message': 'The interviewer returned an invalid answer. Please repeat; your previous answers are saved.'}) from exc
+    except InterviewOutputError as exc:
+        logger.warning('Groq interviewer incomplete response model=%s reason=%s', settings.GROQ_MODEL, str(exc))
+        raise HTTPException(502, {'code': 'VOICE_INVALID_RESPONSE',
+            'message': 'The interviewer did not finish its answer. Please repeat.'}) from exc
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        logger.warning('Groq interviewer provider error model=%s upstream_status=%s', settings.GROQ_MODEL, status)
+        message = ('The AI service is busy. Please wait a moment and repeat.' if status == 429 else
+                   'The AI service credentials or model access need checking.' if status in (401, 403, 404) else
+                   'The AI service could not answer. Please repeat shortly.')
+        raise HTTPException(503, {'code': 'VOICE_PROVIDER_ERROR', 'message': message}) from exc
+    except httpx.TimeoutException as exc:
+        logger.warning('Groq interviewer timed out model=%s', settings.GROQ_MODEL)
+        raise HTTPException(504, {'code': 'VOICE_TIMEOUT', 'message': 'The interviewer took too long. Please repeat.'}) from exc
     except Exception as exc:
         logger.warning('Groq interviewer unavailable (%s)', type(exc).__name__)
         raise HTTPException(503, 'The voice interviewer is unavailable. Please retry shortly.') from exc

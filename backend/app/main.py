@@ -23,7 +23,8 @@ from app.routers import (
     journey,
     admin_catalogue,
     auth,
-    voice
+    voice,
+    voice_stream
 )
 
 @asynccontextmanager
@@ -142,6 +143,7 @@ app.add_middleware(
 api_routers = [
     auth.router,
     voice.router,
+    voice_stream.router,
     health.router,
     beneficiaries.router,
     consents.router,

@@ -7,16 +7,15 @@ from app.database import get_db, init_database
 from app.main import app
 
 @pytest.fixture
-def client():
-    orig_db = settings.DATABASE_PATH
+def client(monkeypatch):
     temp_dir = tempfile.TemporaryDirectory()
-    settings.DATABASE_PATH = os.path.join(temp_dir.name, "test_recs.db")
+    monkeypatch.setattr(settings, 'DATABASE_URL', '')
+    monkeypatch.setattr(settings, 'DATABASE_PATH', os.path.join(temp_dir.name, "test_recs.db"))
     init_database()
 
     with TestClient(app) as c:
         yield c
 
-    settings.DATABASE_PATH = orig_db
     temp_dir.cleanup()
 
 def test_hard_filters_enforce_education_and_accessibility(client):

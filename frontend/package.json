@@ -3,18 +3,21 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
+    "predev": "node scripts/prepare-voice-vad.cjs",
     "dev": "next dev",
+    "prebuild": "node scripts/prepare-voice-vad.cjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
+    "@ricky0123/vad-web": "^0.0.31",
     "@tailwindcss/postcss": "^4.3.3",
     "axios": "^1.20.0",
     "lucide-react": "^1.48.0",
+    "next": "^15.0.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "next": "^15.0.0"
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

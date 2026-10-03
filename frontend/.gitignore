@@ -12,6 +12,8 @@ dist
 dist-ssr
 *.local
 .next/
+.next-*/
+public/voice-vad/
 *.tsbuildinfo
 next-env.d.ts
 

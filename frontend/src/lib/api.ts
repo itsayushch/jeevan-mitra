@@ -367,6 +367,17 @@ class ApiService {
     return this.sessionId;
   }
 
+  /** Renew expired sessions or credentials from a different database. */
+  async ensureAnonymousSession(): Promise<boolean> {
+    if (this.sessionToken && this.sessionId) {
+      const res = await fetch(`${API_BASE}/consents/${encodeURIComponent(this.sessionId)}`, {headers: this.getHeaders()});
+      if (res.ok) return false;
+      if (res.status !== 401 && res.status !== 403) throw new Error('Could not check your session. Please try again.');
+    }
+    await this.createAnonymousSession();
+    return true;
+  }
+
   /**
    * A2: Initialize an anonymous session
    */
@@ -466,7 +477,11 @@ class ApiService {
         mode,
       }),
     });
-    if (!res.ok) throw new Error(`Turn submission failed: ${res.statusText}`);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const detail = body.detail || body.error;
+      throw new Error(typeof detail === 'string' ? detail : detail?.message || `Turn submission failed: ${res.statusText}`);
+    }
     return res.json();
   }
 

@@ -2,35 +2,59 @@ const ts = require('typescript');
 const vm = require('node:vm');
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
-const source = fs.readFileSync('src/utils/voiceSession.ts','utf8');
-const compiled = ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-let requests = 0, turns = 0;
-const api = {transcribeVoice: async blob => {requests++; assert.equal(blob.type,'audio/wav'); return 'hello';},voiceAudio: async()=>null};
-const sandbox = {exports:{},require:()=>({api}),Blob,URL,Float32Array,ArrayBuffer,DataView,Math,Promise,
-  window:{speechSynthesis:{cancel(){},speak(){},getVoices(){return [];}}},SpeechSynthesisUtterance:class {}};
+const compiled = ts.transpileModule(fs.readFileSync('src/utils/voiceSession.ts','utf8'),
+  {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+class StreamingSpeech {
+  constructor(){ this.done = new Promise(resolve=>this.resolve=resolve); }
+  append(){} end(){this.resolve(true);} cancel(){this.resolve(false);}
+}
+const sandbox = {exports:{},require:name=>name.includes('streamingSpeech')?{StreamingSpeech}:{api:{}},
+  ArrayBuffer,DataView,Float32Array,Math,Promise,Map,setTimeout,clearTimeout,setInterval,clearInterval,performance,WebSocket:{OPEN:1}};
 vm.runInNewContext(compiled,sandbox);
-const {VoiceSession,wavBlob} = sandbox.exports;
+const {VoiceSession,pcmFrame} = sandbox.exports;
 const tick = () => new Promise(resolve=>setImmediate(resolve));
 (async()=>{
-  const errors=[];
-  const voice = new VoiceSession('en',()=>{},async()=>{turns++;},message=>errors.push(message));
-  voice.active=true; voice.context={sampleRate:16000,close:async()=>{}}; voice.setState('listening');
-  const silence = new Float32Array(2048), speech = new Float32Array(2048).fill(0.1);
-  for(let i=0;i<30;i++) voice.capture(silence);
-  assert.equal(requests,0,'Silence must never be sent to recognition');
-  for(let i=0;i<5;i++) voice.capture(speech);
-  for(let i=0;i<12;i++) voice.capture(silence);
-  await tick(); assert.equal(requests,1); assert.equal(turns,1); assert.equal(voice.state,'listening');
-  const playing = voice.say('Please confirm the details.'); await tick();
-  assert.equal(voice.state,'speaking');
-  for(let i=0;i<4;i++) voice.capture(speech);
-  assert.equal(await playing,false,'Interrupted summary must not count as fully heard');
+  const messages=[],turns=[],errors=[];
+  const voice=new VoiceSession('en',()=>{},async text=>turns.push(text),error=>errors.push(error));
+  voice.active=true; voice.ready=true;
+  voice.context={sampleRate:16000,close:async()=>{}};
+  voice.socket={readyState:1,bufferedAmount:0,send:value=>messages.push(value),close(){}};
+  voice.setState('listening');
+  const silence=new Float32Array(1024),speech=new Float32Array(1024).fill(0.1);
+  for(let i=0;i<30;i++)voice.capture(silence);
+  assert.equal(messages.length,0,'Silence must never be sent');
+  for(let i=0;i<8;i++)voice.capture(speech);
+  assert(messages.some(item=>item instanceof ArrayBuffer),'PCM must stream before silence ends');
+  assert.equal(await voice.say('An old reply'),false,'A reply cannot reset microphone capture');
+  for(let i=0;i<10;i++)voice.capture(silence);
+  const commands=()=>messages.filter(x=>typeof x==='string').map(JSON.parse);
+  const id=commands().find(x=>x.type==='turn_end').id;
+  voice.receive({type:'transcript',id,text:'My answer'}); await tick();
+  assert.deepEqual(turns,['My answer']);
+  const playing=voice.say('Please confirm the details.');
+  const old=voice.speechId;
+  voice.receive({type:'speech_start',id:old,mime:'audio/mpeg'});
+  voice.setState('speaking');
+  for(let i=0;i<4;i++)voice.capture(speech);
+  assert.equal(await playing,false,'Interrupted summaries must not count as fully heard');
+  voice.receive({type:'speech_end',id:old});
+  assert.equal(voice.capturing,true,'Late audio must not terminate a new answer');
+  const count=messages.length;
   voice.pause();
-  for(let i=0;i<30;i++) voice.capture(speech);
-  assert.equal(requests,1,'Paused sessions must discard microphone input');
-  const buffer=await wavBlob([new Float32Array([0,-1,1])],16000).arrayBuffer();
-  assert.equal(new DataView(buffer).getUint32(40,true),6);
-  assert.equal(new DataView(buffer).getInt16(46,true),-32768);
+  for(let i=0;i<30;i++)voice.capture(speech);
+  assert.equal(messages.length,count+1,'Pause sends only interrupt then discards input');
+  const view=new DataView(pcmFrame(new Float32Array([0,-1,1]),9));
+  assert.equal(view.getUint32(0,true),9); assert.equal(view.getInt16(6,true),-32768);
   assert.equal(errors.length,0);
-  console.log('PASS: silence filtering, turn endpointing, WAV encoding, interruption confirmation guard, paused capture.');
+  const quietVoice=new VoiceSession('en',()=>{},async()=>{},()=>{});
+  quietVoice.active=true; quietVoice.ready=true; quietVoice.socket={readyState:1,bufferedAmount:0,send(){},close(){}};
+  quietVoice.context={sampleRate:16000,close:async()=>{}};
+  for(let i=0;i<5;i++)quietVoice.capture(new Float32Array(512).fill(0.003),0.95);
+  assert.equal(quietVoice.capturing,true,'Neural speech probability must recognize low-volume voices');
+  quietVoice.finishTurn();
+  assert.equal(quietVoice.state,'recognizing','Manual finish must submit without waiting indefinitely');
+  quietVoice.interrupt();
+  assert.equal(quietVoice.state,'recognizing','An interrupt must not pretend pending recognition is idle');
+  quietVoice.pause();
+  console.log('PASS: silence, streaming PCM, endpointing, stale replies, interruption guard, pause.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

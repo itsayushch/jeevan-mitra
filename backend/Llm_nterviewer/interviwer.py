@@ -1,6 +1,37 @@
 """Stateless Groq interviewer. Conversation state belongs to the caller/database."""
 import json
 import httpx
+from copy import deepcopy
+
+
+class InterviewOutputError(ValueError):
+    """The provider returned no complete JSON interview result."""
+
+
+def strict_interview_schema(profile_schema):
+    schema = {
+        'type': 'object',
+        'properties': {
+            'message': {'type': 'string', 'minLength': 1, 'maxLength': 700},
+            'profile': deepcopy(profile_schema),
+        },
+        'required': ['message', 'profile'],
+        'additionalProperties': False,
+    }
+
+    def require_properties(node):
+        if isinstance(node, dict):
+            node.pop('default', None)
+            if node.get('type') == 'object':
+                node['required'] = list(node.get('properties', {}))
+                node['additionalProperties'] = False
+            for value in node.values():
+                require_properties(value)
+        elif isinstance(node, list):
+            for value in node:
+                require_properties(value)
+    require_properties(schema)
+    return schema
 
 SYSTEM_PROMPT = '\nYou are an AI interviewer for a government livelihood and skill\nrecommendation system.\n\nYour job is ONLY to conduct the interview and extract useful\nbeneficiary information.\n\nDO NOT recommend courses, jobs, occupations, or training during\nthe interview.\n\nThe recommendation will be handled later by a separate ML model.\n\n------------------------------------------------------------\nINTERVIEW RULES\n------------------------------------------------------------\n\n1. Ask only ONE question at a time.\n\n2. Keep the conversation natural and friendly.\n\n3. Ask broad and useful questions instead of asking many tiny\n   questions separately.\n\n4. The user may provide multiple pieces of information in one\n   answer.\n\n   Example:\n   User:\n   "I am 20 years old, completed 12th and I live in Malda.\n   I am unemployed and interested in IT."\n\n   You should extract ALL of those facts.\n\n5. NEVER ask again for information that the user has already\n   provided.\n\n6. Adapt the next question based on the information already\n   collected.\n\n7. If the user gives more information than expected, extract\n   everything useful from it.\n\n8. If important information is missing, ask about it naturally.\n\n9. Do not ask unnecessary questions.\n\n10. Finish the interview when enough important information has\n    been collected for the recommendation system.\n\n11. Do NOT force the user to answer every possible field.\n\n12. If something is unknown, use null.\n\n13. NEVER invent information.\n\n14. Never assume:\n    - location\n    - education\n    - income\n    - skills\n    - experience\n    - occupation\n    - language\n    - preferences\n    - training history\n\n15. Do not directly ask for backend-derived information such as:\n    - latitude\n    - longitude\n    - distance to training center\n    - local job demand\n    - local industry\n    - training center availability\n\n    These can be obtained later from backend/database systems.\n\n------------------------------------------------------------\nIMPORTANT INTERVIEW FIELDS\n------------------------------------------------------------\n\nCollect information when naturally available:\n\n- age\n- gender\n- state\n- district\n- rural_urban\n- education_level\n- education_stream\n- annual_family_income\n- employment_status\n- current_occupation\n- work_experience_years\n- digital_literacy\n- communication_skill\n- numerical_skill\n- technical_skill\n- entrepreneurial_skill\n- existing_skill_level\n- career_interest\n- preferred_occupation\n- preferred_industry\n- preferred_work_type\n- preferred_training_mode\n- preferred_language\n- previous_training\n- previous_training_count\n- preferred_duration\n\n------------------------------------------------------------\nQUESTION STRATEGY\n------------------------------------------------------------\n\nStart naturally.\n\nGood examples:\n\n"Could you tell me a little about yourself, such as your age,\neducation, and where you are from?"\n\n"Could you tell me about the skills you currently have or feel\ncomfortable using?"\n\n"What kind of work or career are you interested in?"\n\n"Is there a particular type of work environment or training\nformat you prefer?"\n\nDo not ask all of these separately if the user already provides\nthe information.\n\nIf the user says:\n\n"I completed 12th and I am from Malda."\n\nDo not ask again:\n\n"What is your education?"\n\nInstead ask about another missing important area.\n\n'
 
@@ -20,12 +51,31 @@ For skipped essential fields offer counselor help; do not repeatedly ask the ski
 Do not claim local availability, submit requests, or confirm on the user's behalf.
 Return JSON with exactly message (string), profile (object conforming to schema).
 """ + json.dumps(schema, ensure_ascii=False)
+    payload = {
+        'model': model, 'temperature': 0.2, 'max_completion_tokens': 2048,
+        'response_format': {'type': 'json_object'},
+        'messages': [{'role': 'system', 'content': instructions},
+                     {'role': 'user', 'content': json.dumps({'language': language, 'conversation': history}, ensure_ascii=False)}],
+    }
+    if model in ('openai/gpt-oss-20b', 'openai/gpt-oss-120b'):
+        # JSON object mode guarantees syntax only; constrained decoding enforces
+        # the actual envelope, enum values, nullable scalars and list types.
+        payload['response_format'] = {'type': 'json_schema', 'json_schema': {
+            'name': 'spoken_interview', 'strict': True,
+            'schema': strict_interview_schema(schema),
+        }}
+        payload['reasoning_effort'] = 'low'
+        payload['include_reasoning'] = False
     response = httpx.post(
         'https://api.groq.com/openai/v1/chat/completions',
         headers={'Authorization': f'Bearer {api_key}'}, timeout=30,
-        json={'model': model, 'temperature': 0.2, 'max_tokens': 1200,
-              'response_format': {'type': 'json_object'},
-              'messages': [{'role': 'system', 'content': instructions},
-                           {'role': 'user', 'content': json.dumps({'language': language, 'conversation': history}, ensure_ascii=False)}]})
+        json=payload)
     response.raise_for_status()
-    return json.loads(response.json()['choices'][0]['message']['content'])
+    try:
+        choice = response.json()['choices'][0]
+        content = choice['message']['content']
+        if choice.get('finish_reason') == 'length' or not isinstance(content, str) or not content.strip():
+            raise InterviewOutputError('incomplete_response')
+        return json.loads(content)
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise InterviewOutputError('invalid_json') from exc
