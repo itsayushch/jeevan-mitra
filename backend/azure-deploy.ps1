@@ -10,6 +10,7 @@ param (
     [string]$AppName = "jeevanmitra-backend",
     [string]$EnvironmentName = "env-jeevanmitra"
 )
+$JwtSecret = $env:JWT_SECRET
 
 Write-Host "================================================================" -ForegroundColor Cyan
 Write-Host "  JeevanMitra 2.0 - Microsoft Azure Deployment" -ForegroundColor Cyan
@@ -71,6 +72,7 @@ az containerapp create `
     --max-replicas 3 `
     --env-vars `
         NODE_ENV="production" `
+        JWT_SECRET="$JwtSecret" `
         PORT="4000" `
         HOST="0.0.0.0" `
         DATABASE_PATH="/app/data/jeevanmitra.db" `
@@ -85,6 +87,6 @@ $appUrl = az containerapp show --name $AppName --resource-group $ResourceGroup -
 Write-Host "================================================================" -ForegroundColor Green
 Write-Host "  DEPLOYMENT SUCCESSFUL!" -ForegroundColor Green
 Write-Host "  Service URL:       https://$appUrl" -ForegroundColor Green
-Write-Host "  Health Endpoint:   https://$appUrl/api/health" -ForegroundColor Green
+Write-Host "  Health Endpoint:   https://$appUrl/health" -ForegroundColor Green
 Write-Host "  Planning Matrix:   https://$appUrl/api/planning/supply-gap-matrix?district=Moradabad" -ForegroundColor Green
 Write-Host "================================================================" -ForegroundColor Green
