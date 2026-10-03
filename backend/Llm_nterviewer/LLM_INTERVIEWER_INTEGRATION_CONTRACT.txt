@@ -1,3 +1,10 @@
+IMPLEMENTATION UPDATE (2026-10-03)
+The active interviewer now uses Groq, not local Ollama/Qwen. It is stateless;
+FastAPI owns session history and profile persistence. The voice integration
+uses the existing application profile schema and recommendation API.
+See docs/voice-agent.md for the implemented configuration and flow.
+The original contribution contract follows as historical design context.
+
 JEEVANMITRA 2.0 — LLM INTERVIEWER INTEGRATION CONTRACT
 ===============================================================
 

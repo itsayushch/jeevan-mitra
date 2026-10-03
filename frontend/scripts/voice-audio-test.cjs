@@ -1,0 +1,36 @@
+const ts = require('typescript');
+const vm = require('node:vm');
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const source = fs.readFileSync('src/utils/voiceSession.ts','utf8');
+const compiled = ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+let requests = 0, turns = 0;
+const api = {transcribeVoice: async blob => {requests++; assert.equal(blob.type,'audio/wav'); return 'hello';},voiceAudio: async()=>null};
+const sandbox = {exports:{},require:()=>({api}),Blob,URL,Float32Array,ArrayBuffer,DataView,Math,Promise,
+  window:{speechSynthesis:{cancel(){},speak(){},getVoices(){return [];}}},SpeechSynthesisUtterance:class {}};
+vm.runInNewContext(compiled,sandbox);
+const {VoiceSession,wavBlob} = sandbox.exports;
+const tick = () => new Promise(resolve=>setImmediate(resolve));
+(async()=>{
+  const errors=[];
+  const voice = new VoiceSession('en',()=>{},async()=>{turns++;},message=>errors.push(message));
+  voice.active=true; voice.context={sampleRate:16000,close:async()=>{}}; voice.setState('listening');
+  const silence = new Float32Array(2048), speech = new Float32Array(2048).fill(0.1);
+  for(let i=0;i<30;i++) voice.capture(silence);
+  assert.equal(requests,0,'Silence must never be sent to recognition');
+  for(let i=0;i<5;i++) voice.capture(speech);
+  for(let i=0;i<12;i++) voice.capture(silence);
+  await tick(); assert.equal(requests,1); assert.equal(turns,1); assert.equal(voice.state,'listening');
+  const playing = voice.say('Please confirm the details.'); await tick();
+  assert.equal(voice.state,'speaking');
+  for(let i=0;i<4;i++) voice.capture(speech);
+  assert.equal(await playing,false,'Interrupted summary must not count as fully heard');
+  voice.pause();
+  for(let i=0;i<30;i++) voice.capture(speech);
+  assert.equal(requests,1,'Paused sessions must discard microphone input');
+  const buffer=await wavBlob([new Float32Array([0,-1,1])],16000).arrayBuffer();
+  assert.equal(new DataView(buffer).getUint32(40,true),6);
+  assert.equal(new DataView(buffer).getInt16(46,true),-32768);
+  assert.equal(errors.length,0);
+  console.log('PASS: silence filtering, turn endpointing, WAV encoding, interruption confirmation guard, paused capture.');
+})().catch(error=>{console.error(error);process.exitCode=1;});

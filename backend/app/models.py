@@ -227,6 +227,7 @@ class GenerateRecommendationsRequest(BaseModel):
 # 6. Counselor Referral Models (A7)
 # ============================================================================
 class CreateReferralRequest(BaseModel):
+    request_id: Optional[str] = Field(None, min_length=1, max_length=100)
     beneficiary_id: Optional[str] = None
     interview_id: Optional[str] = None
     recommendation_id: Optional[str] = None

@@ -1,4 +1,5 @@
 import uuid
+import hashlib
 import sqlite3
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
@@ -30,11 +31,25 @@ class ReferralService:
         if data.referral_reason not in ReferralService.ALLOWED_REASONS:
             raise ValidationException(f"Invalid referral reason '{data.referral_reason}'. Must be one of {ReferralService.ALLOWED_REASONS}")
 
-        case_id = f"case_{uuid.uuid4().hex[:10]}"
+        if data.interview_id and data.interview_id != actor.session_id:
+            session = conn.execute("SELECT * FROM interview_sessions WHERE id = ?;", (data.interview_id,)).fetchone()
+            if not session:
+                raise EntityNotFoundException("InterviewSession", data.interview_id)
+            if not actor.is_staff() and not (
+                (actor.session_id and session["session_id"] == actor.session_id)
+                or (actor.beneficiary_id and session["beneficiary_id"] == actor.beneficiary_id)
+            ):
+                raise UnauthorizedAccessException(message="This interview belongs to another session")
+        case_id = ("case_" + hashlib.sha256(f"{actor.actor_id}:{data.request_id}".encode()).hexdigest()[:24]
+                   if data.request_id else f"case_{uuid.uuid4().hex[:10]}")
+        existing = conn.execute("SELECT * FROM referral_cases WHERE id = ?;", (case_id,)).fetchone()
+        if existing:
+            return dict(existing)
+
         now = datetime.now(timezone.utc).isoformat()
 
         conn.execute("""
-            INSERT INTO referral_cases (
+            INSERT OR IGNORE INTO referral_cases (
                 id, beneficiary_id, interview_id, recommendation_id, local_opportunity_id,
                 referral_reason, consent_verification_state, status, priority, notes, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, 'verified', 'new', ?, ?, ?, ?);
@@ -79,8 +94,9 @@ class ReferralService:
             SELECT * FROM referral_cases
             WHERE (beneficiary_id IS NOT NULL AND beneficiary_id = ?)
                OR (interview_id IS NOT NULL AND interview_id = ?)
+               OR interview_id IN (SELECT id FROM interview_sessions WHERE session_id = ?)
             ORDER BY created_at DESC;
-        """, (target_ben_id or "", session_id)).fetchall()
+        """, (target_ben_id or "", session_id, session_id)).fetchall()
 
         return [dict(r) for r in rows]
 

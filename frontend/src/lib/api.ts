@@ -43,7 +43,7 @@ export interface InterviewTurnResponse {
   next_question?: string;
   inferred_profile?: ConversationProfile;
   is_final?: boolean;
-  extraction_provider?: 'gemini' | 'guided';
+  extraction_provider?: 'gemini' | 'groq' | 'guided';
   missing_fields?: string[];
 }
 
@@ -409,12 +409,12 @@ class ApiService {
   /**
    * A3: Start a new interview
    */
-  async startInterview(language: string = 'hi'): Promise<InterviewSessionResponse> {
+  async startInterview(language: string = 'hi', channel = 'web_app'): Promise<InterviewSessionResponse> {
     const res = await fetch(`${API_BASE}/interviews/start`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({
-        channel: 'web_app',
+        channel,
         language,
         session_id: this.sessionId,
       }),
@@ -426,6 +426,29 @@ class ApiService {
   /**
    * A3: Submit an interview turn (message)
    */
+  async getInterview(id: string): Promise<{status: string; last_question: string; language: string; fields: Record<string, {value: unknown}>}> {
+    const res = await fetch(`${API_BASE}/interviews/${id}`, { headers: this.getHeaders() });
+    if (!res.ok) throw new Error('Could not restore your interview.');
+    return res.json();
+  }
+
+  async transcribeVoice(audio: Blob, language: string): Promise<string> {
+    const res = await fetch(`${API_BASE}/voice/transcribe?language=${language}`, {
+      method: 'POST', headers: {...this.getHeaders(), 'Content-Type': audio.type}, body: audio,
+    });
+    if (!res.ok) throw new Error('Could not understand the audio. Please repeat or try again.');
+    return (await res.json()).text;
+  }
+
+  async voiceAudio(text: string, language: string, slow: boolean): Promise<Blob | null> {
+    const res = await fetch(`${API_BASE}/voice/speak`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify({text, language, slow}),
+    });
+    if (res.status === 204) return null;
+    if (!res.ok) throw new Error('Voice playback is unavailable.');
+    return res.blob();
+  }
+
   async submitTurn(
     interviewId: string,
     message: string,
@@ -483,10 +506,17 @@ class ApiService {
   /**
    * A7: Create a counselor referral
    */
+  async getMyReferrals(): Promise<Array<{id: string; interview_id: string; status: string}>> {
+    const res = await fetch(`${API_BASE}/referrals/me`, {headers: this.getHeaders()});
+    if (!res.ok) throw new Error('Could not read your request status.');
+    return res.json();
+  }
+
   async createReferral(
     interviewId: string,
     reason: string = 'user_requested_human_help',
-    recommendationId?: string
+    recommendationId?: string,
+    requestId?: string
   ): Promise<ReferralResponse> {
     const res = await fetch(`${API_BASE}/referrals`, {
       method: 'POST',
@@ -495,6 +525,7 @@ class ApiService {
         interview_id: interviewId,
         referral_reason: reason,
         recommendation_id: recommendationId,
+        request_id: requestId,
       }),
     });
     if (!res.ok) throw new Error(`Referral request failed: ${res.statusText}`);

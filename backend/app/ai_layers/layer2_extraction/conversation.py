@@ -130,3 +130,24 @@ def extract_conversation(history, language):
     question = QUESTIONS[missing[0]][1 if language == 'hi' else 0] if missing else (
         'कृपया अपनी जानकारी जाँचें और पुष्टि करें।' if language == 'hi' else 'Please review and correct your profile before confirming your matches.')
     return values, missing, question, provider
+
+
+class SpokenInterviewResult(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    message: str = Field(min_length=1, max_length=700)
+    profile: ConversationProfile
+
+
+def extract_voice_conversation(history, language):
+    from fastapi import HTTPException
+    from Llm_nterviewer.interviwer import interview_turn
+    try:
+        result = SpokenInterviewResult.model_validate(interview_turn(
+            history, language, ConversationProfile.model_json_schema(),
+            settings.GROQ_API_KEY, settings.GROQ_MODEL))
+    except Exception as exc:
+        logger.warning('Groq interviewer unavailable (%s)', type(exc).__name__)
+        raise HTTPException(503, 'The voice interviewer is unavailable. Please retry shortly.') from exc
+    values = result.profile.model_dump()
+    missing = [key for key in QUESTIONS if values.get(key) in (None, '', [])]
+    return values, missing, result.message, 'groq'

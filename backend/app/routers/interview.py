@@ -11,7 +11,7 @@ from app.models import (
 from app.ai_layers.layer1_intake.dialogue_manager import DialogueManager
 from app.ai_layers.layer1_intake.speech_adapter import SpeechAdapter
 from app.ai_layers.layer2_extraction.extraction_engine import ExtractionEngine
-from app.ai_layers.layer2_extraction.conversation import extract_conversation
+from app.ai_layers.layer2_extraction.conversation import extract_conversation, extract_voice_conversation
 from app.dependencies.auth import get_current_actor, Actor
 from app.dependencies.consent import verify_consent
 from app.services.export_service import ExportService
@@ -63,6 +63,8 @@ def start_interview(data: InterviewStartRequest, actor: Actor = Depends(get_curr
     with get_db() as conn:
         _check_ai_consent(conn, target_ben_id, target_session_id)
         first_turn = DialogueManager.get_initial_turn(lang)
+        if data.channel == "voice_web":
+            first_turn["question"] = ("आप अभी क्या काम करते हैं?" if lang == "hi" else "What work do you currently do?")
 
         conn.execute("""
             INSERT INTO interview_sessions (
@@ -70,7 +72,7 @@ def start_interview(data: InterviewStartRequest, actor: Actor = Depends(get_curr
                 last_question, language, transcript_history, created_at, updated_at
             ) VALUES (?, ?, ?, ?, 'in_progress', ?, ?, ?, ?, ?, ?);
         """, (
-            interview_id, target_ben_id, target_session_id, data.channel or "web_app",
+            interview_id, target_ben_id, target_session_id, ("web_app" if data.channel == "voice_web" else data.channel or "web_app"),
             first_turn["question_index"], first_turn["question"], lang,
             json.dumps([{"speaker": "ai", "text": first_turn["question"]}]), now, now
         ))
@@ -185,12 +187,13 @@ def process_interview_turn(
         history_with_user.append({"speaker": "user", "text": user_text})
         provider = None
         missing = []
-        if data.mode == "conversational":
+        if data.mode in ("conversational", "voice"):
             verify_consent(conn, "profile_storage", target_ben_id, target_session_id)
-            extracted, missing, question, provider = extract_conversation(history_with_user, lang)
+            extractor = extract_voice_conversation if data.mode == "voice" else extract_conversation
+            extracted, missing, question, provider = extractor(history_with_user, lang)
             history = history_with_user + [{"speaker": "ai", "text": question}]
             next_turn = {"question_index": current_idx + 1, "question": question,
-                         "mode": "standard" if provider == "gemini" else "guided_fallback",
+                         "mode": "standard" if provider in ("gemini", "groq") else "guided_fallback",
                          "is_final": not missing}
         else:
             extracted = extraction_engine.extract_profile(history_with_user, district, block)
@@ -223,7 +226,7 @@ def process_interview_turn(
                 WHERE interview_id = ? AND field_name = ?;
             """, (interview_id, field)).fetchone()
 
-            val_str = json.dumps(val) if isinstance(val, (list, dict)) else str(val)
+            val_str = json.dumps(val) if val is None or isinstance(val, (list, dict)) else str(val)
 
             if existing_f:
                 conn.execute("""
@@ -261,11 +264,16 @@ def process_interview_turn(
         }
 
 @router.get("/interviews/{interview_id}")
-def get_interview_detail(interview_id: str):
+def get_interview_detail(interview_id: str, actor: Actor = Depends(get_current_actor)):
     with get_db() as conn:
         sess = conn.execute("SELECT * FROM interview_sessions WHERE id = ?;", (interview_id,)).fetchone()
         if not sess:
             raise EntityNotFoundException("InterviewSession", interview_id)
+        if not actor.is_staff() and not (
+            (actor.session_id and actor.session_id == sess["session_id"])
+            or (actor.beneficiary_id and actor.beneficiary_id == sess["beneficiary_id"])
+        ):
+            raise HTTPException(403, "This interview belongs to another session")
         _check_ai_consent(conn, sess["beneficiary_id"], sess["session_id"] or interview_id)
 
         turns = conn.execute("SELECT * FROM interview_turns WHERE interview_id = ? ORDER BY turn_index ASC;", (interview_id,)).fetchall()
@@ -315,7 +323,7 @@ def confirm_interview_profile(
 
         # Update or insert each confirmed field
         for field, val in data.confirmed_fields.items():
-            val_str = json.dumps(val) if isinstance(val, (list, dict)) else str(val)
+            val_str = json.dumps(val) if val is None or isinstance(val, (list, dict)) else str(val)
             existing = conn.execute("""
                 SELECT id, field_value, version FROM profile_field_values
                 WHERE interview_id = ? AND field_name = ?;
@@ -508,5 +516,5 @@ def legacy_confirm(data: ConfirmProfileRequest, actor: Actor = Depends(get_curre
     return confirm_interview_profile(sess_id, data, actor)
 
 @router.get("/interview/session/{session_id}")
-def legacy_get_session(session_id: str):
-    return get_interview_detail(session_id)
+def legacy_get_session(session_id: str, actor: Actor = Depends(get_current_actor)):
+    return get_interview_detail(session_id, actor)

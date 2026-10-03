@@ -11,9 +11,9 @@ class SpeechAdapter:
         if text_input and text_input.strip():
             return text_input.strip()
 
-        # Simulated transcript if speech audio given without external STT engine
         if audio_base64:
-            return "मैंने दसवीं पास की है और मुझे खेती, मशरूम और औजारों के काम में रुचि है।" if lang == "hi" else "I have passed 10th and I am interested in farming, mushroom cultivation and tool repair."
+            from fastapi import HTTPException
+            raise HTTPException(422, "Use /voice/transcribe to transcribe real audio before submitting a turn.")
 
         return ""
 

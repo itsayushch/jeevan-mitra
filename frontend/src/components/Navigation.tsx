@@ -17,6 +17,7 @@ interface NavigationProps {
 }
 const items = [
   { id: 'home', label: 'Overview', hi: 'होम', icon: LayoutDashboard },
+  { id: 'voice-ask', label: 'Voice assistant', hi: 'आवाज़ से सहायता', icon: Mic },
   { id: 'journey', label: 'My journey', hi: 'मेरी यात्रा', icon: Route },
   { id: 'jobs-map', label: 'Local opportunities', hi: 'स्थानीय अवसर', icon: BriefcaseBusiness },
   { id: 'training-quiz', label: 'Skill training', hi: 'कौशल प्रशिक्षण', icon: GraduationCap },
