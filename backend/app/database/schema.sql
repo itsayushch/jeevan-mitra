@@ -520,6 +520,69 @@ CREATE TABLE IF NOT EXISTS training_resources (
   FOREIGN KEY (lesson_id) REFERENCES training_lessons(id) ON DELETE SET NULL
 );
 
+-- 20. IVR Simulator Sessions & Audit
+CREATE TABLE IF NOT EXISTS ivr_sessions (
+  id TEXT PRIMARY KEY,
+  provider TEXT NOT NULL DEFAULT 'mock',
+  provider_call_id TEXT,
+  caller_reference_hash TEXT,
+  beneficiary_id TEXT,
+  current_state TEXT NOT NULL DEFAULT 'welcome',
+  language TEXT NOT NULL DEFAULT 'hi-IN',
+  status TEXT NOT NULL DEFAULT 'active',
+  invalid_attempt_count INTEGER NOT NULL DEFAULT 0,
+  current_context_json TEXT NOT NULL DEFAULT '{}',
+  started_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  ended_at TEXT,
+  expires_at TEXT NOT NULL,
+  FOREIGN KEY (beneficiary_id) REFERENCES beneficiaries(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ivr_sessions_caller ON ivr_sessions(caller_reference_hash);
+CREATE INDEX IF NOT EXISTS idx_ivr_sessions_status ON ivr_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_ivr_sessions_ben ON ivr_sessions(beneficiary_id);
+
+CREATE TABLE IF NOT EXISTS ivr_events (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  state_before TEXT NOT NULL,
+  state_after TEXT NOT NULL,
+  digit TEXT,
+  prompt_key TEXT NOT NULL,
+  idempotency_key TEXT,
+  safe_payload_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (session_id) REFERENCES ivr_sessions(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_ivr_events_session ON ivr_events(session_id);
+CREATE INDEX IF NOT EXISTS idx_ivr_events_idemp ON ivr_events(session_id, idempotency_key);
+CREATE INDEX IF NOT EXISTS idx_ivr_events_created ON ivr_events(created_at);
+
+CREATE TABLE IF NOT EXISTS ivr_callback_requests (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL UNIQUE,
+  beneficiary_id TEXT,
+  callback_reason TEXT NOT NULL DEFAULT 'general_help',
+  status TEXT NOT NULL DEFAULT 'requested',
+  assigned_worker_id TEXT,
+  case_id TEXT,
+  notes TEXT,
+  contacted_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (session_id) REFERENCES ivr_sessions(id) ON DELETE CASCADE,
+  FOREIGN KEY (beneficiary_id) REFERENCES beneficiaries(id) ON DELETE SET NULL,
+  FOREIGN KEY (assigned_worker_id) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (case_id) REFERENCES beneficiary_cases(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ivr_cb_session ON ivr_callback_requests(session_id);
+CREATE INDEX IF NOT EXISTS idx_ivr_cb_status ON ivr_callback_requests(status);
+CREATE INDEX IF NOT EXISTS idx_ivr_cb_ben ON ivr_callback_requests(beneficiary_id);
+
 CREATE TABLE IF NOT EXISTS learner_course_progress (
   id TEXT PRIMARY KEY,
   beneficiary_id TEXT NOT NULL,

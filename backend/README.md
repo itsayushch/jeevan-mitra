@@ -316,3 +316,21 @@ python -m venv .venv
 pip install -r requirements.txt
 python run.py
 ```
+
+---
+
+## 8. Feature-Phone IVR Simulator (Phase 1)
+
+For citizens with basic feature phones and low connectivity, Jeevan Mitra includes a deterministic, Hindi DTMF keypad simulator.
+- **Provider-Independent:** Runs completely in local mock mode without external telephony accounts or API keys.
+- **Key Capabilities:** DPDP affirmative voice consent, verified training and welfare scheme discovery, referral status check, and field worker callback requests.
+- **Simulator Endpoints:**
+  - `POST /api/v1/ivr/simulate/start`: Begin simulated inbound call.
+  - `POST /api/v1/ivr/simulate/{session_id}/input`: Submit DTMF digit (`0`-`9`, `#`).
+  - `GET /api/v1/ivr/simulate/{session_id}`: View safe call state.
+  - `GET /api/v1/ivr/simulate/{session_id}/events`: View audit history.
+  - `POST /api/v1/ivr/simulate/{session_id}/expire`: Testing timeout helper.
+- **Detailed Guides:**
+  - [IVR MVP Specification](../docs/IVR_MVP_SPEC.md)
+  - [IVR Local Testing Guide](../docs/IVR_LOCAL_TESTING.md)
+

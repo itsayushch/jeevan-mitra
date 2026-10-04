@@ -51,6 +51,21 @@ class Settings(BaseSettings):
     QUALIFICATION_REVIEW_DAYS: int = 180
     OPPORTUNITY_REVIEW_DAYS: int = 30
 
+    IVR_PROVIDER: str = "mock"
+    IVR_DEFAULT_LANGUAGE: str = "hi-IN"
+    IVR_SESSION_TIMEOUT_SECONDS: int = 600
+    IVR_MAX_INVALID_ATTEMPTS: int = 2
+    IVR_SIMULATOR_ENABLED: bool = True
+    IVR_AUDIO_BASE_URL: str = ""
+    EXOTEL_SID: str = ""
+    EXOTEL_API_KEY: str = ""
+    EXOTEL_API_TOKEN: str = ""
+    EXOTEL_CALLER_ID: str = ""
+    EXOTEL_WEBHOOK_SECRET: str = ""
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    PUBLIC_BASE_URL: str = "http://localhost:4000"
+
     RELEASE_VERSION: str = "2.0.0-rc1"
     GIT_COMMIT_SHA: str = "dev-local"
 
@@ -116,6 +131,8 @@ class Settings(BaseSettings):
             "demo_auth_fallback_enabled": self.NEXT_PUBLIC_DEMO_AUTH_FALLBACK,
             "sentry_enabled": bool(self.SENTRY_DSN),
             "log_level": self.LOG_LEVEL,
+            "ivr_provider": self.IVR_PROVIDER,
+            "ivr_simulator_enabled": self.IVR_SIMULATOR_ENABLED,
         }
 
 

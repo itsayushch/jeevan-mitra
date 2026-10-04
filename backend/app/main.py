@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.settings import settings
 from app.database import init_database
@@ -31,6 +32,7 @@ from app.routers import (
     opportunity_submissions,
     metrics
 )
+from app.ivr import router as ivr_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -72,7 +74,7 @@ async def domain_exception_handler(request: Request, exc: DomainException):
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
         status_code=422,
-        content={"error": {"code": "VALIDATION_ERROR", "message": "Invalid request parameters", "details": exc.errors()}},
+        content={"error": {"code": "VALIDATION_ERROR", "message": "Invalid request parameters", "details": jsonable_encoder(exc.errors())}},
     )
 
 @app.exception_handler(Exception)
@@ -214,7 +216,8 @@ api_routers = [
     cases.router,
     beneficiary_cases.router,
     opportunity_submissions.router,
-    metrics.router
+    metrics.router,
+    ivr_router
 ]
 
 for prefix in ["/api/v1", "/api"]:
