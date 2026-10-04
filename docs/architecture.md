@@ -24,3 +24,17 @@ JeevanMitra is transitioning to a **Modular Monolith**. We will avoid microservi
 - No frontend directly calls the LLM, transcription, database, or storage.
 - All AI extraction, text-to-speech, speech-to-text, matching is server-side.
 - AI must NOT directly update system state (e.g., no auto-enrollment).
+
+## 5. District Planning, Aggregations & Controlled Exports Architecture (Sprint 6)
+- **Authoritative Aggregation Engine (`PlanningAggregationService`)**:
+  - Consumes authoritative operational records directly from Sprint 4 (`local_opportunities`, `qualifications`, `opportunity_providers`) and Sprint 5 (`beneficiary_cases`, `referrals`, `referral_outcomes`).
+  - Strict domain boundaries: Unverified or expired opportunities are excluded from verified capacity; full opportunities count as full rather than available capacity; reported outcomes are never conflated with verified livelihoods.
+  - Minimum Cell-Size Privacy Threshold ($k = 5$): JeevanMitra applies a minimum cell-size privacy threshold of k = 5. Aggregate cells with fewer than five unique beneficiaries are suppressed and returned as null with `is_suppressed = true`. This is a privacy safeguard designed to reduce re-identification risk; it is not, by itself, a formal guarantee of anonymity or legal compliance.
+- **Immutable Snapshot Pipeline (`PlanningSnapshotService`)**:
+  - Captures complete frozen district planning aggregations into `planning_snapshots` with JSON payloads and normalized dimensional metric records in `planning_snapshot_metrics`.
+  - Immutable lifecycle: `GENERATED` -> `REVIEWED` -> `APPROVED`.
+- **Controlled Export Subsystem (`PlanningExportService`)**:
+  - Exports (CSV and PDF) are generated exclusively from immutable snapshots, ensuring deterministic reproducibility.
+  - Generates SHA-256 cryptographic checksums for tamper detection.
+  - **Re-authorization at Download**: Geographic authorization is re-verified at download time. Expired exports return HTTP 410 Gone.
+  - Complete omission of beneficiary PII, casework notes, or provider private contacts.

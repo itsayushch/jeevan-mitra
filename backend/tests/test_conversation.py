@@ -1,5 +1,4 @@
 import pytest
-from test_recommendations import client
 from app.config import settings
 from app.database import get_db
 from app.ai_layers.layer2_extraction.conversation import guided_extract, extract_conversation

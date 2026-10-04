@@ -3,176 +3,36 @@ import json
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from contextlib import contextmanager
 from typing import Generator
 from app.config import settings
 from app.utils.logger import logger
+from app.db.session import get_db, DBWrapper
 
-class PostgresWrapper:
-    def __init__(self, conn):
-        self.conn = conn
-        self.is_postgres = True
+def get_db_session() -> Generator[DBWrapper, None, None]:
+    with get_db() as db:
+        yield db
 
-    def execute(self, query, params=None):
-        cursor = self.conn.cursor()
-        if "INSERT OR IGNORE INTO" in query:
-            query = query.replace("INSERT OR IGNORE INTO", "INSERT INTO")
-            query = query.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING;"
-        
-        # Postgres does not have rowid, remove it from tie-breaker sorts
-        if ", rowid DESC" in query:
-            query = query.replace(", rowid DESC", "")
-        if ", rowid ASC" in query:
-            query = query.replace(", rowid ASC", "")
-            
-        if "?" in query:
-            query = query.replace("?", "%s")
-        if params is not None:
-            cursor.execute(query, params)
-        else:
-            cursor.execute(query)
-        return cursor
 
-    def executemany(self, query, params_list):
-        cursor = self.conn.cursor()
-        if "INSERT OR IGNORE INTO" in query:
-            query = query.replace("INSERT OR IGNORE INTO", "INSERT INTO")
-            query = query.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING;"
-        
-        # Postgres does not have rowid, remove it from tie-breaker sorts
-        if ", rowid DESC" in query:
-            query = query.replace(", rowid DESC", "")
-        if ", rowid ASC" in query:
-            query = query.replace(", rowid ASC", "")
-            
-        if "?" in query:
-            query = query.replace("?", "%s")
-        cursor.executemany(query, params_list)
-        return cursor
-        
-    def executescript(self, sql_script):
-        cursor = self.conn.cursor()
-        
-        # Remove SQL comments before splitting
-        import re
-        sql_script = re.sub(r'--.*', '', sql_script)
-        
-        statements = sql_script.split(";")
-        for stmt in statements:
-            stmt = stmt.strip()
-            if not stmt or stmt.startswith("PRAGMA"):
-                continue
-            try:
-                # Use a savepoint to prevent the entire transaction from aborting
-                cursor.execute("SAVEPOINT pg_wrapper_sp")
-                cursor.execute(stmt)
-                cursor.execute("RELEASE SAVEPOINT pg_wrapper_sp")
-            except Exception as e:
-                # Rollback to savepoint so we can continue executing other statements
-                cursor.execute("ROLLBACK TO SAVEPOINT pg_wrapper_sp")
-                if "already exists" in str(e) or "pg_type_typname_nsp_index" in str(e):
-                    import logging
-                    logging.getLogger("jeevanmitra").debug(f"Ignoring expected IF NOT EXISTS conflict: {e}")
-                    continue
-                raise
-        return cursor
+def get_connection() -> sqlite3.Connection:
+    logger.warning("get_connection() is deprecated, use get_db() context manager")
+    conn = sqlite3.connect(settings.DATABASE_PATH, timeout=10.0)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON;")
+    conn.execute("PRAGMA journal_mode = WAL;")
+    return conn
 
-    def commit(self):
-        self.conn.commit()
 
-    def rollback(self):
-        self.conn.rollback()
-
-    def close(self):
-        self.conn.close()
-
-def get_connection():
-    if settings.DATABASE_URL:
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
-        conn = psycopg2.connect(settings.DATABASE_URL, cursor_factory=RealDictCursor)
-        return PostgresWrapper(conn)
-    else:
-        conn = sqlite3.connect(settings.DATABASE_PATH, timeout=10.0)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON;")
-        conn.execute("PRAGMA journal_mode = WAL;")
-        return conn
-
-from typing import Generator, Any
-
-@contextmanager
-def get_db() -> Generator[Any, None, None]:
-    conn = get_connection()
-    try:
-        yield conn
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        raise e
-    finally:
-        conn.close()
-
-def get_db_session() -> Generator[Any, None, None]:
-    """Dependency for FastAPI"""
-    conn = get_connection()
-    try:
-        yield conn
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        raise e
-    finally:
-        conn.close()
-
-def _add_column_if_missing(conn, table: str, column_def: str, col_name: str):
-    if hasattr(conn, "is_postgres"):
-        check = conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name=%s AND column_name=%s", (table, col_name)).fetchone()
-        if not check:
-            try:
-                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column_def};")
-            except Exception as e:
-                logger.warning(f"Could not add column {col_name} to {table}: {e}")
-    else:
-        table_check = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (table,)).fetchone()
-        if not table_check:
-            return
-        cursor = conn.execute(f"PRAGMA table_info({table});")
-        existing_cols = [row["name"] for row in cursor.fetchall()]
-        if col_name not in existing_cols:
-            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column_def};")
-
-def _create_table_if_missing(conn, table_name: str, create_sql: str):
-    if hasattr(conn, "is_postgres"):
-        check = conn.execute("SELECT table_name FROM information_schema.tables WHERE table_name=%s", (table_name,)).fetchone()
-        if not check:
-            conn.execute(create_sql)
-    else:
-        table_check = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (table_name,)).fetchone()
-        if not table_check:
-            conn.execute(create_sql)
+def _add_column_if_missing(conn: sqlite3.Connection, table: str, column_def: str, col_name: str):
+    table_check = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?;", (table,)).fetchone()
+    if not table_check:
+        return
+    cursor = conn.execute(f"PRAGMA table_info({table});")
+    existing_cols = [row["name"] for row in cursor.fetchall()]
+    if col_name not in existing_cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column_def};")
 
 def run_migrations(conn: sqlite3.Connection):
     """Run incremental column migrations on existing tables."""
-    # demand_records (Layer 5) - created via migration so existing DBs get the table
-    _create_table_if_missing(conn, "demand_records", """
-        CREATE TABLE demand_records (
-          id TEXT PRIMARY KEY,
-          qualification_id TEXT NOT NULL,
-          district TEXT NOT NULL,
-          block TEXT NOT NULL,
-          mobility_radius_km REAL,
-          work_preference TEXT,
-          had_verified_match INTEGER NOT NULL DEFAULT 0,
-          period TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          FOREIGN KEY (qualification_id) REFERENCES qualifications(id) ON DELETE CASCADE
-        );
-    """)
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_demand_records_district ON demand_records(district, period);")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_demand_records_block ON demand_records(district, block, qualification_id);")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_demand_records_qual ON demand_records(qualification_id);")
-
     # local_opportunities
     _add_column_if_missing(conn, "local_opportunities", "state TEXT NOT NULL DEFAULT 'Uttar Pradesh'", "state")
     _add_column_if_missing(conn, "local_opportunities", "availability TEXT DEFAULT 'verified_open'", "availability")
@@ -192,10 +52,14 @@ def run_migrations(conn: sqlite3.Connection):
     _add_column_if_missing(conn, "recommendations", "skill_gaps TEXT", "skill_gaps")
     _add_column_if_missing(conn, "recommendations", "local_opportunity_status TEXT DEFAULT 'unknown'", "local_opportunity_status")
     _add_column_if_missing(conn, "recommendations", "caveat TEXT DEFAULT 'This is a guidance recommendation, not confirmation of admission or placement.'", "caveat")
+    _add_column_if_missing(conn, "recommendations", "explanation_facts TEXT", "explanation_facts")
 
     # beneficiaries
     _add_column_if_missing(conn, "beneficiaries", "owner_type TEXT DEFAULT 'authenticated_user'", "owner_type")
     _add_column_if_missing(conn, "beneficiaries", "owner_id TEXT", "owner_id")
+
+    # users
+    _add_column_if_missing(conn, "users", "preferred_language TEXT NOT NULL DEFAULT 'en'", "preferred_language")
 
     # interview_sessions
     _add_column_if_missing(conn, "interview_sessions", "session_id TEXT", "session_id")
@@ -203,34 +67,41 @@ def run_migrations(conn: sqlite3.Connection):
     _add_column_if_missing(conn, "referral_cases", "session_id TEXT", "session_id")
 
 def init_database():
-    """Ensure database schema is created, migrated, and seeded."""
-    logger.info(f"Initializing database at: {settings.DATABASE_PATH}")
+    """Ensure database schema is created via Alembic, migrated, and seeded."""
+    logger.info(f"Initializing database at: {settings.DATABASE_URL}")
+    import alembic.config
+    import alembic.command
     
-    schema_paths = [
-        Path(__file__).resolve().parent / "database" / "schema.sql",
-        Path(__file__).resolve().parent / "schema.sql",
-        Path(__file__).resolve().parent.parent / "src" / "database" / "schema.sql",
-    ]
-    schema_path = next((p for p in schema_paths if p.exists()), None)
-
+    alembic_ini = Path(__file__).resolve().parent.parent / "alembic.ini"
+    alembic_cfg = alembic.config.Config(str(alembic_ini))
+    alembic_cfg.set_main_option("script_location", str(alembic_ini.parent / "alembic"))
+    
+    # Use dynamic URL for test compatibility
+    db_url = settings.DATABASE_URL
+    if settings.DATABASE_PATH and db_url.startswith("sqlite") and "memory" not in db_url:
+        db_path = Path(settings.DATABASE_PATH).absolute().as_posix()
+        db_url = f"sqlite:///{db_path}"
+    
+    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+    
+    if "memory" in db_url:
+        from app.db.session import get_engine
+        engine = get_engine()
+        from alembic import context
+        with engine.begin() as connection:
+            alembic_cfg.attributes['connection'] = connection
+            alembic.command.upgrade(alembic_cfg, "head")
+    else:
+        alembic.command.upgrade(alembic_cfg, "head")
+        
     with get_db() as conn:
-        if schema_path and schema_path.exists():
-            with open(schema_path, "r", encoding="utf-8") as f:
-                schema_sql = f.read()
-            conn.executescript(schema_sql)
-        else:
-            logger.warning("schema.sql not found, skipping migration execution")
-
-        run_migrations(conn)
-
-        # Check if already seeded
-        cursor = conn.execute("SELECT count(*) as count FROM qualifications;")
-        count = cursor.fetchone()["count"]
-        if count == 0:
-            logger.info("Database empty, running initial seed...")
+        logger.info("Database schema applied.")
+        cols = conn.execute("PRAGMA table_info(audit_events);").fetchall()
+        print(f"DEBUG: audit_events columns in {db_url}: {cols}")
+        # Seed default values if empty
+        check = conn.execute("SELECT COUNT(*) as count FROM qualifications;").fetchone()
+        if check and check['count'] == 0:
             seed_database(conn)
-        else:
-            logger.info(f"Database already contains {count} qualifications. Skipping initial seed.")
 
 
 def seed_database(conn: sqlite3.Connection):
@@ -336,16 +207,52 @@ def seed_database(conn: sqlite3.Connection):
         )
     ]
 
-    conn.executemany("""
-        INSERT OR IGNORE INTO qualifications (
-            id, nqr_code, title, sector, nsqf_level, duration_hours,
+    qual_rows = []
+    for q in quals:
+        (
+            qid, nqr_code, title, sector, nsqf_level, duration_hours,
             min_education, min_education_rank, work_type, physical_intensity,
             skills_acquired, curriculum_summary, entry_criteria, certification_body,
             nqr_link, verification_status, verification_date
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-    """, quals)
+        ) = q
+        entry_req = json.dumps({"min_education": min_education, "entry_criteria": entry_criteria})
+        v_status = 'VERIFIED' if verification_status.lower() == 'verified' else verification_status
+        qual_rows.append((
+            qid, nqr_code, nqr_code, title, curriculum_summary, sector, nsqf_level, duration_hours,
+            entry_req, skills_acquired, min_education, min_education_rank, work_type, physical_intensity,
+            skills_acquired, curriculum_summary, entry_criteria, certification_body, nqr_link,
+            certification_body, nqr_link, '1.0', f"{verification_date}T00:00:00Z",
+            v_status, verification_date, now, now
+        ))
 
-    # 2. Local Opportunities (Dated batches)
+    conn.executemany("""
+        INSERT OR IGNORE INTO qualifications (
+            id, external_reference, nqr_code, title, description, sector, nsqf_level, duration_hours,
+            entry_requirements_json, skills_json, min_education, min_education_rank, work_type, physical_intensity,
+            skills_acquired, curriculum_summary, entry_criteria, certification_body, nqr_link,
+            source_name, source_url, source_version, source_verified_at, verification_status,
+            verification_date, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """, qual_rows)
+
+    # 2. Opportunity Providers
+    providers = [
+        ('prov_solar_moradabad_01', 'training_centre', 'Govt ITI Moradabad Training Centre', 'Moradabad', 'Moradabad Rural', 28.8386, 78.7733, 'ACTIVE', 'pm_ajay_portal', now, now),
+        ('prov_sewing_chhajlet_02', 'training_centre', 'Pradhan Mantri Kaushal Kendra Chhajlet', 'Moradabad', 'Chhajlet', 28.9856, 78.6811, 'ACTIVE', 'pm_ajay_portal', now, now),
+        ('prov_food_chhajlet_04', 'enterprise_cluster', 'Chhajlet Agro-Processing Enterprise Cluster', 'Moradabad', 'Chhajlet', 28.9800, 78.6900, 'ACTIVE', 'pm_ajay_portal', now, now),
+        ('prov_retail_moradabad_06', 'training_centre', 'Skill India Hub Moradabad Civil Lines', 'Moradabad', 'Moradabad Rural', 28.8400, 78.7800, 'ACTIVE', 'pm_ajay_portal', now, now),
+        ('prov_mushroom_chhajlet_07', 'training_centre', 'Krishi Vigyan Kendra Mushroom Training Unit', 'Moradabad', 'Chhajlet', 28.9870, 78.6850, 'ACTIVE', 'pm_ajay_portal', now, now),
+        ('prov_gda_moradabad_09', 'training_centre', 'District Hospital Allied Healthcare Training Cell', 'Moradabad', 'Moradabad Urban', 28.8350, 78.7750, 'ACTIVE', 'pm_ajay_portal', now, now),
+        ('prov_plumber_moradabad_08', 'training_centre', 'Jan Shikshan Sansthan Moradabad', 'Moradabad', 'Moradabad Rural', 28.8200, 78.7200, 'ACTIVE', 'pm_ajay_portal', now, now),
+        ('prov_dataentry_ghaziabad_10', 'training_centre', 'Ghaziabad Skill Development Center', 'Ghaziabad', 'Ghaziabad Urban', 28.6700, 77.4400, 'ACTIVE', 'pm_ajay_portal', now, now)
+    ]
+    conn.executemany("""
+        INSERT OR IGNORE INTO opportunity_providers (
+            id, provider_type, name, district_id, block_id, latitude, longitude, status, source_name, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """, providers)
+
+    # 3. Local Opportunities (Dated batches)
     opps = [
         (
             'opp_solar_moradabad_01', 'qual_solar_01', 'Govt ITI Moradabad Training Centre', 'training_centre',
@@ -389,17 +296,38 @@ def seed_database(conn: sqlite3.Connection):
         )
     ]
 
+    opp_rows = []
+    for op_item in opps:
+        (
+            opp_id, qid, centre_name, otype,
+            dist, blk, addr, lat, lon,
+            b_start, b_end, t_seats, a_seats, sc_seats, b_status,
+            hostel, stipend, toolkit, src, v_worker, v_at, c_at
+        ) = op_item
+        prov_id = f"prov_{opp_id.split('opp_')[1]}"
+        status_map = 'ACTIVE' if b_status in ('active', 'upcoming') else ('FULL' if b_status == 'full' else 'CLOSED')
+        expires_at = "2027-12-31T23:59:59Z"
+        opp_rows.append((
+            opp_id, qid, prov_id, otype, centre_name, f"Batch for {centre_name}",
+            dist, blk, dist, blk, centre_name, otype, addr, lat, lon, addr,
+            'offline_centre', b_start, b_end, b_start, b_end,
+            t_seats, a_seats, t_seats, a_seats, sc_seats,
+            stipend, stipend, toolkit, hostel,
+            src, status_map, b_status, v_worker, v_at, expires_at, c_at, c_at
+        ))
+
     conn.executemany("""
         INSERT OR IGNORE INTO local_opportunities (
-            id, qualification_id, centre_or_employer_name, type, district, block,
-            address, latitude, longitude, batch_start_date, batch_end_date,
-            total_seats, available_seats, sc_reserved_seats, batch_status,
-            hostel_available, stipend_amount_inr, free_toolkit_provided, source,
-            verified_by_worker_id, verified_at, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-    """, opps)
+            id, qualification_id, provider_id, opportunity_type, title, summary,
+            district_id, block_id, district, block, centre_or_employer_name, type, address, latitude, longitude, location_text,
+            delivery_mode, start_date, end_date, batch_start_date, batch_end_date,
+            seats_total, seats_available, total_seats, available_seats, sc_reserved_seats,
+            stipend_amount, stipend_amount_inr, free_toolkit_provided, hostel_available,
+            source, status, batch_status, verified_by_worker_id, verified_at, verification_expires_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """, opp_rows)
 
-    # 3. Seed Beneficiary (Rajesh Kumar)
+    # 4. Seed Beneficiary (Rajesh Kumar)
     conn.execute("""
         INSERT OR IGNORE INTO beneficiaries (
             id, name, phone, gender, age, category, preferred_language,
@@ -410,7 +338,7 @@ def seed_database(conn: sqlite3.Connection):
         'hi', 'Moradabad', 'Chhajlet', 'Village Chhajlet', 'voice', now, now
     ))
 
-    # 4. Seed Consent
+    # 5. Seed Consent
     conn.execute("""
         INSERT OR IGNORE INTO consents (
             id, beneficiary_id, purpose, notice_version, audio_consent_recorded,
@@ -422,7 +350,15 @@ def seed_database(conn: sqlite3.Connection):
         '1.0', 1, 'do_not_keep', 1, now
     ))
 
-    # 5. Seed Interview Session
+    conn.execute("""
+        INSERT OR IGNORE INTO consent_records (
+            id, session_id, beneficiary_id, consent_type, policy_version, status, user_language, capture_channel, timestamp
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """, (
+        'cr_ben_rajesh_01', 'sess_rajesh_01', 'ben_rajesh_kumar', 'ai_processing', '1.0', 'granted', 'hi', 'web_app', now
+    ))
+
+    # 6. Seed Interview Session
     conn.execute("""
         INSERT OR IGNORE INTO interview_sessions (
             id, beneficiary_id, channel, status, current_question_index,
@@ -439,7 +375,7 @@ def seed_database(conn: sqlite3.Connection):
         ]), now, now
     ))
 
-    # 6. Seed Profile Answers
+    # 7. Seed Profile Answers
     answers = [
         ('ans_1', 'ben_rajesh_kumar', 'sess_rajesh_01', 'education_level', 'Class 10 Pass', 0.95, 'confirmed', 'voice_extraction', now, now),
         ('ans_2', 'ben_rajesh_kumar', 'sess_rajesh_01', 'interests', json.dumps(['Farming', 'Agri-Business', 'Repair work']), 0.90, 'confirmed', 'voice_extraction', now, now),
@@ -454,16 +390,17 @@ def seed_database(conn: sqlite3.Connection):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     """, answers)
 
-    # 7. Seed Recommendation
+    # 8. Seed Recommendation
     conn.execute("""
         INSERT OR IGNORE INTO recommendations (
-            id, beneficiary_id, session_id, qualification_id, local_opportunity_id,
+            id, beneficiary_id, session_id, interview_id, qualification_id, local_opportunity_id,
             rank, score, score_breakdown, match_state, explanation_text,
             audio_explanation_script, tradeoff_summary, skill_gap_summary,
-            data_snapshot, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            data_snapshot, ranking_factors, hard_constraint_result, matched_skills, skill_gaps,
+            local_opportunity_status, caveat, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     """, (
-        'rec_seed_01', 'ben_rajesh_kumar', 'sess_rajesh_01',
+        'rec_seed_01', 'ben_rajesh_kumar', 'sess_rajesh_01', 'sess_rajesh_01',
         'qual_mushroom_07', 'opp_mushroom_chhajlet_07', 1, 0.91,
         json.dumps({'interest': 0.95, 'skills': 0.85, 'access': 0.90, 'demand': 0.85, 'preference': 1.0}),
         'Verified Match',
@@ -472,10 +409,16 @@ def seed_database(conn: sqlite3.Connection):
         'The training is nearby and supports self-employment.',
         'Practical cultivation experience may help build on your existing farming skills.',
         json.dumps({'qualification_id': 'qual_mushroom_07', 'opportunity_id': 'opp_mushroom_chhajlet_07'}),
+        json.dumps({'interest': 0.95, 'skills': 0.85, 'access': 0.90, 'demand': 0.85, 'preference': 1.0}),
+        json.dumps({'passed': True}),
+        json.dumps(['Compost Preparation', 'Spawning']),
+        json.dumps(['Cropping Management', 'Harvesting']),
+        'verified_open',
+        'This is a guidance recommendation, not confirmation of admission or placement.',
         now, now
     ))
 
-    # 8. Seed Referral
+    # 9. Seed Referral
     conn.execute("""
         INSERT OR IGNORE INTO referrals (
             id, beneficiary_id, recommendation_id, local_opportunity_id, assigned_worker_id,
@@ -488,7 +431,18 @@ def seed_database(conn: sqlite3.Connection):
         '2026-10-05', now, now
     ))
 
-    # 9. Seed Planning Brief (District Moradabad)
+    conn.execute("""
+        INSERT OR IGNORE INTO referral_cases (
+            id, beneficiary_id, interview_id, recommendation_id, local_opportunity_id,
+            referral_reason, consent_verification_state, assigned_counselor_id, status, priority,
+            follow_up_date, notes, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'verified', 'worker_sunita_01', 'assigned', 'medium', '2026-10-05', 'Verified resident of Chhajlet. SC Certificate valid.', ?, ?);
+    """, (
+        'case_rajesh_01', 'ben_rajesh_kumar', 'sess_rajesh_01', 'rec_seed_01', 'opp_mushroom_chhajlet_07',
+        'user_requested_human_help', now, now
+    ))
+
+    # 10. Seed Planning Brief (District Moradabad)
     conn.execute("""
         INSERT OR IGNORE INTO planning_briefs (
             id, district, period, total_beneficiaries_interviewed, total_verified_matches,

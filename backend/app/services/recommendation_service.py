@@ -6,13 +6,12 @@ from typing import List, Dict, Any, Optional
 from app.models import GenerateRecommendationsRequest
 from app.utils.distance import calculate_distance_km, get_block_coordinates
 from app.ai_layers.layer2_extraction.validation import education_to_rank
+from app.ai_layers.layer3_matching.ml_adapter import rerank_candidates
+from app.ai_layers.layer5_planning.demand_record_service import DemandRecordService
 from app.ai_layers.layer3_matching.explanation_generator import ExplanationGenerator
 from app.services.catalogue_service import CatalogueService
 from app.utils.audit_events import log_audit_event
 from app.utils.errors import EntityNotFoundException
-from app.ai_layers.layer5_planning.demand_record_service import DemandRecordService, current_period_label
-from app.utils.logger import logger
-from app.ai_layers.layer3_matching.ml_adapter import rerank_candidates
 
 class RecommendationService:
     @staticmethod
@@ -75,8 +74,21 @@ class RecommendationService:
         try:
             mobility_radius = float(mobility_raw)
         except Exception:
+            if isinstance(mobility_raw, dict):
+                mobility_raw = (
+                    mobility_raw.get("radius_km")
+                    or mobility_raw.get("mobility_radius_km")
+                    or mobility_raw.get("value")
+                    or ""
+                )
             m_str = str(mobility_raw).lower()
-            if "local" in m_str:
+            try:
+                mobility_radius = float(mobility_raw)
+            except (TypeError, ValueError):
+                mobility_radius = None
+            if mobility_radius is not None:
+                pass
+            elif "local" in m_str:
                 mobility_radius = 10.0
             elif "district" in m_str:
                 mobility_radius = 45.0
@@ -93,19 +105,19 @@ class RecommendationService:
         user_edu_rank = education_to_rank(str(user_edu))
         user_coords = get_block_coordinates(block)
 
-        # 2. Fetch all verified qualifications
-        quals_cursor = conn.execute("SELECT * FROM qualifications WHERE verification_status = 'verified';")
+        # 2. Fetch all verified qualifications (support both legacy 'verified' and Sprint 4 'VERIFIED')
+        quals_cursor = conn.execute("SELECT * FROM qualifications WHERE UPPER(verification_status) = 'VERIFIED';")
         quals = [dict(r) for r in quals_cursor.fetchall()]
 
-        # 3. Fetch non-archived local opportunities for district
+        # 3. Fetch active, non-expired local opportunities for district
         opp_cursor = conn.execute("""
             SELECT * FROM local_opportunities
-            WHERE LOWER(district) = LOWER(?)
-              AND is_archived = 0
-              AND batch_status IN ('active', 'upcoming')
-              AND available_seats > 0
-              AND batch_end_date >= date('now');
-        """, (district,))
+            WHERE (LOWER(district) = LOWER(?) OR LOWER(district_id) = LOWER(?))
+              AND status NOT IN ('CLOSED', 'ARCHIVED')
+              AND (available_seats > 0 OR seats_available > 0)
+              AND (batch_end_date >= date('now') OR end_date >= date('now') OR batch_end_date IS NULL)
+              AND (verification_expires_at IS NULL OR verification_expires_at > datetime('now'));
+        """, (district, district))
         raw_opps = [dict(r) for r in opp_cursor.fetchall()]
 
         candidate_list = []
@@ -113,21 +125,26 @@ class RecommendationService:
         for qual in quals:
             qual_id = qual["id"]
             qual_title = qual.get("title", "")
-            qual_skills = json.loads(qual.get("skills_acquired") or "[]")
-            qual_work_type = qual.get("work_type", "both")
+            skills_raw = qual.get("skills_acquired") or qual.get("skills_json") or "[]"
+            try:
+                qual_skills = json.loads(skills_raw)
+            except Exception:
+                qual_skills = []
+            qual_work_type = qual.get("work_type") or "both"
 
             # HARD FILTER 1: Explicit "do not recommend"
             if any(dnr in qual_title.lower() or dnr in qual.get("sector", "").lower() for dnr in do_not_recommend):
                 continue
 
             # HARD FILTER 2: Education requirement (officially known)
-            min_rank = qual.get("min_education_rank", 0)
+            min_rank = qual.get("min_education_rank") or 0
             if user_edu_rank < min_rank:
                 continue
 
             # HARD FILTER 3: Accessibility / Physical intensity
             if "limited" in access_needs or "wheelchair" in access_needs:
-                if qual.get("physical_intensity") in ["high", "medium_high"]:
+                phys = qual.get("physical_intensity")
+                if phys in ["high", "medium_high"]:
                     continue
 
             # HARD FILTER 4: User work preference
@@ -139,14 +156,44 @@ class RecommendationService:
             matching_opps = []
             for opp in raw_opps:
                 if opp.get("qualification_id") == qual_id:
-                    # Apply stale-data check
-                    is_stale = CatalogueService._is_stale(opp.get("verified_at"))
-                    opp_avail = "unknown" if is_stale else opp.get("availability", "verified_open")
+                    # Apply stale-data check using Sprint 4 verification_expires_at first
+                    expires_at = opp.get("verification_expires_at")
+                    is_expired = False
+                    if expires_at:
+                        try:
+                            exp_dt = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+                            is_expired = exp_dt <= datetime.now(timezone.utc)
+                        except Exception:
+                            is_expired = True
+                    elif CatalogueService._is_stale(opp.get("verified_at")):
+                        is_expired = True
+
+                    # Determine availability from Sprint 4 status field
+                    opp_status = opp.get("status", "").upper()
+                    if is_expired or opp_status in ("EXPIRED", "CLOSED", "ARCHIVED"):
+                        opp_avail = "unknown"
+                    elif opp_status == "ACTIVE":
+                        opp_avail = "verified_open"
+                    else:
+                        # Legacy: check batch_status
+                        opp_avail = opp.get("availability", "unknown")
 
                     # HARD FILTER 5: Travel / Mobility radius
+                    opp_lat = opp.get("latitude")
+                    opp_lon = opp.get("longitude")
+                    if opp_lat is None or opp_lon is None:
+                        opp_block = opp.get("block_id") or opp.get("block")
+                        if opp_block:
+                            block_coords = get_block_coordinates(opp_block)
+                            opp_lat = opp_lat if opp_lat is not None else block_coords["lat"]
+                            opp_lon = opp_lon if opp_lon is not None else block_coords["lon"]
+                        else:
+                            opp_lat = opp_lat if opp_lat is not None else user_coords["lat"]
+                            opp_lon = opp_lon if opp_lon is not None else user_coords["lon"]
+
                     dist = calculate_distance_km(
                         user_coords["lat"], user_coords["lon"],
-                        opp.get("latitude", user_coords["lat"]), opp.get("longitude", user_coords["lon"])
+                        opp_lat, opp_lon
                     )
 
                     if dist <= mobility_radius:
@@ -177,6 +224,7 @@ class RecommendationService:
                 elif any(word in qual_title.lower() for word in it_str.split()):
                     interest_score = max(interest_score, 20.0)
                     why_reasons.append(f"Aligns with your preference for {it}")
+                    break
 
             # 2. Existing skill overlap (20 pts)
             matched_skills = []
@@ -226,13 +274,13 @@ class RecommendationService:
 
             candidate_list.append({
                 "qualification": {
-                    "id": qual["nqr_code"],
+                    "id": qual.get("nqr_code") or qual.get("external_reference") or qual["id"],
                     "internal_id": qual["id"],
-                    "nqr_code": qual["nqr_code"],
+                    "nqr_code": qual.get("nqr_code") or qual.get("external_reference"),
                     "title": qual_title,
                     "nsqf_level": qual["nsqf_level"],
                     "sector": qual["sector"],
-                    "official_url": qual.get("official_source_url") or qual.get("nqr_link"),
+                    "official_url": qual.get("official_source_url") or qual.get("nqr_link") or qual.get("source_url"),
                     "duration_hours": qual.get("duration_hours")
                 },
                 "why_recommended": why_reasons[:3],
@@ -242,7 +290,7 @@ class RecommendationService:
                     "status": local_status,
                     "district": district,
                     "source_url": best_opp.get("source_url") if best_opp else None,
-                    "centre_name": best_opp.get("centre_or_employer_name") if best_opp else None,
+                    "centre_name": (best_opp.get("centre_or_employer_name") or best_opp.get("title")) if best_opp else None,
                     "last_verified_at": best_opp.get("verified_at") if best_opp else None
                 },
                 "caveat": "This is a guidance recommendation, not confirmation of admission or placement.",
@@ -256,8 +304,9 @@ class RecommendationService:
                 "skill_gap_summary": expl["skill_gap_summary"]
             })
 
+        rerank_candidates(candidate_list, confirmed_profile, {q["id"]: q for q in quals})
+
         # Rank descending by score
-        rerank_candidates(candidate_list, confirmed_profile, {q['id']: q for q in quals})
         candidate_list.sort(key=lambda x: x["score"], reverse=True)
         top_candidates = candidate_list[:3]
 
@@ -274,11 +323,30 @@ class RecommendationService:
             }
 
         # Persist structured recommendations in database
+        from app.services.recommendation_explanation_service import RecommendationExplanationService
+        from app.schemas.locale import resolve_locale
+        resolved_loc = resolve_locale(explicit_locale=lang)
+
         saved_recs = []
         for i, item in enumerate(top_candidates):
             rec_id = f"rec_{uuid.uuid4().hex[:10]}"
             best_opp = item["best_opp"]
             qual_internal_id = item["qualification"]["internal_id"]
+
+            facts = RecommendationExplanationService.build_explanation_facts(
+                profile=confirmed_profile,
+                qualification=item["qualification"],
+                matched_skills=item["matched_skills"],
+                skill_gaps=item["skill_gaps"],
+                match_state=item["match_state"],
+                best_opp=best_opp
+            )
+            why_recommended_payload = RecommendationExplanationService.get_explanation(
+                locale=resolved_loc,
+                facts=facts,
+                title=item["qualification"]["title"],
+                match_state=item["match_state"]
+            )
 
             conn.execute("""
                 INSERT INTO recommendations (
@@ -286,8 +354,8 @@ class RecommendationService:
                     local_opportunity_id, rank, score, score_breakdown, match_state,
                     explanation_text, audio_explanation_script, tradeoff_summary, skill_gap_summary,
                     data_snapshot, ranking_factors, hard_constraint_result, matched_skills,
-                    skill_gaps, local_opportunity_status, caveat, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    skill_gaps, local_opportunity_status, caveat, explanation_facts, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """, (
                 rec_id, target_ben_id, target_interview_id, target_interview_id,
                 qual_internal_id, best_opp["id"] if best_opp else None,
@@ -297,19 +365,43 @@ class RecommendationService:
                 json.dumps({"qualification": item["qualification"], "local_availability": item["local_availability"]}),
                 json.dumps(item["ranking_factors"]), json.dumps({"passed": True}),
                 json.dumps(item["matched_skills"]), json.dumps(item["skill_gaps"]),
-                item["local_availability"]["status"], item["caveat"], now, now
+                item["local_availability"]["status"], item["caveat"],
+                json.dumps(facts, ensure_ascii=False), now, now
             ))
 
+            # Persist to recommendation_match_state table
+            from app.services.match_state_service import MatchStateService
+            item_local_status = item["local_availability"]["status"]
+            item_best_opp = item["best_opp"]
+            MatchStateService.recalculate_match(
+                conn, target_ben_id or "anonymous", qual_internal_id,
+                item_best_opp["id"] if (item_best_opp and item_local_status == "verified_open") else None
+            )
+
+            is_verified = (item["match_state"] in ("Verified Match", "VERIFIED_MATCH"))
             clean_response = {
+                "id": rec_id,
                 "recommendation_id": rec_id,
+                "qualification_id": qual_internal_id,
+                "rank": i + 1,
+                "title": item["qualification"]["title"],
                 "qualification": item["qualification"],
                 "why_recommended": item["why_recommended"],
+                "whyRecommended": why_recommended_payload,
+                "explanationFacts": facts,
+                "explanationVersion": "v1",
                 "matched_skills": item["matched_skills"],
                 "skill_gaps": item["skill_gaps"],
                 "local_availability": item["local_availability"],
                 "ranking_factors": item["ranking_factors"],
                 "caveat": item["caveat"],
-                "score": item["score"]
+                "score": item["score"],
+                "match_state": "VERIFIED_MATCH" if is_verified else "INTEREST_MATCH",
+                "matchState": "VERIFIED_MATCH" if is_verified else "INTEREST_MATCH",
+                "can_request_referral": is_verified,
+                "can_request_worker_support": True,
+                "canRequestReferral": is_verified,
+                "canRequestWorkerSupport": True
             }
             saved_recs.append(clean_response)
 
@@ -320,6 +412,23 @@ class RecommendationService:
                 SET status = 'recommendations_generated', updated_at = ?
                 WHERE id = ?;
             """, (now, target_interview_id))
+            interview = conn.execute(
+                "SELECT session_id FROM interview_sessions WHERE id = ?;",
+                (target_interview_id,),
+            ).fetchone()
+            if saved_recs and interview:
+                DemandRecordService.record_demand(
+                    conn,
+                    qualification_id=top_candidates[0]["qualification"]["internal_id"],
+                    district=district,
+                    block=block,
+                    mobility_radius_km=mobility_radius,
+                    work_preference=work_pref,
+                    had_verified_match=top_candidates[0]["match_state"] in ("Verified Match", "VERIFIED_MATCH"),
+                    beneficiary_id=target_ben_id,
+                    session_id=interview["session_id"],
+                    created_at=now,
+                )
 
         log_audit_event(
             conn=conn,
@@ -332,40 +441,16 @@ class RecommendationService:
             metadata={"count": len(saved_recs), "district": district}
         )
 
-        # Layer 5: write an anonymised demand record for the rank-1 trade
-        # interest (only when analytics consent is on file). Never affects
-        # the matching result.
-        try:
-            if top_candidates:
-                interview_sess = conn.execute(
-                    "SELECT session_id FROM interview_sessions WHERE id = ?;",
-                    (target_interview_id,),
-                ).fetchone() if target_interview_id else None
-                DemandRecordService.record_demand(
-                    conn=conn,
-                    qualification_id=top_candidates[0]["qualification"]["internal_id"],
-                    district=district,
-                    block=block,
-                    mobility_radius_km=mobility_radius,
-                    work_preference=work_pref if work_pref in ("wage", "self_employment", "both") else None,
-                    had_verified_match=any(r["match_state"] == "Verified Match" for r in top_candidates),
-                    period=current_period_label(),
-                    beneficiary_id=target_ben_id,
-                    session_id=interview_sess["session_id"] if interview_sess else None,
-                )
-        except Exception as e:
-            logger.warning(f"Demand record write failed (non-blocking): {e}")
-
         return {
             "count": len(saved_recs),
-            "ranking_method": "ml_blended" if any("ml_score" in r["ranking_factors"] for r in saved_recs) else "rules",
             "recommendations": saved_recs,
+            "ranking_method": "ml_blended" if any("ml_score" in item["ranking_factors"] for item in top_candidates) else "rules",
             "counselor_referral_suggested": any(r["local_availability"]["status"] == "unknown" for r in saved_recs),
             "counselor_handoff_recommended": any(r["local_availability"]["status"] == "unknown" for r in saved_recs)
         }
 
     @staticmethod
-    def get_recommendation_by_id(conn: sqlite3.Connection, rec_id: str) -> Dict[str, Any]:
+    def get_recommendation_by_id(conn: sqlite3.Connection, rec_id: str, locale: Any = None) -> Dict[str, Any]:
         row = conn.execute("SELECT * FROM recommendations WHERE id = ?;", (rec_id,)).fetchone()
         if not row:
             raise EntityNotFoundException("Recommendation", rec_id)
@@ -374,34 +459,66 @@ class RecommendationService:
         qual_row = conn.execute("SELECT * FROM qualifications WHERE id = ?;", (d["qualification_id"],)).fetchone()
         opp_row = conn.execute("SELECT * FROM local_opportunities WHERE id = ?;", (d["local_opportunity_id"],)).fetchone() if d.get("local_opportunity_id") else None
 
-        qual_row = dict(qual_row) if qual_row else None
-        opp_row = dict(opp_row) if opp_row else None
         qual_info = {
             "id": qual_row["nqr_code"] if qual_row else d["qualification_id"],
-            "nqr_code": qual_row["nqr_code"] if qual_row else "",
-            "sector": qual_row["sector"] if qual_row else "",
-            "duration_hours": qual_row["duration_hours"] if qual_row else None,
             "title": qual_row["title"] if qual_row else "Qualification",
             "nsqf_level": qual_row["nsqf_level"] if qual_row else None,
+            "sector": qual_row["sector"] if qual_row else "General",
             "official_url": (qual_row.get("official_source_url") or qual_row.get("nqr_link")) if qual_row else ""
         }
 
+        from app.services.recommendation_explanation_service import RecommendationExplanationService
+        from app.schemas.locale import SupportedLocale
+
+        facts_raw = d.get("explanation_facts")
+        if facts_raw:
+            try:
+                facts = json.loads(facts_raw)
+            except Exception:
+                facts = []
+        else:
+            facts = RecommendationExplanationService.build_explanation_facts(
+                profile={"district": opp_row["district"] if opp_row else None},
+                qualification=qual_info,
+                matched_skills=json.loads(d.get("matched_skills") or "[]"),
+                skill_gaps=json.loads(d.get("skill_gaps") or "[]"),
+                match_state=d.get("match_state") or "INTEREST_MATCH",
+                best_opp=dict(opp_row) if opp_row else None
+            )
+
+        active_locale = locale if isinstance(locale, SupportedLocale) else SupportedLocale.EN
+        why_rec = RecommendationExplanationService.get_explanation(
+            locale=active_locale,
+            facts=facts,
+            title=qual_info["title"],
+            match_state=d.get("match_state") or "INTEREST_MATCH"
+        )
+
+        is_verified = (d.get("match_state") in ("Verified Match", "VERIFIED_MATCH"))
+
         return {
+            "id": d["id"],
             "recommendation_id": d["id"],
+            "qualification_id": d["qualification_id"],
+            "title": qual_info["title"],
+            "rank": d.get("rank", 1),
+            "score": d["score"],
+            "match_state": "VERIFIED_MATCH" if is_verified else "INTEREST_MATCH",
+            "matchState": "VERIFIED_MATCH" if is_verified else "INTEREST_MATCH",
             "qualification": qual_info,
-            "ranking_factors": json.loads(d.get("ranking_factors") or "{}"),
-            "why_recommended": [d["explanation_text"]] if d.get("explanation_text") else [],
             "matched_skills": json.loads(d.get("matched_skills") or "[]"),
             "skill_gaps": json.loads(d.get("skill_gaps") or "[]"),
+            "explanationFacts": facts,
+            "explanationVersion": "v1",
+            "whyRecommended": why_rec,
+            "why_recommended": [r["text"] for r in why_rec.get("reasons", [])] if why_rec.get("reasons") else ["Pathway matches confirmed profile."],
             "local_availability": {
                 "status": d.get("local_opportunity_status") or "unknown",
-                "centre_name": opp_row.get("centre_or_employer_name") if opp_row else None,
                 "district": opp_row["district"] if opp_row else None,
                 "source_url": opp_row.get("source_url") if opp_row else None,
                 "last_verified_at": opp_row.get("verified_at") if opp_row else None
             },
-            "caveat": d.get("caveat") or "This is a guidance recommendation, not confirmation of admission or placement.",
-            "score": d["score"]
+            "caveat": d.get("caveat") or "This is a guidance recommendation, not confirmation of admission or placement."
         }
 
     @staticmethod

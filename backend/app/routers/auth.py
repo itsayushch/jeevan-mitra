@@ -1,41 +1,96 @@
-from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-import jwt
-from app.config import settings
+from fastapi import APIRouter, Depends, Request, Response, Cookie, HTTPException
+from app.schemas.auth import LoginRequest, TokenResponse, ChangePasswordRequest, BootstrapAdminRequest, UserResponse, UserScopeResponse, UpdateLanguageRequest
+from app.services.auth_service import AuthService
+from app.dependencies.auth import get_current_user, Actor, get_current_actor, require_authenticated_user
+from app.database import get_db
 
-router = APIRouter(tags=["Auth"])
+router = APIRouter(
+    prefix="/auth",
+    tags=["Authentication"]
+)
 
-class LoginRequest(BaseModel):
-    username: str
-    password: str
+@router.post("/bootstrap-admin")
+def bootstrap_admin(req: BootstrapAdminRequest, request: Request):
+    with get_db() as conn:
+        return AuthService.bootstrap_admin(conn, req, request.client.host if request.client else "unknown")
 
-@router.post("/login")
-def login(request: LoginRequest):
-    # Simple hardcoded mock users for the prototype
-    mock_users = {
-        "worker": {"role": "field_worker", "name": "Field Worker Demo", "id": "worker_01"},
-        "counselor": {"role": "counselor", "name": "Counselor Demo", "id": "counselor_01"},
-        "admin": {"role": "admin", "name": "Admin Demo", "id": "admin_01"},
-        "officer": {"role": "district_officer", "name": "District Officer Demo", "id": "officer_01"}
-    }
-    
-    if request.username not in mock_users or request.password != "password123":
-        raise HTTPException(status_code=401, detail="Invalid username or password. (Hint: use password123)")
+@router.post("/login", response_model=TokenResponse)
+def login(req: LoginRequest, request: Request, response: Response):
+    with get_db() as conn:
+        res = AuthService.login(conn, req, request.client.host if request.client else "unknown", request.headers.get("user-agent", ""))
         
-    user = mock_users[request.username]
-    
-    payload = {
-        "sub": user["id"],
-        "role": user["role"],
-        "name": user["name"],
-        "exp": datetime.now(timezone.utc) + timedelta(hours=24)
-    }
-    
-    token = jwt.encode(payload, settings.JWT_SECRET, algorithm="HS256")
-    
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user": user
-    }
+        # Set HttpOnly cookie for refresh token
+        response.set_cookie(
+            key="refresh_token",
+            value=res["refresh_token"],
+            httponly=True,
+            secure=request.url.scheme == "https",
+            samesite="lax",
+            max_age=30 * 24 * 60 * 60 # 30 days
+        )
+        
+        return {"access_token": res["access_token"], "token_type": "bearer"}
+
+@router.post("/refresh", response_model=TokenResponse)
+def refresh(request: Request, response: Response, refresh_token: str = Cookie(None)):
+    if not refresh_token:
+        # Fallback to authorization header or body for non-browser clients if needed
+        raise HTTPException(status_code=401, detail="Refresh token missing")
+        
+    with get_db() as conn:
+        res = AuthService.refresh(conn, refresh_token, request.client.host if request.client else "unknown", request.headers.get("user-agent", ""))
+        
+        response.set_cookie(
+            key="refresh_token",
+            value=res["refresh_token"],
+            httponly=True,
+            secure=request.url.scheme == "https",
+            samesite="lax",
+            max_age=30 * 24 * 60 * 60
+        )
+        
+        return {"access_token": res["access_token"], "token_type": "bearer"}
+
+@router.post("/logout")
+def logout(request: Request, response: Response, actor: Actor = Depends(require_authenticated_user), refresh_token: str = Cookie(None)):
+    if refresh_token:
+        with get_db() as conn:
+            AuthService.logout(conn, refresh_token, actor.actor_id)
+    response.delete_cookie("refresh_token")
+    return {"message": "Logged out successfully"}
+
+@router.get("/me", response_model=UserResponse)
+def get_me(actor: Actor = Depends(get_current_user)):
+    return UserResponse(
+        id=actor.db_user["id"],
+        email=actor.db_user.get("email"),
+        phone=actor.db_user.get("phone"),
+        display_name=actor.db_user["display_name"],
+        is_active=bool(actor.db_user["is_active"]),
+        is_superuser=bool(actor.db_user.get("is_superuser")),
+        roles=actor.roles,
+        scopes=[UserScopeResponse(**s) for s in actor.scopes],
+        preferred_language=actor.db_user.get("preferred_language") or "en"
+    )
+
+@router.patch("/me/language", response_model=UserResponse)
+def update_language(req: UpdateLanguageRequest, actor: Actor = Depends(get_current_user)):
+    from app.schemas.locale import parse_locale, ENABLED_LOCALES
+    parsed = parse_locale(req.preferred_language)
+    if not parsed or parsed not in ENABLED_LOCALES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Language '{req.preferred_language}' is not currently supported or enabled. Enabled: {[e.value for e in ENABLED_LOCALES]}"
+        )
+    with get_db() as conn:
+        conn.execute("UPDATE users SET preferred_language = ? WHERE id = ?", (parsed.value, actor.actor_id))
+        if actor.beneficiary_id:
+            conn.execute("UPDATE beneficiaries SET preferred_language = ? WHERE id = ?", (parsed.value, actor.beneficiary_id))
+        actor.db_user["preferred_language"] = parsed.value
+        return get_me(actor)
+
+@router.post("/change-password")
+def change_password(req: ChangePasswordRequest, actor: Actor = Depends(get_current_user)):
+    with get_db() as conn:
+        AuthService.change_password(conn, actor.actor_id, req)
+    return {"message": "Password changed successfully. All other sessions have been logged out."}

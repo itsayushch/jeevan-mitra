@@ -1,23 +1,6 @@
-import os
-import tempfile
 import pytest
-from fastapi.testclient import TestClient
-from app.config import settings
-from app.database import get_db, init_database
-from app.main import app
+from app.core.settings import settings
 
-@pytest.fixture
-def client():
-    orig_db = settings.DATABASE_PATH
-    temp_dir = tempfile.TemporaryDirectory()
-    settings.DATABASE_PATH = os.path.join(temp_dir.name, "test_recs.db")
-    init_database()
-
-    with TestClient(app) as c:
-        yield c
-
-    settings.DATABASE_PATH = orig_db
-    temp_dir.cleanup()
 
 def test_hard_filters_enforce_education_and_accessibility(client):
     # Setup interview with confirmed Class 5 education and limited mobility (wheelchair)

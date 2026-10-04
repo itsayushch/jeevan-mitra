@@ -18,18 +18,25 @@ from app.routers import (
     monitoring,
     channels,
     audit,
+    qualifications,
+    opportunities,
     catalogue,
     chat,
     journey,
     admin_catalogue,
-    auth
+    training,
+    auth,
+    cases,
+    beneficiary_cases,
+    opportunity_submissions,
+    metrics
 )
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting JeevanMitra 2.0 Python FastAPI Core Service...")
     logger.info(f"Environment: {settings.NODE_ENV} | Pilot District: {settings.DEFAULT_DISTRICT}")
-    init_database()
+    # init_database() is replaced by Alembic migrations
     logger.info("================================================================")
     logger.info("  JEEVAN-MITRA 2.0 PYTHON BACKEND SERVICE OPERATIONAL")
     logger.info("================================================================")
@@ -80,22 +87,65 @@ import time
 import uuid
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
+from app.core.logging import request_id_ctx_var, redact_text
+from app.core.metrics import record_http_request
 
 class LoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        request_id = str(uuid.uuid4())
+        # Ingest incoming X-Request-ID header or generate new UUID4
+        incoming_id = request.headers.get("x-request-id", "").strip()
+        request_id = incoming_id if (incoming_id and len(incoming_id) <= 64) else str(uuid.uuid4())
         request.state.request_id = request_id
+        token = request_id_ctx_var.set(request_id)
+        
         start_time = time.time()
+        try:
+            response = await call_next(request)
+        finally:
+            request_id_ctx_var.reset(token)
+            
+        duration_ms = (time.time() - start_time) * 1000
+        # Record operational metrics
+        record_http_request(request.method, request.url.path, response.status_code, duration_ms)
         
-        response = await call_next(request)
-        
-        process_time = time.time() - start_time
+        # Redact any sensitive path or query text before logging
+        safe_path = redact_text(str(request.url.path))
+        role = getattr(request.state, "actor_role", None) or "anonymous"
+        district_scope = getattr(request.state, "district_scope", None) or "none"
         logger.info(
-            f"method={request.method} path={request.url.path} "
-            f"status={response.status_code} latency={process_time:.4f}s "
-            f"request_id={request_id}"
+            f"request_id={request_id} release_version={settings.RELEASE_VERSION} "
+            f"environment={settings.APP_ENV} route={safe_path} method={request.method} "
+            f"status={response.status_code} duration={duration_ms:.2f}ms "
+            f"role={role} district_scope={district_scope}"
         )
         response.headers["X-Request-ID"] = request_id
+        return response
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        
+        # Security hardening headers
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=(self)"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "frame-ancestors 'none'; "
+            "object-src 'none'; "
+            "base-uri 'self';"
+        )
+        
+        if settings.is_production():
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+            
+        # Prevent caching for sensitive authenticated and planning endpoints
+        path = request.url.path
+        if any(p in path for p in ["/auth", "/referrals", "/planning/exports", "/beneficiaries", "/cases"]):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+            response.headers["Pragma"] = "no-cache"
+            
         return response
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -125,6 +175,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.rate_limits[key].append(now)
         return await call_next(request)
 
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(LoggingMiddleware)
 
@@ -139,7 +190,6 @@ app.add_middleware(
 
 # Include API routers under both /api/v1 and /api prefixes for full frontend & test compatibility
 api_routers = [
-    auth.router,
     health.router,
     beneficiaries.router,
     consents.router,
@@ -151,18 +201,29 @@ api_routers = [
     monitoring.router,
     channels.router,
     audit.router,
+    qualifications.router,
+    opportunities.router,
     catalogue.router,
     chat.router,
     journey.router,
-    admin_catalogue.router
+    admin_catalogue.router,
+    training.router,
+    training.learning_router,
+    training.admin_router,
+    auth.router,
+    cases.router,
+    beneficiary_cases.router,
+    opportunity_submissions.router,
+    metrics.router
 ]
 
 for prefix in ["/api/v1", "/api"]:
     for r in api_routers:
         app.include_router(r, prefix=prefix)
 
-# Also expose health check at root /health for convenience
-app.include_router(health.router)
+# Also expose at root for direct path access
+for r in [health.router, metrics.router, cases.router, referrals.router, beneficiary_cases.router, planning.router]:
+    app.include_router(r)
 
 if __name__ == "__main__":
     import uvicorn

@@ -94,4 +94,6 @@ def test_full_profile_erasure_dpdp_compliance(client):
               AND entity_id = ?;
         """, (ben_id,)).fetchone()
         assert audit_row is not None
-        assert audit_row["actor_role"] == "beneficiary"
+        import json
+        meta = json.loads(audit_row["metadata_json"] or "{}")
+        assert meta.get("legacy_actor_role") == "beneficiary"

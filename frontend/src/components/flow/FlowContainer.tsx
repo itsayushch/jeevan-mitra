@@ -13,6 +13,7 @@ export function FlowContainer({ mode = 'journey', language, onSelectLanguage }: 
   const pending = useRef(false);
   const [error, setError] = useState('');
   const [interviewId, setInterviewId] = useState('');
+  const [firstQuestion, setFirstQuestion] = useState('');
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
   const [selected, setSelected] = useState<RecommendationItem | null>(null);
   const [referralConsent, setReferralConsent] = useState(false);
@@ -33,6 +34,7 @@ export function FlowContainer({ mode = 'journey', language, onSelectLanguage }: 
       await api.recordConsent('profile_storage', true, language);
       const interview = await api.startInterview(language);
       setInterviewId(interview.interview_id); 
+      setFirstQuestion(interview.first_question || interview.last_question || '');
       setStep(2);
       
       // If the user clicked "My Journey", skip the AI conversational chat
@@ -60,7 +62,7 @@ export function FlowContainer({ mode = 'journey', language, onSelectLanguage }: 
     <div className={`flow-canvas ${styles.page}`} aria-busy={busy}>
       {error && <p role="alert" className={styles.error}>{error} {hi ? 'कृपया फिर से कोशिश करें।' : 'Your answers are still here. Please try again.'}</p>}
       {step === 1 && <section><div className="eyebrow">LET’S BEGIN WITH YOU</div><h2>{mode === 'assistant' ? (hi ? 'बातचीत शुरू करने से पहले' : 'Before we start chatting') : (hi ? 'आपके लिए सही रास्ता खोजें' : 'Find a path that fits you.')}</h2><p>{mode === 'assistant' ? (hi ? 'कृपया एआई सहायक का उपयोग करने की सहमति दें।' : 'Please provide your consent to talk with the AI assistant.') : (hi ? 'आपकी पढ़ाई, रुचि और यात्रा की सीमा के आधार पर विकल्प खोजें।' : 'Explore training pathways based on your education, interests and travel preferences.')}</p><label>{hi ? 'भाषा' : 'Language'}<select value={language} onChange={e => onSelectLanguage(e.target.value as Language)}><option value="en">English</option><option value="hi">हिन्दी</option></select></label><label className={styles.check}><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} />{hi ? 'मैं अपनी दी गई जानकारी को सुरक्षित रखने और AI आधारित सुझावों के लिए उपयोग करने की सहमति देता/देती हूँ।' : 'I agree to store my answers and process them with the configured AI service to create my profile and recommendations.'}</label><p>{hi ? 'कोई आवेदन स्वतः नहीं भेजा जाएगा।' : 'No application is submitted automatically. Counselor sharing requires separate consent.'}</p><button className="primary-button" disabled={!consent || busy} onClick={begin}>{busy ? (hi ? 'शुरू हो रहा है…' : 'Starting…') : (hi ? 'शुरू करें' : 'Get started')}</button></section>}
-      {step === 2 && !review && <AskQuestionVoice language={language} interviewId={interviewId} onReview={p => {
+      {step === 2 && !review && <AskQuestionVoice language={language} interviewId={interviewId} firstQuestion={firstQuestion} onReview={p => {
         setProfile({ district: p.district || '', block: p.block || '', education: p.education || '',
           interests: (p.interests || []).join(', '), skills: (p.traditional_or_existing_skills || []).join(', '),
           mobility: p.mobility == null ? '' : String(p.mobility), work: p.self_employment_or_wage_preference || '',

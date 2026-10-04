@@ -43,14 +43,24 @@ def log_audit_event(
     meta_json = json.dumps(metadata) if metadata is not None else None
 
     try:
+        # Migrate old kwargs into metadata_json if provided
+        meta_dict = metadata or {}
+        if actor_name:
+            meta_dict['legacy_actor_name'] = actor_name
+        if actor_role:
+            meta_dict['legacy_actor_role'] = actor_role
+            
+        final_meta_json = json.dumps(meta_dict) if meta_dict else None
+            
         conn.execute("""
             INSERT INTO audit_events (
-                id, actor_id, actor_name, actor_role, action,
-                entity_type, entity_id, old_values, new_values, metadata, timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                id, actor_user_id, action,
+                entity_type, entity_id, before_json, after_json, metadata_json, created_at, request_id, outcome,
+                timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """, (
-            event_id, actor_id, actor_name, actor_role, action,
-            entity_type, entity_id, old_json, new_json, meta_json, now
+            event_id, actor_id, action,
+            entity_type, entity_id, old_json, new_json, final_meta_json, now, None, "SUCCESS", now
         ))
         logger.debug(f"Audit event recorded: {event_id} | {action} on {entity_type}:{entity_id} by {actor_role}:{actor_id}")
     except Exception as e:
@@ -59,3 +69,39 @@ def log_audit_event(
         raise e
 
     return event_id
+
+def log_isolated_audit_event(
+    actor_id: str,
+    actor_name: str,
+    actor_role: str,
+    action: str,
+    entity_type: str,
+    entity_id: str,
+    old_values: Optional[Dict[str, Any]] = None,
+    new_values: Optional[Dict[str, Any]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    timestamp: Optional[str] = None
+) -> str:
+    """
+    Logs an audit event using an independent, dedicated database transaction.
+    This guarantees that the audit record is committed even if the caller's
+    business transaction is rolled back or aborted with an HTTPException (e.g. 403 Forbidden),
+    without committing any uncommitted partial changes from the caller's transaction.
+    """
+    from app.database import get_db
+    with get_db() as audit_conn:
+        event_id = log_audit_event(
+            conn=audit_conn,
+            actor_id=actor_id,
+            actor_name=actor_name,
+            actor_role=actor_role,
+            action=action,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            old_values=old_values,
+            new_values=new_values,
+            metadata=metadata,
+            timestamp=timestamp
+        )
+        audit_conn.commit()
+        return event_id

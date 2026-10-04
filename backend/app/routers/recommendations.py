@@ -39,13 +39,49 @@ def generate_recommendations(
                 raise HTTPException(409, "Confirm your profile before generating recommendations")
         return RecommendationService.generate_recommendations(conn, req, actor_id=actor.actor_id)
 
+from fastapi import Request
+from app.schemas.locale import resolve_locale
+
+@router.get("/recommendations/me")
+def get_my_recommendations(
+    request: Request,
+    actor: Actor = Depends(get_current_actor)
+):
+    ben_id = actor.beneficiary_id or actor.actor_id or actor.session_id
+    if not ben_id:
+        return {"count": 0, "recommendations": []}
+
+    locale = resolve_locale(request, actor_preferred_language=actor.preferred_language)
+    with get_db() as conn:
+        rows = conn.execute("""
+            SELECT id FROM recommendations
+            WHERE beneficiary_id = ? OR session_id = ? OR interview_id = ?
+            ORDER BY rank ASC;
+        """, (ben_id, ben_id, ben_id)).fetchall()
+        recs = [RecommendationService.get_recommendation_by_id(conn, r["id"], locale=locale) for r in rows]
+        return {
+            "count": len(recs),
+            "recommendations": recs
+        }
+
+@router.get("/recommendations/me/{recommendation_id}")
+def get_my_recommendation_detail(
+    recommendation_id: str,
+    request: Request,
+    actor: Actor = Depends(get_current_actor)
+):
+    locale = resolve_locale(request, actor_preferred_language=actor.preferred_language)
+    with get_db() as conn:
+        return RecommendationService.get_recommendation_by_id(conn, recommendation_id, locale=locale)
+
 @router.get("/recommendations/{recommendation_id}")
-def get_recommendation_detail(recommendation_id: str):
+def get_recommendation_detail(recommendation_id: str, request: Request):
     """
     Retrieves detailed structured recommendation record with verification snapshot.
     """
+    locale = resolve_locale(request)
     with get_db() as conn:
-        return RecommendationService.get_recommendation_by_id(conn, recommendation_id)
+        return RecommendationService.get_recommendation_by_id(conn, recommendation_id, locale=locale)
 
 @router.get("/interviews/{interview_id}/recommendations")
 def get_interview_recommendations(interview_id: str):

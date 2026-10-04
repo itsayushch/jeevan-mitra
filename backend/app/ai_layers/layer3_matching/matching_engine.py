@@ -26,26 +26,28 @@ class MatchingEngine:
         user_edu_rank = education_to_rank(user_edu)
         user_coords = get_block_coordinates(block)
 
-        # 1. Fetch verified qualifications
-        cursor = self.conn.execute("SELECT * FROM qualifications WHERE verification_status = 'verified';")
+        # 1. Fetch verified qualifications (support both legacy 'verified' and Sprint4 'VERIFIED')
+        cursor = self.conn.execute("SELECT * FROM qualifications WHERE UPPER(verification_status) = 'VERIFIED';")
         quals = [dict(r) for r in cursor.fetchall()]
 
-        # 2. Fetch local opportunities for this district
+        # 2. Fetch active, non-expired local opportunities for this district
         opp_cursor = self.conn.execute("""
             SELECT * FROM local_opportunities
-                        WHERE district = ?
-                            AND batch_status IN ('active', 'upcoming')
-                            AND available_seats > 0
-                            AND verified_by_worker_id IS NOT NULL
-                            AND batch_end_date >= date('now');
-        """, (district,))
+            WHERE (LOWER(district) = LOWER(?) OR LOWER(district_id) = LOWER(?))
+                AND status IN ('ACTIVE', 'active', 'upcoming')
+                AND (available_seats > 0 OR seats_available > 0)
+                AND (verified_by_worker_id IS NOT NULL OR verified_by_user_id IS NOT NULL)
+                AND (batch_end_date >= date('now') OR end_date >= date('now') OR batch_end_date IS NULL)
+                AND (verification_expires_at IS NULL OR verification_expires_at > datetime('now'));
+        """, (district, district))
         all_opps = [dict(r) for r in opp_cursor.fetchall()]
 
         scored_list = []
 
         for qual in quals:
             # Hard Filter 1: Education rank
-            if user_edu_rank < qual.get("min_education_rank", 0):
+            min_rank = qual.get("min_education_rank") or 0
+            if user_edu_rank < min_rank:
                 continue
 
             # Find matching opportunities within radius
@@ -99,7 +101,8 @@ class MatchingEngine:
             total_score = round(interest_score + skill_score + access_score + demand_score + pref_score, 1)
 
             # Determine initial state (Verified Match only if live verified batch exists with seats)
-            has_verified_batch = best_opp is not None and best_opp.get("available_seats", 0) > 0
+            avail_seats = best_opp.get("available_seats") or best_opp.get("seats_available", 0) if best_opp else 0
+            has_verified_batch = best_opp is not None and avail_seats > 0
             match_state = MatchStateMachine.determine_initial_state(has_verified_batch)
 
             # Generate explanations
