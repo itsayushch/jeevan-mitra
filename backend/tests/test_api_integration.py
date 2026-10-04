@@ -222,7 +222,8 @@ class TestPythonBackend(unittest.TestCase):
         data = res.json()
         self.assertIn('matrix', data)
         self.assertIn('metrics', data)
-        self.assertGreater(data['metrics']['beneficiaries_interviewed'], 0)
+        self.assertEqual(data['status'], 'insufficient_data')
+        self.assertEqual(data['metrics'], {})
 
     def test_chat_endpoint(self):
         res = self.client.post('/api/v1/chat', json={'message': 'hello sahayak', 'language': 'en'})

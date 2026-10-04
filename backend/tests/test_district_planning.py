@@ -5,7 +5,7 @@ import hashlib
 from datetime import datetime, timezone, timedelta
 from fastapi.testclient import TestClient
 from app.main import app
-from app.database import get_db
+from app.database import get_db, seed_database
 from app.core.security import create_access_token
 
 
@@ -13,6 +13,9 @@ from app.core.security import create_access_token
 def planning_db():
     """Seed clean database with test data for district planning verification."""
     with get_db() as conn:
+        qualifications = conn.execute("SELECT COUNT(*) AS count FROM qualifications;").fetchone()
+        if qualifications and qualifications["count"] == 0:
+            seed_database(conn)
         now_iso = datetime.now(timezone.utc).isoformat()
         future_iso = (datetime.now(timezone.utc) + timedelta(days=60)).isoformat()
 
@@ -135,7 +138,8 @@ class TestDistrictPlanningAccessControl:
         headers = _get_auth_headers("usr_admin_mbd", "district_admin")
         res = client.get("/api/v1/planning/overview?district_id=Varanasi", headers=headers)
         assert res.status_code == 403
-        assert "Access denied" in res.json()["detail"]
+        assert res.json()["detail"]["error"] == "DISTRICT_SCOPE_VIOLATION"
+        assert res.json()["detail"]["attempted_district"] == "Varanasi"
 
     def test_super_admin_any_district_allowed(self, planning_db):
         client = TestClient(app)

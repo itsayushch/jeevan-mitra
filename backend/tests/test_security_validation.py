@@ -110,8 +110,8 @@ def test_cross_district_isolation_for_district_admin(setup_security_fixtures):
     # Attempt cross-district planning access for Varanasi
     response = client.get("/api/v1/planning/overview?district_id=Varanasi", headers=headers)
     assert response.status_code == 403
-    assert "access denied" in response.json().get("detail", "").lower()
-    assert "varanasi" in response.json().get("detail", "").lower()
+    assert response.json()["detail"]["error"] == "DISTRICT_SCOPE_VIOLATION"
+    assert response.json()["detail"]["attempted_district"] == "Varanasi"
 
 
 def test_role_escalation_worker_cannot_create_planning_snapshot(setup_security_fixtures):

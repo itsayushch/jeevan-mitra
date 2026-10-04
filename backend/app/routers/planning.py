@@ -114,7 +114,7 @@ def _enforce_planning_access(actor: Actor, target_district: str) -> Dict[str, An
 def get_planning_overview(
     district_id: str = Query("Moradabad", description="Target district for planning"),
     block_id: Optional[str] = Query(None, description="Optional block filter"),
-    actor: Actor = Depends(get_current_actor),
+    actor: Actor = Depends(require_authenticated_user),
 ):
     _enforce_planning_access(actor, district_id)
     with get_db() as conn:

@@ -74,8 +74,21 @@ class RecommendationService:
         try:
             mobility_radius = float(mobility_raw)
         except Exception:
+            if isinstance(mobility_raw, dict):
+                mobility_raw = (
+                    mobility_raw.get("radius_km")
+                    or mobility_raw.get("mobility_radius_km")
+                    or mobility_raw.get("value")
+                    or ""
+                )
             m_str = str(mobility_raw).lower()
-            if "local" in m_str:
+            try:
+                mobility_radius = float(mobility_raw)
+            except (TypeError, ValueError):
+                mobility_radius = None
+            if mobility_radius is not None:
+                pass
+            elif "local" in m_str:
                 mobility_radius = 10.0
             elif "district" in m_str:
                 mobility_radius = 45.0
@@ -263,6 +276,7 @@ class RecommendationService:
                 "qualification": {
                     "id": qual.get("nqr_code") or qual.get("external_reference") or qual["id"],
                     "internal_id": qual["id"],
+                    "nqr_code": qual.get("nqr_code") or qual.get("external_reference"),
                     "title": qual_title,
                     "nsqf_level": qual["nsqf_level"],
                     "sector": qual["sector"],
