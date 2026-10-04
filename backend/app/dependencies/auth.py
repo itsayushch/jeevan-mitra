@@ -62,6 +62,8 @@ def get_current_actor(
     x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
     x_session_token: Optional[str] = Header(None, alias="X-Session-Token"),
     x_worker_api_key: Optional[str] = Header(None, alias="X-Worker-API-Key"),
+    x_officer_api_key: Optional[str] = Header(None, alias="X-Officer-API-Key"),
+    x_admin_api_key: Optional[str] = Header(None, alias="X-Admin-API-Key"),
     x_beneficiary_id: Optional[str] = Header(None, alias="X-Beneficiary-ID"),
     authorization: Optional[str] = Header(None)
 ) -> Actor:
@@ -112,13 +114,14 @@ def get_current_actor(
     configured_staff_keys = (
         (settings.WORKER_API_KEY, "field_worker", settings.WORKER_ID, settings.WORKER_NAME),
         (settings.COUNSELOR_API_KEY, "counselor", "", "Career Counselor"),
-        (settings.ADMIN_API_KEY, "admin", "admin", "District Administrator"),
+        (settings.ADMIN_API_KEY, "super_admin", "admin", "System Administrator"),
         (settings.DISTRICT_OFFICER_API_KEY or settings.OFFICER_API_KEY, "district_officer", settings.OFFICER_ID, settings.OFFICER_NAME),
         (settings.ANALYST_API_KEY, "analyst", "", "District Analyst"),
     )
-    if x_worker_api_key:
+    supplied_staff_key = x_worker_api_key or x_officer_api_key or x_admin_api_key
+    if supplied_staff_key:
         for configured_key, role, actor_id, actor_name in configured_staff_keys:
-            if configured_key and secrets.compare_digest(x_worker_api_key, configured_key):
+            if configured_key and secrets.compare_digest(supplied_staff_key, configured_key):
                 return _bind(Actor(
                     actor_id=actor_id or role,
                     actor_role=role,

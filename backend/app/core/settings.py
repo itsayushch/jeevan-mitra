@@ -29,9 +29,12 @@ class Settings(BaseSettings):
     OFFICER_ID: str = ""
     OFFICER_NAME: str = ""
     OFFICER_DISTRICT: str = ""
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
 
     AI_PROVIDER: str = "gemini"
     GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.0-flash"
     AI_API_KEY: str = ""
     ML_RANKING_ENABLED: bool = False
 

@@ -8,7 +8,8 @@ from app.database import get_db
 from app.models import GenerateBriefRequest, SignOffRequest
 from app.ai_layers.layer5_planning.aggregation_service import AggregationService as LegacyAggregationService
 from app.ai_layers.layer5_planning.narrative_engine import NarrativeEngine
-from app.dependencies.auth import require_authenticated_user, Actor
+from app.dependencies.auth import get_current_actor, require_authenticated_user, Actor
+from app.core.settings import settings
 from app.services.planning_aggregation_service import PlanningAggregationService
 from app.services.planning_snapshot_service import PlanningSnapshotService
 from app.services.planning_export_service import PlanningExportService
@@ -28,11 +29,11 @@ from app.schemas.planning import (
     ExportCreateRequest,
     ExportResponse,
 )
-from app.utils.audit_events import log_isolated_audit_event
+from app.utils.audit_events import log_audit_event, log_isolated_audit_event
 
 router = APIRouter(prefix="/planning", tags=["District-Planning"])
 
-PLANNING_STAFF_ROLES = {"district_admin", "auditor", "super_admin"}
+PLANNING_STAFF_ROLES = {"district_admin", "district_officer", "auditor", "super_admin"}
 
 
 def _actor_to_dict(actor: Actor) -> Dict[str, Any]:
@@ -45,6 +46,8 @@ def _actor_to_dict(actor: Actor) -> Dict[str, Any]:
                 break
     if not district and actor.db_user:
         district = actor.db_user.get("district") or actor.db_user.get("assigned_district")
+    if not district and actor.actor_role == "district_officer":
+        district = settings.OFFICER_DISTRICT
     return {
         "id": actor.actor_id,
         "role": actor.actor_role,
@@ -93,7 +96,11 @@ def _enforce_planning_access(actor: Actor, target_district: str) -> Dict[str, An
             )
             raise HTTPException(
                 status_code=403,
-                detail=f"Access denied: your authorized district is '{user_dist}', cannot access '{target_district}'",
+                detail={
+                    "error": "DISTRICT_SCOPE_VIOLATION",
+                    "authorized_district": user_dist,
+                    "attempted_district": target_district,
+                },
             )
 
     return user_dict
@@ -107,7 +114,7 @@ def _enforce_planning_access(actor: Actor, target_district: str) -> Dict[str, An
 def get_planning_overview(
     district_id: str = Query("Moradabad", description="Target district for planning"),
     block_id: Optional[str] = Query(None, description="Optional block filter"),
-    actor: Actor = Depends(require_authenticated_user),
+    actor: Actor = Depends(get_current_actor),
 ):
     _enforce_planning_access(actor, district_id)
     with get_db() as conn:
@@ -326,13 +333,31 @@ def get_supply_gap_matrix(district: str = "Moradabad"):
         return service.get_demand_supply_matrix(district)
 
 
+@router.get("/matrix")
+def get_planning_matrix(
+    district: str = Query("Moradabad"),
+    actor: Actor = Depends(get_current_actor),
+):
+    _enforce_planning_access(actor, district)
+    with get_db() as conn:
+        return LegacyAggregationService(conn).get_demand_supply_matrix(district)
+
+
 @router.post("/generate-brief", status_code=201)
-def generate_brief(req: GenerateBriefRequest):
+@router.post("/briefs/generate", status_code=201)
+def generate_brief(
+    req: GenerateBriefRequest,
+    actor: Actor = Depends(get_current_actor),
+):
+    _enforce_planning_access(actor, req.district)
     now = datetime.now(timezone.utc).isoformat()
     with get_db() as conn:
         service = LegacyAggregationService(conn)
         matrix = service.get_demand_supply_matrix(req.district)
-        narrative = NarrativeEngine.generate_brief_narrative(matrix)
+        if matrix.get("status") == "insufficient_data":
+            raise HTTPException(status_code=422, detail=matrix)
+        narrative = NarrativeEngine.generate_brief(matrix)["narrative"]
+        metrics = matrix.get("metrics", {})
 
         brief_id = f"brief_{uuid.uuid4().hex[:10]}"
         conn.execute("""
@@ -343,13 +368,17 @@ def generate_brief(req: GenerateBriefRequest):
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?);
         """, (
             brief_id, req.district, req.period,
-            matrix["metrics"]["beneficiaries_interviewed"],
-            matrix["metrics"]["verified_matches"],
-            matrix["metrics"]["planning_supply_gaps"],
+            metrics.get("beneficiaries_interviewed", metrics.get("total_demand_records", 0)),
+            metrics.get("verified_matches", metrics.get("demand_with_verified_match_count", 0)),
+            metrics.get("planning_supply_gaps", metrics.get("total_unmet_demand", 0)),
             json.dumps(matrix), narrative,
             json.dumps(["Deploy Mobile Skilling Unit for Block Bahjoi", "Sanction additional Mushroom & Solar batches"]),
             now, now
         ))
+        log_audit_event(
+            conn, "system", "System", "system", "BRIEF_GENERATED",
+            "planning_brief", brief_id, new_values={"district": req.district},
+        )
 
         return {
             "brief_id": brief_id,
@@ -361,13 +390,20 @@ def generate_brief(req: GenerateBriefRequest):
 
 
 @router.get("/briefs")
-def list_briefs(district: Optional[str] = None):
+def list_briefs(
+    district: Optional[str] = None,
+    actor: Actor = Depends(require_authenticated_user),
+):
+    actor_district = _actor_to_dict(actor)["district"]
+    target_district = district or actor_district
+    if not target_district:
+        raise HTTPException(status_code=403, detail="A configured district scope is required")
+    _enforce_planning_access(actor, target_district)
     with get_db() as conn:
         query = "SELECT * FROM planning_briefs WHERE 1=1"
-        params = []
-        if district:
+        params = [target_district]
+        if target_district:
             query += " AND district = ?"
-            params.append(district)
         query += " ORDER BY created_at DESC;"
         rows = conn.execute(query, params).fetchall()
 
@@ -381,11 +417,15 @@ def list_briefs(district: Optional[str] = None):
 
 
 @router.get("/briefs/{brief_id}")
-def get_brief_by_id(brief_id: str):
+def get_brief_by_id(
+    brief_id: str,
+    actor: Actor = Depends(require_authenticated_user),
+):
     with get_db() as conn:
         row = conn.execute("SELECT * FROM planning_briefs WHERE id = ?;", (brief_id,)).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Planning brief not found")
+        _enforce_planning_access(actor, row["district"])
         d = dict(row)
         d["aggregation_snapshot"] = json.loads(d.get("aggregation_snapshot") or "{}")
         d["suggested_policy_actions"] = json.loads(d.get("suggested_policy_actions") or "[]")
@@ -393,21 +433,80 @@ def get_brief_by_id(brief_id: str):
 
 
 @router.post("/briefs/{brief_id}/sign-off")
-def sign_off_brief(brief_id: str, req: SignOffRequest):
+def sign_off_brief(
+    brief_id: str,
+    req: SignOffRequest,
+    actor: Actor = Depends(get_current_actor),
+):
     now = datetime.now(timezone.utc).isoformat()
     with get_db() as conn:
+        row = conn.execute(
+            "SELECT district, reviewer_sign_off_status FROM planning_briefs WHERE id = ?;",
+            (brief_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Planning brief not found")
+        _enforce_planning_access(actor, row["district"])
+        old_status = row["reviewer_sign_off_status"]
+        if req.action == "submit_for_review" and old_status == "draft":
+            new_status, audit_action = "under_review", "BRIEF_UNDER_REVIEW"
+        elif req.action == "sign_off" and old_status == "under_review":
+            new_status, audit_action = "signed_off", "BRIEF_SIGNED_OFF"
+        else:
+            raise HTTPException(status_code=409, detail="Invalid planning brief lifecycle transition")
         conn.execute("""
             UPDATE planning_briefs
-            SET reviewer_sign_off_status = 'signed_off', signed_off_by = ?, signed_off_at = ?, updated_at = ?
+            SET reviewer_sign_off_status = ?, signed_off_by = ?, signed_off_at = ?, updated_at = ?
             WHERE id = ?;
-        """, (req.officer_name, now, now, brief_id))
+        """, (new_status, req.officer_name, now, now, brief_id))
+        log_audit_event(
+            conn, actor.actor_id, actor.actor_name, actor.actor_role,
+            audit_action, "planning_brief", brief_id,
+            old_values={"status": old_status}, new_values={"status": new_status},
+        )
 
         return {
             "brief_id": brief_id,
-            "status": "signed_off",
+            "status": new_status,
             "signed_off_by": req.officer_name,
             "timestamp": now
         }
+
+
+@router.get("/briefs/{brief_id}/export")
+def export_brief(
+    brief_id: str,
+    format: str = Query("csv", pattern="^(csv|json)$"),
+    actor: Actor = Depends(get_current_actor),
+):
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM planning_briefs WHERE id = ?;", (brief_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Planning brief not found")
+        _enforce_planning_access(actor, row["district"])
+        if row["reviewer_sign_off_status"] != "signed_off":
+            raise HTTPException(
+                status_code=409,
+                detail={"error": "BRIEF_NOT_SIGNED_OFF", "message": "Brief must be signed off before export"},
+            )
+        snapshot = json.loads(row["aggregation_snapshot"] or "{}")
+        if format == "json":
+            return {
+                "export_format": "pdf_ready_json",
+                "brief_id": brief_id,
+                "district": row["district"],
+                "period": row["period"],
+                "generated_narrative": row["generated_narrative"],
+                "aggregation_snapshot": snapshot,
+            }
+        lines = ["block,qualification,demand_count,verified_seats,gap"]
+        for cell in snapshot.get("matrix", []):
+            if not cell.get("suppressed"):
+                lines.append(
+                    f'{cell["block"]},{cell["qualification_title"]},'
+                    f'{cell["demand_count"]},{cell["verified_seats"]},{cell["gap"]}'
+                )
+        return Response("\n".join(lines), media_type="text/csv")
 
 
 @router.get("/export")

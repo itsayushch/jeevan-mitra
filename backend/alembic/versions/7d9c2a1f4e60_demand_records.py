@@ -16,6 +16,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    op.execute("ALTER TABLE audit_events ADD COLUMN timestamp VARCHAR(64);")
+    op.execute("UPDATE audit_events SET timestamp = created_at WHERE timestamp IS NULL;")
+    op.execute(
+        "ALTER TABLE local_opportunities "
+        "ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0;"
+    )
     op.execute("""
         CREATE TABLE IF NOT EXISTS demand_records (
             id VARCHAR(64) PRIMARY KEY,

@@ -55,11 +55,12 @@ def log_audit_event(
         conn.execute("""
             INSERT INTO audit_events (
                 id, actor_user_id, action,
-                entity_type, entity_id, before_json, after_json, metadata_json, created_at, request_id, outcome
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                entity_type, entity_id, before_json, after_json, metadata_json, created_at, request_id, outcome,
+                timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """, (
             event_id, actor_id, action,
-            entity_type, entity_id, old_json, new_json, final_meta_json, now, None, "SUCCESS"
+            entity_type, entity_id, old_json, new_json, final_meta_json, now, None, "SUCCESS", now
         ))
         logger.debug(f"Audit event recorded: {event_id} | {action} on {entity_type}:{entity_id} by {actor_role}:{actor_id}")
     except Exception as e:
@@ -104,4 +105,3 @@ def log_isolated_audit_event(
         )
         audit_conn.commit()
         return event_id
-

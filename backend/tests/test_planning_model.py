@@ -63,39 +63,40 @@ def fixture_db(client):
     with get_db() as conn:
         conn.executemany("""
             INSERT OR REPLACE INTO qualifications
-            (id, nqr_code, title, sector, nsqf_level, duration_hours, min_education,
+            (id, nqr_code, title, description, sector, nsqf_level, duration_hours, min_education,
              min_education_rank, work_type, physical_intensity, skills_acquired,
              curriculum_summary, entry_criteria, certification_body, nqr_link,
-             verification_status, verification_date)
-            VALUES (?, ?, ?, 'Test Sector', 3, 200, 'Class 8', 2, 'both', 'medium', '[]',
+             verification_status, verification_date, created_at, updated_at)
+            VALUES (?, ?, ?, 'Test description', 'Test Sector', 3, 200, 'Class 8', 2, 'both', 'medium', '[]',
                     'curriculum', 'criteria', 'body', 'https://nqr.gov.in/x',
-                    'verified', '2026-01-01');
+                    'verified', '2026-01-01', ?, ?);
         """, [
-            ("qual_x", "TST/Q0001", "Test Trade X"),
-            ("qual_y", "TST/Q0002", "Test Trade Y"),
+            ("qual_x", "TST/Q0001", "Test Trade X", now.isoformat(), now.isoformat()),
+            ("qual_y", "TST/Q0002", "Test Trade Y", now.isoformat(), now.isoformat()),
         ])
 
         def opp(id, qual, block, seats, verified=True, verified_days_ago=5,
                 archived=False, end_date_offset=60, lat=28.8, lon=78.7):
             return (
-                id, qual, f"Centre {id}", "training_centre", "Moradabad", block,
+                id, qual, f"Centre {id}", f"Centre {id}", "Verified test opportunity",
+                "Moradabad", "training_centre", "Moradabad", block,
                 "addr", lat, lon,
                 (now - timedelta(days=20)).date().isoformat(),
                 (now + timedelta(days=end_date_offset)).date().isoformat(),
-                seats + 4, seats, 2, "active", 0, 1000, 1, "pm_ajay_portal",
+                seats + 4, seats, 2, "ACTIVE", "active", 0, 1000, 1, "pm_ajay_portal",
                 "worker_01" if verified else None,
                 (now - timedelta(days=verified_days_ago)).isoformat(),
-                now.isoformat(), archived,
+                now.isoformat(), now.isoformat(), archived,
             )
 
         conn.executemany("""
             INSERT OR REPLACE INTO local_opportunities
-            (id, qualification_id, centre_or_employer_name, type, district, block,
-             address, latitude, longitude, batch_start_date, batch_end_date,
-             total_seats, available_seats, sc_reserved_seats, batch_status,
+            (id, qualification_id, centre_or_employer_name, title, summary, district_id,
+             type, district, block, address, latitude, longitude, batch_start_date, batch_end_date,
+             total_seats, available_seats, sc_reserved_seats, status, batch_status,
              hostel_available, stipend_amount_inr, free_toolkit_provided, source,
-             verified_by_worker_id, verified_at, created_at, is_archived)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+             verified_by_worker_id, verified_at, created_at, updated_at, is_archived)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """, [
             opp("opp_eligible", "qual_x", "BlockA", 6),                       # counted
             opp("opp_unverified", "qual_x", "BlockA", 50, verified=False),   # excluded

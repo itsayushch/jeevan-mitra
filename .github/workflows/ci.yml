@@ -74,7 +74,7 @@ jobs:
           conn = sqlite3.connect('ci_empty_test.db')
           rev = conn.execute('SELECT version_num FROM alembic_version;').fetchone()[0]
           print(f'Successfully migrated to head revision: {rev}')
-          assert rev == 'f3a4b5c6d7e8', f'Unexpected revision: {rev}'
+          assert rev == '7d9c2a1f4e60', f'Unexpected revision: {rev}'
           "
 
       # Quality Check 4: Full Automated Test Suite

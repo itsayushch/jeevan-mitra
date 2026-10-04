@@ -6,6 +6,8 @@ from typing import List, Dict, Any, Optional
 from app.models import GenerateRecommendationsRequest
 from app.utils.distance import calculate_distance_km, get_block_coordinates
 from app.ai_layers.layer2_extraction.validation import education_to_rank
+from app.ai_layers.layer3_matching.ml_adapter import rerank_candidates
+from app.ai_layers.layer5_planning.demand_record_service import DemandRecordService
 from app.ai_layers.layer3_matching.explanation_generator import ExplanationGenerator
 from app.services.catalogue_service import CatalogueService
 from app.utils.audit_events import log_audit_event
@@ -262,7 +264,7 @@ class RecommendationService:
                     "id": qual.get("nqr_code") or qual.get("external_reference") or qual["id"],
                     "internal_id": qual["id"],
                     "title": qual_title,
-                    "nsqf_level": f"Level {qual['nsqf_level']}",
+                    "nsqf_level": qual["nsqf_level"],
                     "sector": qual["sector"],
                     "official_url": qual.get("official_source_url") or qual.get("nqr_link") or qual.get("source_url"),
                     "duration_hours": qual.get("duration_hours")
@@ -287,6 +289,8 @@ class RecommendationService:
                 "tradeoff_summary": expl["tradeoff_summary"],
                 "skill_gap_summary": expl["skill_gap_summary"]
             })
+
+        rerank_candidates(candidate_list, confirmed_profile, {q["id"]: q for q in quals})
 
         # Rank descending by score
         candidate_list.sort(key=lambda x: x["score"], reverse=True)
@@ -394,6 +398,23 @@ class RecommendationService:
                 SET status = 'recommendations_generated', updated_at = ?
                 WHERE id = ?;
             """, (now, target_interview_id))
+            interview = conn.execute(
+                "SELECT session_id FROM interview_sessions WHERE id = ?;",
+                (target_interview_id,),
+            ).fetchone()
+            if saved_recs and interview:
+                DemandRecordService.record_demand(
+                    conn,
+                    qualification_id=top_candidates[0]["qualification"]["internal_id"],
+                    district=district,
+                    block=block,
+                    mobility_radius_km=mobility_radius,
+                    work_preference=work_pref,
+                    had_verified_match=top_candidates[0]["match_state"] in ("Verified Match", "VERIFIED_MATCH"),
+                    beneficiary_id=target_ben_id,
+                    session_id=interview["session_id"],
+                    created_at=now,
+                )
 
         log_audit_event(
             conn=conn,
@@ -409,6 +430,7 @@ class RecommendationService:
         return {
             "count": len(saved_recs),
             "recommendations": saved_recs,
+            "ranking_method": "ml_blended" if any("ml_score" in item["ranking_factors"] for item in top_candidates) else "rules",
             "counselor_referral_suggested": any(r["local_availability"]["status"] == "unknown" for r in saved_recs),
             "counselor_handoff_recommended": any(r["local_availability"]["status"] == "unknown" for r in saved_recs)
         }
