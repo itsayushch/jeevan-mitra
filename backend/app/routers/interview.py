@@ -11,6 +11,7 @@ from app.models import (
 from app.ai_layers.layer1_intake.dialogue_manager import DialogueManager
 from app.ai_layers.layer1_intake.speech_adapter import SpeechAdapter
 from app.ai_layers.layer2_extraction.extraction_engine import ExtractionEngine
+from app.ai_layers.layer2_extraction.conversation import extract_conversation
 from app.dependencies.auth import get_current_actor, Actor
 from app.dependencies.consent import verify_consent
 from app.services.export_service import ExportService
@@ -111,6 +112,12 @@ def process_interview_turn(
         if not sess:
             raise EntityNotFoundException("InterviewSession", interview_id)
 
+        if not actor.is_staff() and not (
+            (actor.session_id and actor.session_id == sess["session_id"])
+            or (actor.beneficiary_id and actor.beneficiary_id == sess["beneficiary_id"])
+        ):
+            raise HTTPException(403, "This interview belongs to another session")
+
         target_ben_id = sess["beneficiary_id"] or actor.beneficiary_id
         target_session_id = sess["session_id"] or actor.session_id
 
@@ -121,8 +128,10 @@ def process_interview_turn(
         user_text = data.message or data.text_input or getattr(data, "text", None)
         if not user_text and data.audio_input_base64:
             user_text = SpeechAdapter.transcribe(data.audio_input_base64, None, lang)
-        if not user_text:
-            user_text = "..."
+        if not user_text or not user_text.strip():
+            raise HTTPException(422, "Please provide a message")
+        if len(user_text) > 4000:
+            raise HTTPException(422, "Message must be at most 4000 characters")
 
         # If guided fallback mode is explicitly requested, bypass AI consent check and AI extraction
         if getattr(data, "mode", None) == "guided_fallback":
@@ -174,16 +183,21 @@ def process_interview_turn(
 
         history_with_user = list(history)
         history_with_user.append({"speaker": "user", "text": user_text})
-        extracted = extraction_engine.extract_profile(history_with_user, district, block)
-
-        clarification_needed = extracted.get("clarification_needed")
-        next_turn = DialogueManager.process_turn(
-            current_index=current_idx,
-            user_utterance=user_text,
-            transcript_history=history,
-            language=lang,
-            clarification_prompt=clarification_needed
-        )
+        provider = None
+        missing = []
+        if data.mode == "conversational":
+            verify_consent(conn, "profile_storage", target_ben_id, target_session_id)
+            extracted, missing, question, provider = extract_conversation(history_with_user, lang)
+            history = history_with_user + [{"speaker": "ai", "text": question}]
+            next_turn = {"question_index": current_idx + 1, "question": question,
+                         "mode": "standard" if provider == "gemini" else "guided_fallback",
+                         "is_final": not missing}
+        else:
+            extracted = extraction_engine.extract_profile(history_with_user, district, block)
+            next_turn = DialogueManager.process_turn(
+                current_index=current_idx, user_utterance=user_text,
+                transcript_history=history, language=lang,
+                clarification_prompt=extracted.get("clarification_needed"))
 
         if getattr(data, "mode", None) == "guided_fallback":
             next_turn["mode"] = "guided_fallback"
@@ -214,7 +228,7 @@ def process_interview_turn(
             if existing_f:
                 conn.execute("""
                     UPDATE profile_field_values
-                    SET field_value = ?, confidence = ?, previous_value = ?, version = version + 1, updated_at = ?
+                    SET field_value = ?, confidence = ?, previous_value = ?, user_confirmed = 0, source = 'ai_inferred', version = version + 1, updated_at = ?
                     WHERE id = ?;
                 """, (val_str, conf, existing_f["field_value"], now, existing_f["id"]))
             else:
@@ -241,6 +255,8 @@ def process_interview_turn(
             "mode": next_turn["mode"],
             "is_final": next_turn["is_final"],
             "status": new_status,
+            "extraction_provider": provider,
+            "missing_fields": missing,
             "inferred_profile": extracted
         }
 
@@ -290,6 +306,8 @@ def confirm_interview_profile(
         sess = conn.execute("SELECT * FROM interview_sessions WHERE id = ?;", (interview_id,)).fetchone()
         if not sess:
             raise EntityNotFoundException("InterviewSession", interview_id)
+        if not actor.is_staff() and not (actor.session_id and actor.session_id == sess["session_id"]):
+            raise HTTPException(403, "This interview belongs to another session")
         target_ben_id = data.beneficiary_id or sess["beneficiary_id"] or actor.beneficiary_id
         target_session_id = sess["session_id"] or actor.session_id or interview_id
         _check_ai_consent(conn, target_ben_id, target_session_id)
@@ -375,6 +393,12 @@ def update_interview_field(
         sess = conn.execute("SELECT * FROM interview_sessions WHERE id = ?;", (interview_id,)).fetchone()
         if not sess:
             raise EntityNotFoundException("InterviewSession", interview_id)
+
+        if not actor.is_staff() and not (
+            (actor.session_id and actor.session_id == sess["session_id"])
+            or (actor.beneficiary_id and actor.beneficiary_id == sess["beneficiary_id"])
+        ):
+            raise HTTPException(403, "This interview belongs to another session")
 
         target_ben_id = sess["beneficiary_id"] or actor.beneficiary_id
 

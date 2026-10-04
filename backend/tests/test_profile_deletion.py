@@ -9,14 +9,17 @@ from app.main import app
 @pytest.fixture
 def client():
     orig_db = settings.DATABASE_PATH
+    orig_worker_key = settings.WORKER_API_KEY
     temp_dir = tempfile.TemporaryDirectory()
     settings.DATABASE_PATH = os.path.join(temp_dir.name, "test_deletion.db")
+    settings.WORKER_API_KEY = "test-worker-key"
     init_database()
 
     with TestClient(app) as c:
         yield c
 
     settings.DATABASE_PATH = orig_db
+    settings.WORKER_API_KEY = orig_worker_key
     temp_dir.cleanup()
 
 def test_full_profile_erasure_dpdp_compliance(client):
@@ -31,7 +34,12 @@ def test_full_profile_erasure_dpdp_compliance(client):
     assert create_ben.status_code == 201
     ben_id = create_ben.json()["id"]
 
-    ben_headers = {"X-Beneficiary-ID": ben_id}
+    session_res = client.post("/api/v1/sessions", json={
+        "owner_type": "authenticated_user",
+        "owner_id": ben_id
+    }, headers={"X-Worker-API-Key": settings.WORKER_API_KEY})
+    assert session_res.status_code == 201
+    ben_headers = {"X-Session-Token": session_res.json()["session_token"]}
 
     # Record consent
     client.post("/api/v1/consents", json={

@@ -1,5 +1,9 @@
 fastapi>=0.110.0
 uvicorn>=0.28.0
+SQLAlchemy>=2.0.0
+alembic>=1.13.0
+passlib[bcrypt]>=1.7.4
+bcrypt>=3.2,<4.1
 pydantic>=2.6.0
 pydantic-settings>=2.2.1
 python-dotenv>=1.0.0
@@ -7,3 +11,8 @@ httpx>=0.27.0
 typing-extensions>=4.10.0
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
+psycopg2-binary>=2.9.9
+PyJWT>=2.8.0
+
+# Runtime inference dependencies for the bundled recommendation model
+-r ml_model/requirements-inference.txt

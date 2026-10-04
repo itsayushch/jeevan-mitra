@@ -426,7 +426,7 @@ class RecommendationService:
         qual_info = {
             "id": qual_row["nqr_code"] if qual_row else d["qualification_id"],
             "title": qual_row["title"] if qual_row else "Qualification",
-            "nsqf_level": f"Level {qual_row['nsqf_level']}" if qual_row else "",
+            "nsqf_level": qual_row["nsqf_level"] if qual_row else None,
             "sector": qual_row["sector"] if qual_row else "General",
             "official_url": (qual_row.get("official_source_url") or qual_row.get("nqr_link")) if qual_row else ""
         }

@@ -7,8 +7,9 @@ from datetime import datetime
 # 1. Consent Models (A1)
 # ============================================================================
 class ConsentCreate(BaseModel):
-    beneficiary_id: str
-    purpose: str
+    beneficiary_id: Optional[str] = None
+    session_id: Optional[str] = None
+    purpose: Optional[str] = "PM-AJAY livelihood guidance"
     notice_version: Optional[str] = "1.0"
     audio_consent_recorded: Optional[bool] = True
     voice_retention_choice: Optional[str] = "do_not_keep"
@@ -246,7 +247,7 @@ class AssignCounselorRequest(BaseModel):
     counselor_id: str
 
 class UpdateReferralStatusRequest(BaseModel):
-    status: Literal['new', 'assigned', 'contacted', 'in_progress', 'resolved', 'closed']
+    status: Literal['new', 'assigned', 'contacted', 'documents_verified', 'enrolled', 'in_progress', 'completed', 'dropped_out']
     outcome: Optional[str] = None
     notes: Optional[str] = None
 
@@ -291,6 +292,7 @@ class GenerateBriefRequest(BaseModel):
 class SignOffRequest(BaseModel):
     officer_name: str
     notes: Optional[str] = None
+    action: Optional[Literal['submit_for_review', 'sign_off']] = 'sign_off'
 
 class ChatRequest(BaseModel):
     message: str

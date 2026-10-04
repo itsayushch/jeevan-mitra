@@ -8,6 +8,11 @@ from app.config import settings
 from app.utils.logger import logger
 from app.db.session import get_db, DBWrapper
 
+def get_db_session() -> Generator[DBWrapper, None, None]:
+    with get_db() as db:
+        yield db
+
+
 def get_connection() -> sqlite3.Connection:
     logger.warning("get_connection() is deprecated, use get_db() context manager")
     conn = sqlite3.connect(settings.DATABASE_PATH, timeout=10.0)

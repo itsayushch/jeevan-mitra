@@ -36,16 +36,22 @@ class JourneyService:
             raise NotFoundException("Journey not found")
         if row["state"] == JourneyState.DELETED.value:
             raise ValidationException("Journey has been deleted")
-        if actor_id and row["actor_id"] and row["actor_id"] != actor_id:
+        if not actor_id or not row["actor_id"] or row["actor_id"] != actor_id:
             raise ValidationException("Unauthorized to access this journey")
         return dict(row)
 
     @staticmethod
     def start_journey(conn: sqlite3.Connection, req: JourneyStartRequest) -> JourneyResponse:
-        session = SessionService.create_session(conn, actor_id=req.actor_id or "anonymous")
-        session_id = session["session_id"]
+        session_id = f"sess_{uuid.uuid4().hex[:12]}"
         journey_id = f"journey_{uuid.uuid4().hex[:12]}"
         now = datetime.now(timezone.utc).isoformat()
+
+        conn.execute("""
+            INSERT INTO interview_sessions (
+                id, session_id, channel, status, current_question_index,
+                last_question, language, transcript_history, created_at, updated_at
+            ) VALUES (?, ?, 'web_app', 'not_started', 0, NULL, 'hi', '[]', ?, ?);
+        """, (session_id, req.actor_id, now, now))
         
         conn.execute("""
             INSERT INTO journeys (id, session_id, actor_id, actor_role, state, created_at, updated_at)

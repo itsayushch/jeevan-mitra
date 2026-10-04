@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+import secrets
 from fastapi import Header, HTTPException, Depends, Request
 from typing import Optional, Dict, Any, List
 from app.config import settings
@@ -67,15 +69,12 @@ def get_current_actor(
     Identifies the caller actor based on Sprint 2 JWTs, or falls back to legacy methods for test compatibility.
     """
     def _bind(actor: Actor) -> Actor:
-        try:
-            request.state.actor = actor
-            request.state.actor_role = actor.actor_role
-            if actor.scopes:
-                districts = [s.get("district_id") for s in actor.scopes if s.get("district_id")]
-                if districts:
-                    request.state.district_scope = ",".join(districts)
-        except Exception:
-            pass
+        request.state.actor = actor
+        request.state.actor_role = actor.actor_role
+        if actor.scopes:
+            districts = [s.get("district_id") for s in actor.scopes if s.get("district_id")]
+            if districts:
+                request.state.district_scope = ",".join(districts)
         return actor
 
     token = x_session_token or x_session_id
@@ -109,35 +108,25 @@ def get_current_actor(
         except ValueError:
             pass # Fallthrough to legacy methods if token is invalid (to not break old endpoints immediately)
 
-    # 2. Staff authentication via worker API key (Legacy)
+    # 2. Staff authentication via configured API keys (Legacy)
+    configured_staff_keys = (
+        (settings.WORKER_API_KEY, "field_worker", settings.WORKER_ID, settings.WORKER_NAME),
+        (settings.COUNSELOR_API_KEY, "counselor", "", "Career Counselor"),
+        (settings.ADMIN_API_KEY, "admin", "admin", "District Administrator"),
+        (settings.DISTRICT_OFFICER_API_KEY or settings.OFFICER_API_KEY, "district_officer", settings.OFFICER_ID, settings.OFFICER_NAME),
+        (settings.ANALYST_API_KEY, "analyst", "", "District Analyst"),
+    )
     if x_worker_api_key:
-        if settings.WORKER_API_KEY and x_worker_api_key == settings.WORKER_API_KEY:
-            return _bind(Actor(
-                actor_id=settings.WORKER_ID or "worker_01",
-                actor_role="field_worker",
-                actor_name=settings.WORKER_NAME or "Field Worker",
-                session_id=token,
-                beneficiary_id=x_beneficiary_id,
-                roles=["field_worker"]
-            ))
-        elif x_worker_api_key.startswith("admin-"):
-            return _bind(Actor(
-                actor_id="admin_01",
-                actor_role="admin",
-                actor_name="District Administrator",
-                session_id=token,
-                beneficiary_id=x_beneficiary_id,
-                roles=["admin"]
-            ))
-        elif x_worker_api_key.startswith("counselor-"):
-            return _bind(Actor(
-                actor_id=x_worker_api_key.replace("-", "_"),
-                actor_role="counselor",
-                actor_name="Career Counselor",
-                session_id=token,
-                beneficiary_id=x_beneficiary_id,
-                roles=["counselor"]
-            ))
+        for configured_key, role, actor_id, actor_name in configured_staff_keys:
+            if configured_key and secrets.compare_digest(x_worker_api_key, configured_key):
+                return _bind(Actor(
+                    actor_id=actor_id or role,
+                    actor_role=role,
+                    actor_name=actor_name or role.replace("_", " ").title(),
+                    session_id=token,
+                    beneficiary_id=x_beneficiary_id,
+                    roles=[role]
+                ))
 
     # 3. Check token in anonymous_sessions table (Legacy)
     if token:
@@ -146,6 +135,13 @@ def get_current_actor(
                 SELECT * FROM anonymous_sessions
                 WHERE session_token = ? OR id = ?;
             """, (token, token)).fetchone()
+
+            if sess:
+                expires_at = datetime.fromisoformat(sess["expires_at"])
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                if expires_at <= datetime.now(timezone.utc):
+                    sess = None
 
             if sess:
                 return _bind(Actor(
@@ -230,4 +226,3 @@ def require_beneficiary_ownership(beneficiary_id: str, actor: Actor = Depends(re
     
     # If it's a staff member without super_admin, we might need scope checks, but standard RBAC blocks direct mutations
     raise HTTPException(status_code=403, detail="Only the owning beneficiary or super admin can perform this action.")
-

@@ -23,7 +23,7 @@ class ReferralService:
         'technical_issue'
     ]
 
-    ALLOWED_STATUSES = ['new', 'assigned', 'contacted', 'in_progress', 'resolved', 'closed']
+    ALLOWED_STATUSES = ['new', 'assigned', 'contacted', 'documents_verified', 'enrolled', 'in_progress', 'completed', 'dropped_out']
 
     @staticmethod
     def _now() -> str:
@@ -659,6 +659,23 @@ class ReferralService:
         actor_role = getattr(actor, "actor_role", None)
         if actor_role == "counselor" and existing["assigned_counselor_id"] != actor.actor_id:
             raise UnauthorizedAccessException("You are not assigned to this referral case.")
+
+        current_status = existing["status"]
+        valid_transitions = {
+            "new": ["assigned"],
+            "assigned": ["contacted", "in_progress"],
+            "contacted": ["documents_verified", "in_progress"],
+            "documents_verified": ["enrolled", "in_progress"],
+            "enrolled": ["in_progress"],
+            "in_progress": ["completed", "dropped_out"],
+            "completed": [],
+            "dropped_out": []
+        }
+
+        if current_status in valid_transitions and data.status not in valid_transitions[current_status]:
+            if current_status != data.status: # Allow no-op status updates
+                from app.utils.errors import ValidationException
+                raise ValidationException(f"Invalid state transition from {current_status} to {data.status}")
 
         now = datetime.now(timezone.utc).isoformat()
         set_clauses = ["status = ?", "updated_at = ?"]

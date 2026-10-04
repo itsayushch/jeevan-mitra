@@ -21,10 +21,19 @@ class Settings(BaseSettings):
     WORKER_API_KEY: str = ""
     WORKER_ID: str = ""
     WORKER_NAME: str = ""
+    COUNSELOR_API_KEY: str = ""
+    ADMIN_API_KEY: str = ""
+    DISTRICT_OFFICER_API_KEY: str = ""
+    ANALYST_API_KEY: str = ""
+    OFFICER_API_KEY: str = ""
+    OFFICER_ID: str = ""
+    OFFICER_NAME: str = ""
+    OFFICER_DISTRICT: str = ""
 
     AI_PROVIDER: str = "gemini"
     GEMINI_API_KEY: str = ""
     AI_API_KEY: str = ""
+    ML_RANKING_ENABLED: bool = False
 
     DEFAULT_DISTRICT: str = "Moradabad"
     DEFAULT_STATE: str = "Uttar Pradesh"

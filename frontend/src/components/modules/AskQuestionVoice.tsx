@@ -1,13 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Mic, RotateCcw, Square, Volume2, Waves } from 'lucide-react';
 import type { Language } from '../../types';
+import { api } from '../../lib/api';
 import { speakText, stopSpeaking } from '../../utils/speech';
 import { getVoiceCapability } from '../../lib/i18n/voiceCapabilities';
 import { useAppSettings } from '../AppShell';
 
 type Turn = { question: string; answer: string; language: Language; sources?: string[] };
 
-export function AskQuestionVoice({ language }: { language: Language }) {
+type ConversationProfile = Record<string, any>;
+
+interface AskQuestionVoiceProps {
+  language: Language;
+  interviewId?: string;
+  firstQuestion?: string;
+  onReview?: (profile: ConversationProfile) => void;
+}
+
+export function AskQuestionVoice({
+  language,
+  interviewId,
+  firstQuestion,
+  onReview,
+}: AskQuestionVoiceProps) {
   const { t } = useAppSettings();
   const hi = language === 'hi';
   const voiceCap = getVoiceCapability(language);
@@ -20,6 +35,7 @@ export function AskQuestionVoice({ language }: { language: Language }) {
   const [listening, setListening] = useState(false);
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
   const [status, setStatus] = useState('');
+  const [error, setError] = useState('');
   const [reviewingTranscript, setReviewingTranscript] = useState(false);
 
   const speechHandled = useRef(false);
@@ -53,6 +69,25 @@ export function AskQuestionVoice({ language }: { language: Language }) {
     setSpeakingIndex(null);
     setReviewingTranscript(false);
     setStatus(hi ? 'जवाब ढूंढा जा रहा है...' : 'Finding answer in course material...');
+
+    if (interviewId && onReview) {
+      try {
+        const result = await api.submitTurn(interviewId, clean);
+        const answer = result.next_question || (hi ? 'धन्यवाद।' : 'Thank you.');
+        setTurns((previous) => [
+          ...previous,
+          { question: clean, answer, language },
+        ]);
+        setTranscript('');
+        setDraft('');
+        setStatus('');
+        if (result.is_final) onReview(result.inferred_profile || {});
+      } catch (submitError) {
+        setStatus('');
+        setError(submitError instanceof Error ? submitError.message : 'Could not submit your answer. Please try again.');
+      }
+      return;
+    }
 
     // Grounded response in course material
     setTimeout(() => {
@@ -115,6 +150,7 @@ export function AskQuestionVoice({ language }: { language: Language }) {
     setTranscript('');
     setDraft('');
     setStatus('');
+    setError('');
     setReviewingTranscript(false);
   };
 
@@ -188,6 +224,9 @@ export function AskQuestionVoice({ language }: { language: Language }) {
         ) : (
           <div className="text-center py-10 opacity-60">
             <Waves className="w-12 h-12 mx-auto text-emerald-600 mb-3" />
+            {interviewId && firstQuestion && (
+              <p className="text-sm font-semibold text-slate-700 mb-3">{firstQuestion}</p>
+            )}
             <p className="text-sm font-medium text-slate-600">
               {isSttSupported
                 ? hi
@@ -226,6 +265,7 @@ export function AskQuestionVoice({ language }: { language: Language }) {
         {status && !reviewingTranscript && (
           <div className="text-xs text-center text-slate-500 mb-3 animate-pulse">{status}</div>
         )}
+        {error && <p role="alert" className="text-sm text-center text-red-700 mb-3">{error}</p>}
 
         {!reviewingTranscript && (
           <div className="flex items-center gap-2 bg-white p-2 rounded-2xl shadow-sm border border-slate-200">

@@ -560,3 +560,21 @@ CREATE TABLE IF NOT EXISTS content_feedback (
   FOREIGN KEY (course_id) REFERENCES training_courses(id) ON DELETE CASCADE,
   FOREIGN KEY (lesson_id) REFERENCES training_lessons(id) ON DELETE SET NULL
 );
+
+-- Anonymised demand inputs used by district planning; no beneficiary identifiers.
+CREATE TABLE IF NOT EXISTS demand_records (
+  id TEXT PRIMARY KEY,
+  qualification_id TEXT NOT NULL,
+  district TEXT NOT NULL,
+  block TEXT NOT NULL,
+  mobility_radius_km REAL,
+  work_preference TEXT,
+  had_verified_match INTEGER NOT NULL DEFAULT 0,
+  period TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (qualification_id) REFERENCES qualifications(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_demand_records_district ON demand_records(district, period);
+CREATE INDEX IF NOT EXISTS idx_demand_records_block ON demand_records(district, block, qualification_id);
+CREATE INDEX IF NOT EXISTS idx_demand_records_qual ON demand_records(qualification_id);

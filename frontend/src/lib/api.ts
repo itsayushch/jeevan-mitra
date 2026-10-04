@@ -24,6 +24,7 @@ export interface InterviewSessionResponse {
   session_id: string;
   status: string;
   current_question_index: number;
+  first_question?: string;
   last_question?: string;
   language: string;
 }
@@ -35,6 +36,8 @@ export interface InterviewTurnResponse {
   extracted_fields: Record<string, any>;
   next_question?: string;
   clarification_needed?: boolean;
+  is_final?: boolean;
+  inferred_profile?: Record<string, any>;
 }
 
 export interface RecommendationItem {
@@ -220,11 +223,70 @@ export interface BeneficiaryReferralDisplay {
 class ApiService {
   private sessionToken: string | null = null;
   private sessionId: string | null = null;
+  private jwtToken: string | null = null;
+  private officerKey: string | null = null;
+  private workerKey: string | null = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
       this.sessionToken = window.sessionStorage.getItem('jm_session_token');
       this.sessionId = window.sessionStorage.getItem('jm_session_id');
+      this.jwtToken = window.sessionStorage.getItem('jm_jwt_token');
+      this.officerKey = window.sessionStorage.getItem('jm_officer_key');
+      this.workerKey = window.sessionStorage.getItem('jm_worker_key');
+    }
+  }
+
+  public async login(username: string, password: string): Promise<any> {
+    const response = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email_or_phone: username, password }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => null);
+      throw new Error(error?.detail || 'Login failed');
+    }
+
+    const tokens = await response.json();
+    this.setJwtToken(tokens.access_token);
+    const userResponse = await fetch(`${API_BASE}/auth/me`, { headers: this.getHeaders() });
+    if (!userResponse.ok) {
+      throw new Error(`Login succeeded, but fetching the user profile failed: ${userResponse.statusText}`);
+    }
+    const user = await userResponse.json();
+    return { ...tokens, user: { ...user, role: user.roles?.[0] } };
+  }
+
+  public setJwtToken(token: string) {
+    this.jwtToken = token;
+    if (typeof window !== 'undefined') {
+      if (token) window.sessionStorage.setItem('jm_jwt_token', token);
+      else window.sessionStorage.removeItem('jm_jwt_token');
+    }
+  }
+
+  public getJwtToken(): string | null {
+    return this.jwtToken;
+  }
+
+  public setOfficerKey(key: string) {
+    this.officerKey = key;
+    if (typeof window !== 'undefined') {
+      if (key) window.sessionStorage.setItem('jm_officer_key', key);
+      else window.sessionStorage.removeItem('jm_officer_key');
+    }
+  }
+
+  public getOfficerKey(): string | null {
+    return this.officerKey;
+  }
+
+  public setWorkerKey(key: string) {
+    this.workerKey = key;
+    if (typeof window !== 'undefined') {
+      if (key) window.sessionStorage.setItem('jm_worker_key', key);
+      else window.sessionStorage.removeItem('jm_worker_key');
     }
   }
 
@@ -236,7 +298,7 @@ class ApiService {
       headers['X-Session-Token'] = this.sessionToken;
     }
     if (typeof window !== 'undefined') {
-      const jwtToken = window.localStorage.getItem('jm_jwt_token');
+      const jwtToken = this.jwtToken || window.sessionStorage.getItem('jm_jwt_token');
       if (jwtToken) {
         headers['Authorization'] = `Bearer ${jwtToken}`;
       }
@@ -244,6 +306,16 @@ class ApiService {
       headers['Accept-Language'] = locale;
     }
     return headers;
+  }
+
+  private getOfficerHeaders(): Record<string, string> {
+    if (this.jwtToken) return this.getHeaders();
+    return { 'Content-Type': 'application/json', 'X-Officer-API-Key': this.officerKey || '' };
+  }
+
+  private getWorkerHeaders(): Record<string, string> {
+    if (this.jwtToken) return this.getHeaders();
+    return { 'Content-Type': 'application/json', 'X-Worker-API-Key': this.workerKey || '' };
   }
 
   public setSession(token: string, id: string) {
@@ -587,6 +659,22 @@ class ApiService {
       body: JSON.stringify({ to_status: toStatus, reason }),
     });
     if (!res.ok) throw new Error(`Failed to transition referral: ${res.statusText}`);
+    return res.json();
+  }
+
+  async updateReferralStatus(
+    referralId: string,
+    payload: { status: string; outcome?: string; notes?: string }
+  ): Promise<any> {
+    const res = await fetch(`${API_BASE}/counselor/referrals/${referralId}/status`, {
+      method: 'PATCH',
+      headers: this.getOfficerHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      throw new Error(error?.detail || `Failed to update referral status: ${res.statusText}`);
+    }
     return res.json();
   }
 

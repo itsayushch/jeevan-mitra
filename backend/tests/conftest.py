@@ -1,4 +1,5 @@
 import os
+import tempfile
 from pathlib import Path
 import pytest
 from sqlalchemy import text
@@ -6,6 +7,9 @@ from app.db.session import get_engine, DBWrapper
 from alembic.config import Config
 from alembic import command
 from app.core.settings import settings
+from fastapi.testclient import TestClient
+from app.database import init_database
+from app.main import app
 
 @pytest.fixture(autouse=True, scope="session")
 def setup_database():
@@ -23,3 +27,17 @@ def setup_database():
         command.upgrade(alembic_cfg, "head")
     
     yield
+
+
+@pytest.fixture
+def client():
+    original_database_path = settings.DATABASE_PATH
+    try:
+        with tempfile.TemporaryDirectory() as database_directory:
+            settings.DATABASE_PATH = str(Path(database_directory) / "test_recommendations.db")
+            init_database()
+
+            with TestClient(app) as test_client:
+                yield test_client
+    finally:
+        settings.DATABASE_PATH = original_database_path

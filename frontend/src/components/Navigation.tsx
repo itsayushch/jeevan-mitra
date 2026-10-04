@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Menu,
   X,
@@ -15,8 +16,10 @@ import {
   ShieldCheck,
   ChartNoAxesCombined,
   PanelLeftClose,
+  LogOut,
 } from 'lucide-react';
 import { LanguagePicker } from './LanguagePicker';
+import { api } from '../lib/api';
 import { pathForSection } from '../lib/routes';
 import type { SupportedLocale } from '../lib/i18n/locales';
 import { useAppSettings } from './AppShell';
@@ -50,6 +53,19 @@ export function Navigation({
   const { t } = useAppSettings();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
+  const router = useRouter();
+
+  const handleLogout = () => {
+    api.setJwtToken('');
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem('jm_worker_key');
+      window.sessionStorage.removeItem('jm_officer_key');
+    }
+    api.setWorkerKey('');
+    api.setOfficerKey('');
+    closeMenu();
+    router.push('/login');
+  };
 
   const closeMenu = () => {
     setMenuOpen(false);
@@ -147,6 +163,13 @@ export function Navigation({
           </div>
 
           <LanguagePicker language={language} onChange={onSelectLanguage} />
+
+          {api.getJwtToken() && (
+            <button className="view-toggle" onClick={handleLogout}>
+              <LogOut size={16} />
+              Sign out
+            </button>
+          )}
 
           {currentTab === 'journey' && (
             <button className="view-toggle" onClick={onToggleViewMode}>

@@ -404,3 +404,5 @@ button:focus:not(:focus-visible),select:focus:not(:focus-visible) { outline:none
   .community-page .mentor-grid > div { padding: 13px; }
   .flow-canvas > div { padding: 0 !important; }
 }
+.assistant-mode { display: block; } .assistant-mode .flow-progress { display: none; }
+.assistant-mode .flow-canvas { border: none; border-radius: 0; background: transparent; } .assistant-mode .flow-canvas > div { padding: 0; }

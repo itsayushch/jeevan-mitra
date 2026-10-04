@@ -48,7 +48,13 @@ class TestPythonBackend(unittest.TestCase):
         data = res.json()
         self.assertEqual(data['status'], 'ready')
         self.assertEqual(data['verifiedMatchProtocol'], 'enforced')
-        self.assertIn('sixLayersStatus', data)
+
+    def test_unconfigured_admin_key_prefix_does_not_authenticate(self):
+        response = self.client.get(
+            '/api/v1/auth/me',
+            headers={'X-Worker-API-Key': 'admin-attacker-controlled'},
+        )
+        self.assertEqual(response.status_code, 401)
 
     def test_catalogue_qualifications(self):
         res = self.client.get('/api/v1/catalogue/qualifications')

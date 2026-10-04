@@ -1,4 +1,10 @@
 "use client";
-import { AskQuestionVoice } from '../../components/modules/AskQuestionVoice';
+import { FlowContainer } from '../../components/flow/FlowContainer';
 import { useAppSettings } from '../../components/AppShell';
-export default function Page() { const { language } = useAppSettings(); return <AskQuestionVoice language={language} />; }
+import { useRouter } from 'next/navigation';
+import { pathForSection } from '../../lib/routes';
+export default function Page() {
+  const { language, setLanguage } = useAppSettings();
+  const router = useRouter();
+  return <FlowContainer mode="assistant" language={language} onSelectLanguage={setLanguage} onNavigateModule={key => router.push(pathForSection(key))} />;
+}
