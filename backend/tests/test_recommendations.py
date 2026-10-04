@@ -1,3 +1,7 @@
+import pytest
+from app.core.settings import settings
+
+
 def test_hard_filters_enforce_education_and_accessibility(client):
     # Setup interview with confirmed Class 5 education and limited mobility (wheelchair)
     sess_res = client.post("/api/v1/sessions")
