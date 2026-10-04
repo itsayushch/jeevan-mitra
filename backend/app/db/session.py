@@ -1,5 +1,6 @@
-import re
-from sqlalchemy import create_engine, text
+import sqlite3
+from sqlalchemy import create_engine, text, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
 from contextlib import contextmanager
@@ -8,6 +9,13 @@ from app.core.settings import settings
 
 from pathlib import Path
 from sqlalchemy.pool import NullPool
+
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    if isinstance(dbapi_connection, sqlite3.Connection):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON;")
+        cursor.close()
 
 # We delay engine creation to get_db() to support test fixtures overriding DATABASE_PATH
 def get_engine():
@@ -29,6 +37,14 @@ class MockRow:
         
     def keys(self):
         return self._mapping.keys()
+
+    def get(self, key, default=None):
+        if key in self._mapping:
+            return self._mapping[key]
+        return default
+
+    def __iter__(self):
+        return iter(self._mapping)
 
 class LegacyCursorWrapper:
     def __init__(self, result):

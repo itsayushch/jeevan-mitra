@@ -54,6 +54,9 @@ class IVRCallbackRequestResponse(BaseModel):
     status: str
     created_at: str
 
+    def __getitem__(self, item: str) -> Any:
+        return getattr(self, item)
+
 
 class IVRSessionResponse(BaseModel):
     session_id: str
@@ -66,7 +69,7 @@ class IVRSessionResponse(BaseModel):
     actions: List[IVRAction]
     retry_count: int = 0
     expires_at: str
-    callback_request: Optional[Dict[str, Any]] = None
+    callback_request: Optional[IVRCallbackRequestResponse] = None
     data_summary: Optional[List[Dict[str, Any]]] = None
 
 

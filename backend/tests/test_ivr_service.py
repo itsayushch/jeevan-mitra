@@ -222,3 +222,35 @@ def test_consent_refusal_terminates_session(db_conn):
     session = IVRRepository.get_session(db_conn, sess_id)
     assert session["current_state"] == "goodbye"
     assert session["status"] == "terminated"
+
+
+def test_mock_row_mapping_protocol():
+    """
+    Verifies MockRow mapping behavior:
+    1. Integer index access via tuple
+    2. String key access via mapping
+    3. .get(key, default)
+    4. dict(row) conversion via __iter__
+    """
+    from app.db.session import MockRow
+
+    mapping = {"id": "c1", "title": "Tailoring", "sector": "Apparel"}
+    tuple_row = ("c1", "Tailoring", "Apparel")
+    row = MockRow(mapping, tuple_row)
+
+    # 1. Index access
+    assert row[0] == "c1"
+    assert row[1] == "Tailoring"
+
+    # 2. String key access
+    assert row["id"] == "c1"
+    assert row["title"] == "Tailoring"
+
+    # 3. .get() access with default
+    assert row.get("sector") == "Apparel"
+    assert row.get("nonexistent", "default_val") == "default_val"
+    assert row.get("missing") is None
+
+    # 4. dict(row) conversion
+    row_dict = dict(row)
+    assert row_dict == mapping
