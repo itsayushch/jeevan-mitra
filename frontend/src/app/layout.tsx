@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./kiosk-ui.css";
 import { AppShell } from "../components/AppShell";
 
 
@@ -25,4 +26,3 @@ export default function RootLayout({
     </html>
   );
 }
-

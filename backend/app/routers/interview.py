@@ -1,4 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends
+import base64
+import binascii
+import httpx
+from pydantic import BaseModel, Field
+from typing import Literal
+from app.config import settings
 import uuid
 import json
 from datetime import datetime, timezone
@@ -6,12 +12,15 @@ from typing import Optional, Dict, Any
 from app.database import get_db
 from app.models import (
     InterviewStartRequest, InterviewTurnRequest, ConfirmProfileRequest,
-    InterviewFieldUpdateRequest, ExportSummaryRequest
+    InterviewFieldUpdateRequest, InterviewCorrectionRequest, ExportSummaryRequest
 )
 from app.ai_layers.layer1_intake.dialogue_manager import DialogueManager
 from app.ai_layers.layer1_intake.speech_adapter import SpeechAdapter
 from app.ai_layers.layer2_extraction.extraction_engine import ExtractionEngine
-from app.ai_layers.layer2_extraction.conversation import extract_conversation
+from app.ai_layers.layer2_extraction.conversation import (
+    extract_conversation, extract_voice_conversation, QUESTIONS, OPTIONAL_QUESTIONS
+)
+from app.ai_layers.layer2_extraction.interview_language import question_field
 from app.dependencies.auth import get_current_actor, Actor
 from app.dependencies.consent import verify_consent
 from app.services.export_service import ExportService
@@ -72,7 +81,7 @@ def start_interview(data: InterviewStartRequest, actor: Actor = Depends(get_curr
         """, (
             interview_id, target_ben_id, target_session_id, data.channel or "web_app",
             first_turn["question_index"], first_turn["question"], lang,
-            json.dumps([{"speaker": "ai", "text": first_turn["question"]}]), now, now
+            json.dumps([{"speaker": "ai", "text": first_turn["question"], "field": "district"}]), now, now
         ))
 
         # Log initial turn
@@ -185,12 +194,14 @@ def process_interview_turn(
         history_with_user.append({"speaker": "user", "text": user_text})
         provider = None
         missing = []
-        if data.mode == "conversational":
+        if data.mode in ("conversational", "voice"):
             verify_consent(conn, "profile_storage", target_ben_id, target_session_id)
-            extracted, missing, question, provider = extract_conversation(history_with_user, lang)
-            history = history_with_user + [{"speaker": "ai", "text": question}]
+            extractor = extract_voice_conversation if data.mode == "voice" else extract_conversation
+            extracted, missing, question, provider = extractor(history_with_user, lang)
+            field = question_field({'text': question}) or (missing[0] if missing else 'completed')
+            history = history_with_user + [{"speaker": "ai", "text": question, "field": field}]
             next_turn = {"question_index": current_idx + 1, "question": question,
-                         "mode": "standard" if provider == "gemini" else "guided_fallback",
+                         "mode": "standard" if provider in ("gemini", "groq") else "guided_fallback",
                          "is_final": not missing}
         else:
             extracted = extraction_engine.extract_profile(history_with_user, district, block)
@@ -257,15 +268,22 @@ def process_interview_turn(
             "status": new_status,
             "extraction_provider": provider,
             "missing_fields": missing,
-            "inferred_profile": extracted
+            "inferred_profile": extracted,
+            "input_mode": data.input_mode,
+            "question_index": next_turn["question_index"],
         }
 
 @router.get("/interviews/{interview_id}")
-def get_interview_detail(interview_id: str):
+def get_interview_detail(interview_id: str, actor: Actor = Depends(get_current_actor)):
     with get_db() as conn:
         sess = conn.execute("SELECT * FROM interview_sessions WHERE id = ?;", (interview_id,)).fetchone()
         if not sess:
             raise EntityNotFoundException("InterviewSession", interview_id)
+        if not actor.is_staff() and not (
+            (actor.session_id and actor.session_id == sess["session_id"])
+            or (actor.beneficiary_id and actor.beneficiary_id == sess["beneficiary_id"])
+        ):
+            raise HTTPException(403, "This interview belongs to another session")
         _check_ai_consent(conn, sess["beneficiary_id"], sess["session_id"] or interview_id)
 
         turns = conn.execute("SELECT * FROM interview_turns WHERE interview_id = ? ORDER BY turn_index ASC;", (interview_id,)).fetchall()
@@ -291,6 +309,33 @@ def get_interview_detail(interview_id: str):
         res["turns"] = [dict(t) for t in turns]
         res["fields"] = fields_dict
         return res
+
+@router.post("/interviews/{interview_id}/corrections")
+def propose_answer_correction(interview_id: str, data: InterviewCorrectionRequest,
+                              actor: Actor = Depends(get_current_actor)):
+    """Interpret a spoken replacement for one answer; confirmation saves the final profile."""
+    questions = {**QUESTIONS, **OPTIONAL_QUESTIONS}
+    if data.field_name not in questions:
+        raise HTTPException(422, "Choose a valid profile answer to change")
+    with get_db() as conn:
+        sess = conn.execute("SELECT * FROM interview_sessions WHERE id = ?;", (interview_id,)).fetchone()
+        if not sess:
+            raise EntityNotFoundException("InterviewSession", interview_id)
+        if not actor.is_staff() and not (
+            (actor.session_id and actor.session_id == sess["session_id"])
+            or (actor.beneficiary_id and actor.beneficiary_id == sess["beneficiary_id"])
+        ):
+            raise HTTPException(403, "This interview belongs to another session")
+        _check_ai_consent(conn, sess["beneficiary_id"], sess["session_id"])
+        verify_consent(conn, "profile_storage", sess["beneficiary_id"], sess["session_id"])
+        language = sess["language"] or 'en'
+        history = [{'speaker': 'ai', 'text': questions[data.field_name][1 if language == 'hi' else 0]},
+                   {'speaker': 'user', 'text': data.text}]
+        profile, _, _, _ = extract_conversation(history, language)
+        value = profile.get(data.field_name)
+        if value is None or (data.field_name in QUESTIONS and value in ('', [])):
+            raise HTTPException(422, "Could not understand this answer. Please repeat or use typing.")
+        return {'field_name': data.field_name, 'value': value}
 
 @router.post("/interviews/{interview_id}/confirm-profile")
 def confirm_interview_profile(
@@ -434,6 +479,10 @@ def update_interview_field(
             new_values={"field_value": val_str, "source": body.source}
         )
 
+        # A correction invalidates the previous approval and any generated matches.
+        conn.execute("UPDATE interview_sessions SET status = 'awaiting_confirmation', updated_at = ? WHERE id = ?;",
+                     (now, interview_id))
+
         return {
             "status": "updated",
             "field_name": field_name,
@@ -508,5 +557,57 @@ def legacy_confirm(data: ConfirmProfileRequest, actor: Actor = Depends(get_curre
     return confirm_interview_profile(sess_id, data, actor)
 
 @router.get("/interview/session/{session_id}")
-def legacy_get_session(session_id: str):
-    return get_interview_detail(session_id)
+def legacy_get_session(session_id: str, actor: Actor = Depends(get_current_actor)):
+    return get_interview_detail(session_id, actor)
+
+
+
+class SpeechTranscriptionRequest(BaseModel):
+    audio_base64: str = Field(min_length=1, max_length=8_000_000)
+    mime_type: Literal['audio/webm', 'audio/mp4', 'audio/ogg', 'audio/wav']
+    language: Literal['en', 'hi'] = 'en'
+
+
+@router.post('/interviews/{interview_id}/transcribe')
+async def transcribe_interview_audio(interview_id: str, data: SpeechTranscriptionRequest,
+                                     actor: Actor = Depends(get_current_actor)):
+    with get_db() as conn:
+        sess = conn.execute('SELECT * FROM interview_sessions WHERE id = ?;', (interview_id,)).fetchone()
+        if not sess:
+            raise EntityNotFoundException('InterviewSession', interview_id)
+        if not actor.is_staff() and not (
+            (actor.session_id and actor.session_id == sess['session_id'])
+            or (actor.beneficiary_id and actor.beneficiary_id == sess['beneficiary_id'])
+        ):
+            raise HTTPException(403, 'This interview belongs to another session')
+        _check_ai_consent(conn, sess['beneficiary_id'], sess['session_id'])
+    if not settings.GROQ_API_KEY:
+        raise HTTPException(503, 'Voice transcription is not configured. Please type your answer.')
+    try:
+        audio = base64.b64decode(data.audio_base64, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(422, 'Invalid microphone recording')
+    if not audio or len(audio) > 6_000_000:
+        raise HTTPException(422, 'Microphone recording is empty or too large')
+    extension = {'audio/webm': 'webm', 'audio/mp4': 'm4a', 'audio/ogg': 'ogg', 'audio/wav': 'wav'}[data.mime_type]
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post('https://api.groq.com/openai/v1/audio/transcriptions',
+                headers={'Authorization': f'Bearer {settings.GROQ_API_KEY}'},
+                files={'file': (f'answer.{extension}', audio, data.mime_type)},
+                data={'model': 'whisper-large-v3-turbo', 'language': data.language,
+                      'response_format': 'verbose_json', 'temperature': '0'})
+            response.raise_for_status()
+        result = response.json()
+    except httpx.TimeoutException:
+        raise HTTPException(504, 'Voice transcription timed out. Please try again or type your answer.')
+    except (httpx.HTTPError, ValueError):
+        raise HTTPException(503, 'Voice transcription is unavailable. Please try again or type your answer.')
+    text = str(result.get('text') or '').strip()
+    segments = result.get('segments') or []
+    if not text or (segments and all(segment.get('no_speech_prob', 0) > 0.8 for segment in segments)):
+        raise HTTPException(422, 'No speech was heard. Please try speaking closer to the microphone.')
+    if len(text) > 4000:
+        raise HTTPException(422, 'Please give a shorter answer.')
+    # Audio stays in memory only; a transcript is saved only when submitted as a turn.
+    return {'text': text}

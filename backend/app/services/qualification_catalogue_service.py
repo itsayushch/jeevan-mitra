@@ -3,6 +3,7 @@ import uuid
 import json
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
+from app.services.nqr_catalogue import is_current
 
 class QualificationCatalogueService:
     @staticmethod
@@ -11,19 +12,21 @@ class QualificationCatalogueService:
 
     @staticmethod
     def get_qualifications(conn: Connection, sector: Optional[str] = None, limit: int = 20) -> List[Dict]:
-        query = "SELECT * FROM qualifications WHERE verification_status = 'VERIFIED'"
+        query = "SELECT * FROM qualifications WHERE UPPER(verification_status) = 'VERIFIED'"
         params = []
         if sector:
             query += " AND sector = ?"
             params.append(sector)
         query += " LIMIT ?"
         params.append(limit)
-        
+
         cursor = conn.execute(query, tuple(params))
         rows = cursor.fetchall()
         result = []
         for row in rows:
             d = dict(row)
+            if not is_current(d):
+                continue
             d['entry_requirements_json'] = json.loads(d['entry_requirements_json']) if d['entry_requirements_json'] else None
             d['skills_json'] = json.loads(d['skills_json']) if d['skills_json'] else None
             result.append(d)
@@ -43,10 +46,10 @@ class QualificationCatalogueService:
     def create_qualification(conn: Connection, data: Dict, user_id: str) -> Dict:
         qual_id = f"qual_{uuid.uuid4().hex[:8]}"
         now = QualificationCatalogueService._now()
-        
+
         entry_json = json.dumps(data.get('entry_requirements_json')) if data.get('entry_requirements_json') else None
         skills_json = json.dumps(data.get('skills_json')) if data.get('skills_json') else None
-        
+
         conn.execute("""
             INSERT INTO qualifications (
                 id, external_reference, title, description, sector, nsqf_level, duration_hours,
@@ -59,7 +62,7 @@ class QualificationCatalogueService:
             data['source_name'], data.get('source_url'), data.get('source_version'),
             data['source_verified_at'], data.get('verification_status', 'DRAFT'), user_id, now, now
         ))
-        
+
         return QualificationCatalogueService.get_qualification(conn, qual_id)
 
     @staticmethod
@@ -77,7 +80,7 @@ class QualificationCatalogueService:
             params.append(qual_id)
             query = f"UPDATE qualifications SET {', '.join(updates)} WHERE id = ?"
             conn.execute(query, tuple(params))
-            
+
         return QualificationCatalogueService.get_qualification(conn, qual_id)
 
     @staticmethod

@@ -33,14 +33,8 @@ interface NavigationProps {
 }
 
 const navItems = [
-  { id: 'home', key: 'nav.overview', icon: LayoutDashboard },
-  { id: 'journey', key: 'nav.journey', icon: Route },
   { id: 'voice-ask', key: 'nav.aiAssistant', icon: Mic },
-  { id: 'jobs-map', key: 'nav.localOpportunities', icon: BriefcaseBusiness },
-  { id: 'training-quiz', key: 'nav.skillTraining', icon: GraduationCap },
-  { id: 'career-pathways', key: 'nav.careerPathways', icon: TrendingUp },
-  { id: 'financial-grants', key: 'nav.financialSupport', icon: HandCoins },
-  { id: 'community-mentors', key: 'nav.communityMentors', icon: Users },
+  { id: 'journey', key: 'nav.journey', icon: Route },
 ];
 
 export function Navigation({
@@ -64,7 +58,7 @@ export function Navigation({
     api.setWorkerKey('');
     api.setOfficerKey('');
     closeMenu();
-    router.push('/login');
+    router.push('/');
   };
 
   const closeMenu = () => {
@@ -111,7 +105,7 @@ export function Navigation({
       </button>
 
       <div id="navigation-panel" className={`navigation-panel ${menuOpen ? 'is-open' : ''}`}>
-        <div className="sidebar-label">YOUR NEXT CHAPTER</div>
+        <div className="sidebar-label">{language === 'hi' ? 'मुख्य मेनू' : 'MAIN MENU'}</div>
         <nav aria-label="Main navigation" className="primary-nav">
           {navItems.map(({ id, key, icon: Icon }) => (
             <Link
@@ -128,39 +122,7 @@ export function Navigation({
           ))}
         </nav>
 
-        <div className="staff-nav">
-          <div className="sidebar-label">{t('nav.facilitators')}</div>
-          <Link
-            className={`nav-item ${currentTab === 'field-worker' ? 'active' : ''}`}
-            href="/field-worker"
-            onClick={closeMenu}
-            aria-current={currentTab === 'field-worker' ? 'page' : undefined}
-          >
-            <ShieldCheck size={19} />
-            {t('nav.fieldWorkerPortal')}
-          </Link>
-          <Link
-            className={`nav-item ${currentTab === 'district-planner' ? 'active' : ''}`}
-            href="/district-planner"
-            onClick={closeMenu}
-            aria-current={currentTab === 'district-planner' ? 'page' : undefined}
-          >
-            <ChartNoAxesCombined size={19} />
-            {t('nav.districtPlanning')}
-          </Link>
-        </div>
-
         <div className="sidebar-bottom">
-          <div className="sidebar-help">
-            <span className="help-icon">
-              <Mic size={20} />
-            </span>
-            <strong>{t('nav.guidanceTitle')}</strong>
-            <p>{t('nav.guidanceSubtitle')}</p>
-            <Link href="/voice-assistant" onClick={closeMenu}>
-              {t('nav.letsTalk')} <span aria-hidden="true">↗</span>
-            </Link>
-          </div>
 
           <LanguagePicker language={language} onChange={onSelectLanguage} />
 

@@ -1,0 +1,376 @@
+{
+  "checked_at": "2026-10-04",
+  "records": [
+    {
+      "record_id": 10422,
+      "title": "Sewing Machine Operator",
+      "nqr_code": "QG-2.5-AP-01866-2024-V1.1-AMHSSC, Version 4.0",
+      "sector": "Apparel",
+      "nsqf_level": 2.5,
+      "duration_hours": 300,
+      "min_education": "Class 9",
+      "min_education_rank": 3,
+      "entry_routes": [
+        {
+          "education": "Previous NSQF qualification",
+          "completion": "of Level 1",
+          "experience": "1.5 Years",
+          "training": "None"
+        },
+        {
+          "education": "Previous NSQF qualification",
+          "completion": "of Level 2",
+          "experience": "6 Months experience",
+          "training": "None"
+        },
+        {
+          "education": "9th",
+          "completion": "None",
+          "experience": "No Experience",
+          "training": "None"
+        },
+        {
+          "education": "Ability to read and write",
+          "completion": "In relevant field",
+          "experience": "5 years",
+          "training": "None"
+        },
+        {
+          "education": "5th",
+          "completion": "In relevant field",
+          "experience": "4 years",
+          "training": "None"
+        },
+        {
+          "education": "8th",
+          "completion": "In relevant field",
+          "experience": "1 year",
+          "training": "None"
+        },
+        {
+          "education": "8th",
+          "completion": "Pursuing Continuous Schooling",
+          "experience": "No Experience",
+          "training": "None"
+        }
+      ],
+      "valid_to": "2026-11-01",
+      "skills": [
+        "Carry out stitching activities using machine or by hand",
+        "Contribute to achieve product quality in stitching operations",
+        "Maintain work area and tools",
+        "Maintain health, safety and secure work place with Gender and PwD Sensitization",
+        "Comply with industry, regulatory, organizational requirements and Greening of Job Roles",
+        "Employability Skills"
+      ],
+      "description": "A Sewing Machine Operator also called a Stitcher or Machinist is an important job-role associated with Apparel sector, Made-Ups and Home Furnishing Industry. The primary responsibility of a machinist is to stitch/ sew fabric panels, fur fabric panels, or synthetic materials to produce apparels or made up with desired quality.",
+      "certification_body": "Apparel, Madeups & HomeFurnishing Sector Skill Council (AMHSSC)",
+      "source_url": "https://www.nqr.gov.in/qualifications/10422"
+    },
+    {
+      "record_id": 10741,
+      "title": "Assistant Electrician (Domestic cum Industrial)",
+      "nqr_code": "QG-03-PW-02422-2024-V1-MSME",
+      "sector": "Power",
+      "nsqf_level": 3.0,
+      "duration_hours": 600,
+      "min_education": "Class 10",
+      "min_education_rank": 3,
+      "entry_routes": [
+        {
+          "education": "10th",
+          "completion": "None",
+          "experience": "No Experience",
+          "training": "None"
+        },
+        {
+          "education": "Previous NSQF qualification",
+          "completion": "None",
+          "experience": "3 years",
+          "training": "None"
+        },
+        {
+          "education": "Previous NSQF qualification",
+          "completion": "None",
+          "experience": "No Experience",
+          "training": "None"
+        }
+      ],
+      "valid_to": "2027-04-30",
+      "skills": [
+        "Acquire the concepts of Basic Electrical",
+        "Measure Electrical Parameters (Voltage, Current, Power etc.)",
+        "Prepare for Domestic and Industrial Electrical Wiring",
+        "Perform Transformer Testing and Maintenance",
+        "Power Equipment Testing and Maintenance",
+        "Repair and Maintenance of Electrical Machines",
+        "Employability Skills"
+      ],
+      "description": "Learners who attain this qualification are competent to carry out electrical installation, maintenance at domestic and industrial site. Learned candidates are qualified to work as Assistant Electrician. Qualified learner can also start their own electrical workshop or choose to be an entrepreneur.",
+      "certification_body": "MSME Technology Centre, Ministry of Micro Small And Medium Enterprises, New Delhi",
+      "source_url": "https://www.nqr.gov.in/qualifications/10741"
+    },
+    {
+      "record_id": 13370,
+      "title": "Pulses Cultivator",
+      "nqr_code": "QG-03-AG-03537-2025-V2-ASCI",
+      "sector": "Agriculture",
+      "nsqf_level": 3.0,
+      "duration_hours": 270,
+      "min_education": "Class 10",
+      "min_education_rank": 3,
+      "entry_routes": [
+        {
+          "education": "10th",
+          "completion": "Passed",
+          "experience": "No Experience",
+          "training": "Equivalent"
+        },
+        {
+          "education": "8th",
+          "completion": "Passed",
+          "experience": "3 years",
+          "training": "None"
+        },
+        {
+          "education": "Previous NSQF qualification",
+          "completion": "of Level 3.5",
+          "experience": "1.5 Years",
+          "training": "None"
+        },
+        {
+          "education": "Previous NSQF qualification",
+          "completion": "of Level 3",
+          "experience": "3 years",
+          "training": "None"
+        }
+      ],
+      "valid_to": "2028-02-18",
+      "skills": [
+        "Select and prepare the site and sow the pulse seeds",
+        "Carry out macro and micronutrient management for field crops",
+        "Manage weed growth in crop fields",
+        "Perform integrated pest and disease management for pulses",
+        "Perform irrigation management for field crops",
+        "Carry out harvesting, processing and marketing of pulses",
+        "Participate in collective farming activities",
+        "Follow health and safety guidelines",
+        "Employability Skills (30 Hours)"
+      ],
+      "description": "A Pulses Cultivator undertakes the cultivation of pulses at the farm level. The individual is also responsible for harvesting and marketing the pulses. The person also undertakes integrated pest and disease management, along with weed management as part of the job role.",
+      "certification_body": "Agriculture Skill Council of India (ASCI)",
+      "source_url": "https://www.nqr.gov.in/qualifications/13370"
+    },
+    {
+      "record_id": 13356,
+      "title": "Small Poultry Farmer",
+      "nqr_code": "QG-04-AG-03546-2025-V2-ASCI",
+      "sector": "Agriculture",
+      "nsqf_level": 4.0,
+      "duration_hours": 390,
+      "min_education": "Class 12",
+      "min_education_rank": 4,
+      "entry_routes": [
+        {
+          "education": "12th",
+          "completion": "Passed",
+          "experience": "No Experience",
+          "training": "Equivalent"
+        },
+        {
+          "education": "10th",
+          "completion": "Passed",
+          "experience": "3 years",
+          "training": "None"
+        },
+        {
+          "education": "Previous NSQF qualification",
+          "completion": "of Level 3.5",
+          "experience": "1.5 Years",
+          "training": "None"
+        },
+        {
+          "education": "Previous NSQF qualification",
+          "completion": "of Level 3",
+          "experience": "3 years",
+          "training": "None"
+        }
+      ],
+      "valid_to": "2028-02-18",
+      "skills": [
+        "Prepare and maintain housing for broiler/layer birds",
+        "Prepare the poultry shed to receive and manage the chicks/birds",
+        "Maintain the supply of feed and water to poultry birds",
+        "Maintain health of birds at poultry farm",
+        "Carry out collection of eggs and lifting of broiler birds for market",
+        "Undertake sanitization and biosecurity measures for the replacement stock",
+        "Carry out documentation and record-keeping at a small poultry farm",
+        "Ensure safety, hygiene and sanitation of poultry farm",
+        "Undertake basic entrepreneurial activities for small enterprise",
+        "Engage in collective farming/activity",
+        "Employability Skills (60 Hours)"
+      ],
+      "description": "A Small Poultry Farmer is responsible for raising different types of domestic birds for the purpose of egg and/or meat production. The person takes various decisions for the viability and sustainability of the poultry farm. The individual ensures proper care of the poultry birds, their health and productivity, meat and/or egg production and marketing of the produce",
+      "certification_body": "Agriculture Skill Council of India (ASCI)",
+      "source_url": "https://www.nqr.gov.in/qualifications/13356"
+    },
+    {
+      "record_id": 13295,
+      "title": "Quality Seed Grower",
+      "nqr_code": "QG-04-AG-03564-2025-V2-ASCI",
+      "sector": "Agriculture",
+      "nsqf_level": 4.0,
+      "duration_hours": 390,
+      "min_education": "Class 12",
+      "min_education_rank": 4,
+      "entry_routes": [
+        {
+          "education": "Previous NSQF qualification",
+          "completion": "of Level 3",
+          "experience": "3 years",
+          "training": "None"
+        },
+        {
+          "education": "Previous NSQF qualification",
+          "completion": "of Level 3.5",
+          "experience": "1.5 Years",
+          "training": "None"
+        },
+        {
+          "education": "12th",
+          "completion": "Passed",
+          "experience": "No Experience",
+          "training": "Equivalent"
+        },
+        {
+          "education": "10th",
+          "completion": "Passed",
+          "experience": "3 years",
+          "training": "None"
+        }
+      ],
+      "valid_to": "2028-02-18",
+      "skills": [
+        "Prepare for growing the seeds",
+        "Sow the seeds and maintain the seed crop",
+        "Perform harvesting and post-harvest processing of the seed crop",
+        "Undertake basic entrepreneurial activities for small Enterprise",
+        "Maintain health and safety at the workplace",
+        "Employability Skills (60 Hours)"
+      ],
+      "description": "A Quality Seed Grower produces a variety of high-quality seed crops under the supervision of a field supervisor from the seed production company. The person is responsible for preparing the field, sowing, maintaining, harvesting and performing post-harvest processing of the foundation and certified seeds as per the instructions of the seed production company.",
+      "certification_body": "Agriculture Skill Council of India (ASCI)",
+      "source_url": "https://www.nqr.gov.in/qualifications/13295"
+    },
+    {
+      "record_id": 13360,
+      "title": "Organic Grower",
+      "nqr_code": "QG-04-AG-03540-2025-V2-ASCI",
+      "sector": "Agriculture",
+      "nsqf_level": 4.0,
+      "duration_hours": 390,
+      "min_education": "Class 12",
+      "min_education_rank": 4,
+      "entry_routes": [
+        {
+          "education": "12th",
+          "completion": "Passed",
+          "experience": "No Experience",
+          "training": "Equivalent"
+        },
+        {
+          "education": "10th",
+          "completion": "Passed",
+          "experience": "3 years",
+          "training": "None"
+        },
+        {
+          "education": "Previous NSQF qualification",
+          "completion": "of Level 3.5",
+          "experience": "1.5 Years",
+          "training": "None"
+        },
+        {
+          "education": "Previous NSQF qualification",
+          "completion": "of Level 3",
+          "experience": "3 years",
+          "training": "None"
+        }
+      ],
+      "valid_to": "2028-02-18",
+      "skills": [
+        "Undertake planning for organic farming",
+        "Carry out seed selection and treatment under organic farming",
+        "Carry out soil nutrient management under organic farming",
+        "Carry out weed management in an organic farm",
+        "Carry out irrigation management in an organic farm",
+        "Integrated pest and disease management in an organic farm",
+        "Carry out harvest and post-harvest management in an organic farm",
+        "Undertake quality assurance and certification in organic farming",
+        "Undertake business of organic farming",
+        "Maintain health and safety at the workplace",
+        "Employability Skills (60 Hours)"
+      ],
+      "description": "The job of an organic grower involves cultivation of organic crops as per the organic package of practices recommended for a particular agro climate zone, using approaches like diversity, cattle integration, on- farm input generation, biomass recycling, natural resource use optimization in exclusion of synthetic inputs directly or indirectly and sell the organic produce as per the competitive market prices without distress sale.",
+      "certification_body": "Agriculture Skill Council of India (ASCI)",
+      "source_url": "https://www.nqr.gov.in/qualifications/13360"
+    },
+    {
+      "record_id": 14080,
+      "title": "Paddy Cultivator",
+      "nqr_code": "QG-03-AG-04182-2025-V2-ASCI",
+      "sector": "Agriculture",
+      "nsqf_level": 3.0,
+      "duration_hours": 270,
+      "min_education": "Class 10",
+      "min_education_rank": 3,
+      "entry_routes": [
+        {
+          "education": "10th",
+          "completion": "Completed",
+          "experience": "No Experience",
+          "training": "None"
+        },
+        {
+          "education": "8th",
+          "completion": "Completed",
+          "experience": "3 years",
+          "training": "None"
+        },
+        {
+          "education": "Previous NSQF qualification",
+          "completion": "of Level 2.5",
+          "experience": "1.5 Years",
+          "training": "None"
+        },
+        {
+          "education": "Previous NSQF qualification",
+          "completion": "of Level 2",
+          "experience": "3 years",
+          "training": "None"
+        },
+        {
+          "education": "5th",
+          "completion": "Completed",
+          "experience": "6 years",
+          "training": "None"
+        }
+      ],
+      "valid_to": "2028-05-08",
+      "skills": [
+        "Seed Preparation in Paddy",
+        "Land preparation and transplantation in Paddy",
+        "Integrated Nutrient Management in Paddy",
+        "Weed Management in Paddy",
+        "Integrated Pest and Disease Management in Paddy",
+        "Irrigation Management in Paddy",
+        "Harvesting and Post-Harvest Management in Paddy",
+        "Maintain health and safety at the workplace",
+        "Employability Skills (30 Hours)"
+      ],
+      "description": "The job of a paddy cultivator involves cultivation of paddy as per the package of practices recommended for a particular agronomic climate zone, type of soil, rainfall pattern and climatic conditions to achieve the yields as per the genetic potential of a given variety and sell the produce as per the competitive market prices without distress sale.",
+      "certification_body": "Agriculture Skill Council of India (ASCI)",
+      "source_url": "https://www.nqr.gov.in/qualifications/14080"
+    }
+  ]
+}

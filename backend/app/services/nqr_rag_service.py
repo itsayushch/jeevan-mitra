@@ -5,30 +5,37 @@ from app.config import settings
 
 class NQRRagService:
     def __init__(self):
-        # Mock documents (NQR curriculum data)
-        self.documents = [
-            {"id": "nqr-001", "course": "Mushroom Cultivation", "content": "The Mushroom Cultivation course covers oyster and button mushroom farming, spawn preparation, climate control, pest management, and post-harvest packaging. Requires Class 8 education. Duration is 200 hours."},
-            {"id": "nqr-002", "course": "Solar PV Installation", "content": "Solar PV Installation teaches how to install, test, and commission solar panels for residential and commercial setups. It includes basic electrical wiring and safety. Requires Class 10 education."},
-            {"id": "nqr-003", "course": "Retail & Grocery Operations", "content": "Retail operations covers inventory management, customer service, point-of-sale systems, and merchandising. Suitable for self-employment. Requires Class 10 education."},
-            {"id": "nqr-004", "course": "Tractor Mechanic", "content": "Tractor Mechanic course teaches engine repair, hydraulic systems, and preventive maintenance of agricultural machinery. Requires Class 8 education and basic physical fitness."}
-        ]
+        pass
+
+    @property
+    def documents(self):
+        from app.services.nqr_catalogue import load_snapshot
+        from datetime import date
+        snapshot = load_snapshot()
+        return [{"id": str(item["record_id"]), "course": item["title"],
+                 "content": json.dumps({**item, "source_checked_at": snapshot["checked_at"],
+                                        "local_batch": "Not verified; NQR is a qualification register."}, ensure_ascii=False)}
+                for item in snapshot["records"] if item["valid_to"] >= date.today().isoformat()]
 
     def ask(self, question: str) -> str:
         # Simple exact keyword matching for mock retrieval
         question_lower = question.lower()
+        documents = self.documents
+        if not documents:
+            return "No current NQR course information is available. Please ask a helper."
         retrieved_docs = []
-        for doc in self.documents:
+        for doc in documents:
             if doc["course"].lower() in question_lower or any(word in question_lower for word in doc["course"].lower().split()):
                 retrieved_docs.append(doc["content"])
-        
+
         if not retrieved_docs:
-            retrieved_docs = [doc["content"] for doc in self.documents] # Fallback to all docs if no specific match
+            retrieved_docs = [doc["content"] for doc in documents]
 
         context = "\n".join(retrieved_docs)
 
         # Call Gemini or Groq to synthesize the answer
         gemini_key = settings.GEMINI_API_KEY or settings.AI_API_KEY
-        
+
         if (settings.AI_PROVIDER == 'gemini' or not settings.AI_PROVIDER) and gemini_key:
             try:
                 response = httpx.post(
@@ -47,7 +54,7 @@ class NQRRagService:
                 return response.json()['candidates'][0]['content']['parts'][0]['text']
             except Exception as e:
                 pass
-        
+
         if settings.GROQ_API_KEY:
             try:
                 response = httpx.post(
@@ -67,7 +74,7 @@ class NQRRagService:
                 return response.json()['choices'][0]['message']['content']
             except Exception as e:
                 pass
-                
-        return "RAG Fallback Answer: Based on the NQR documents, " + " ".join(retrieved_docs)
+
+        return "Official NQR information: " + " ".join(retrieved_docs)
 
 nqr_rag_service = NQRRagService()

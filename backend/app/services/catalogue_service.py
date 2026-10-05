@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Optional
 from app.models import QualificationCreate, QualificationUpdate, OpportunityCreate, OpportunityUpdate
 from app.utils.audit_events import log_audit_event
 from app.utils.errors import EntityNotFoundException, ValidationException
+from app.services.nqr_catalogue import is_current
 
 class CatalogueService:
     STALE_DATA_THRESHOLD_DAYS = 90
@@ -37,6 +38,8 @@ class CatalogueService:
         results = []
         for r in rows:
             d = dict(r)
+            if not is_current(d):
+                continue
             d["skills_acquired"] = json.loads(d.get("skills_acquired") or "[]")
             # Backwards-compat aliases
             d["official_source_url"] = d.get("source_url") or d.get("nqr_link")

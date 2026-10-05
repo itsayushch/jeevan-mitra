@@ -107,21 +107,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <AppSettingsContext.Provider value={{ language, setLanguage: chooseLanguage, viewMode, t }}>
       <div className="app-shell">
         <a className="skip-link" href="#main-content">{t('app.skipToContent')}</a>
-        <Navigation
-          currentTab={currentTab}
-          language={language}
-          onSelectLanguage={chooseLanguage}
-          viewMode={viewMode}
-          onToggleViewMode={() => setViewMode(previous => (previous === 'kiosk' ? 'full' : 'kiosk'))}
-        />
-        <div className="workspace">
+        {pathname !== '/' && pathname !== '/voice-assistant' && pathname !== '/dashboard' && pathname !== '/take-home' && (
+          <Navigation
+            currentTab={currentTab}
+            language={language}
+            onSelectLanguage={chooseLanguage}
+            viewMode={viewMode}
+            onToggleViewMode={() => setViewMode(previous => (previous === 'kiosk' ? 'full' : 'kiosk'))}
+          />
+        )}
+        <div className="workspace" style={(pathname === '/' || pathname === '/voice-assistant' || pathname === '/dashboard' || pathname === '/take-home') ? { marginLeft: 0 } : {}}>
           <main id="main-content" className={`workspace-main ${currentTab === 'voice-ask' ? 'chat-workspace' : ''}`} tabIndex={-1}>
             {children}
           </main>
-          <footer className="workspace-footer">
-            <span>{t('app.footerNote')}</span>
-            <span>{t('app.footerComponent')}</span>
-          </footer>
+          {pathname !== '/' && pathname !== '/voice-assistant' && pathname !== '/dashboard' && pathname !== '/take-home' && (
+            <footer className="workspace-footer">
+              <span>{t('app.footerNote')}</span>
+              <span>{t('app.footerComponent')}</span>
+            </footer>
+          )}
         </div>
       </div>
     </AppSettingsContext.Provider>

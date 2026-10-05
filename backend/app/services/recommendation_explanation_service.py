@@ -79,7 +79,7 @@ class RecommendationExplanationService:
 
         # 3. TRAVEL_FEASIBILITY
         mobility = profile.get("mobility") or profile.get("mobility_radius_km")
-        if mobility:
+        if mobility and best_opp and match_state in ("VERIFIED_MATCH", "Verified Match"):
             mob_str = f"{mobility} km" if isinstance(mobility, (int, float)) else str(mobility)
             facts.append({
                 "factor": ExplanationFactor.TRAVEL_FEASIBILITY.value,
@@ -91,7 +91,7 @@ class RecommendationExplanationService:
 
         # 4. LOCATION_RELEVANCE
         district = profile.get("district")
-        if district:
+        if district and best_opp and match_state in ("VERIFIED_MATCH", "Verified Match"):
             facts.append({
                 "factor": ExplanationFactor.LOCATION_RELEVANCE.value,
                 "labelKey": "recommendations.reason.locationRelevance",

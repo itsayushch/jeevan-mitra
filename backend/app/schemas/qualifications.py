@@ -7,7 +7,7 @@ class QualificationBase(BaseModel):
     title: str
     description: str
     sector: str
-    nsqf_level: Optional[int] = None
+    nsqf_level: Optional[float] = None
     duration_hours: Optional[int] = None
     entry_requirements_json: Optional[Dict[str, Any]] = None
     skills_json: Optional[List[str]] = None
@@ -22,7 +22,7 @@ class QualificationCreate(BaseModel):
     title: str
     description: str
     sector: str
-    nsqf_level: Optional[int] = None
+    nsqf_level: Optional[float] = None
     duration_hours: Optional[int] = None
     entry_requirements_json: Optional[Dict[str, Any]] = None
     skills_json: Optional[List[str]] = None
@@ -35,7 +35,7 @@ class QualificationResponse(QualificationBase):
     id: str
     created_at: datetime
     updated_at: datetime
-    
+
     # Internal fields staff might see
     created_by_user_id: Optional[str] = None
     verified_by_user_id: Optional[str] = None
@@ -48,7 +48,7 @@ class QualificationBeneficiaryResponse(BaseModel):
     title: str
     description: str
     sector: str
-    nsqf_level: Optional[int] = None
+    nsqf_level: Optional[float] = None
     duration_hours: Optional[int] = None
     entry_requirements_json: Optional[Dict[str, Any]] = None
     skills_json: Optional[List[str]] = None

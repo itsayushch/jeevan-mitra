@@ -6,6 +6,12 @@
 
 const API_BASE = '/api/v1';
 
+async function responseError(response: Response, fallback: string): Promise<Error> {
+  const body = await response.json().catch(() => null);
+  const detail = body?.detail;
+  return new Error(typeof detail === 'string' ? detail : detail?.message || fallback);
+}
+
 export interface AnonymousSession {
   session_token: string;
   session_id: string;
@@ -38,9 +44,12 @@ export interface InterviewTurnResponse {
   clarification_needed?: boolean;
   is_final?: boolean;
   inferred_profile?: Record<string, any>;
+  missing_fields?: string[];
+  extraction_provider?: string;
 }
 
 export interface RecommendationItem {
+  qualification_id?: string;
   recommendation_id: string;
   score: number;
   qualification: {
@@ -51,6 +60,12 @@ export interface RecommendationItem {
     nsqf_level: number;
     duration_hours: number;
     official_url: string;
+    entry_criteria?: string;
+    school_entry?: string;
+    certification_body?: string;
+    source_checked_at?: string;
+    valid_to?: string;
+    skills?: string[];
   };
   why_recommended: string[];
   whyRecommended?: {
@@ -89,6 +104,7 @@ export interface RecommendationsResponse {
   count: number;
   recommendations: RecommendationItem[];
   counselor_handoff_recommended?: boolean;
+  ranking_method?: 'ml_blended' | 'rules';
 }
 
 export interface ReferralResponse {
@@ -331,6 +347,19 @@ class ApiService {
     return this.sessionToken;
   }
 
+  public clearKioskSession() {
+    this.sessionToken = null; this.sessionId = null; this.jwtToken = null;
+    this.officerKey = null; this.workerKey = null;
+    if (typeof window === 'undefined') return;
+    // Remove only this application's data; saved backend records remain intact.
+    for (const storage of [window.sessionStorage, window.localStorage]) {
+      const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index));
+      for (const key of keys) {
+        if (key && (key.startsWith('jm_') || key.startsWith('jeevanmitra'))) storage.removeItem(key);
+      }
+    }
+  }
+
   public getSessionId(): string | null {
     return this.sessionId;
   }
@@ -387,7 +416,7 @@ class ApiService {
         session_id: this.sessionId,
       }),
     });
-    if (!res.ok) throw new Error(`Interview start failed: ${res.statusText}`);
+    if (!res.ok) throw await responseError(res, 'Could not start your interview. Please try again.');
     return res.json();
   }
 
@@ -397,7 +426,9 @@ class ApiService {
   async submitTurn(
     interviewId: string,
     message: string,
-    speaker: 'user' | 'ai' = 'user'
+    speaker: 'user' | 'ai' = 'user',
+    mode: 'standard' | 'conversational' | 'voice' = 'standard',
+    inputMode: 'voice' | 'text' = 'text'
   ): Promise<InterviewTurnResponse> {
     const res = await fetch(`${API_BASE}/interviews/${interviewId}/turns`, {
       method: 'POST',
@@ -405,9 +436,11 @@ class ApiService {
       body: JSON.stringify({
         text: message,
         speaker,
+        mode,
+        input_mode: inputMode
       }),
     });
-    if (!res.ok) throw new Error(`Turn submission failed: ${res.statusText}`);
+    if (!res.ok) throw await responseError(res, 'Could not save this answer. Please try again.');
     return res.json();
   }
 
@@ -425,7 +458,7 @@ class ApiService {
         confirmed_fields: fields,
       }),
     });
-    if (!res.ok) throw new Error(`Profile confirmation failed: ${res.statusText}`);
+    if (!res.ok) throw await responseError(res, 'Could not confirm your answers. Please try again.');
     return res.json();
   }
 
@@ -440,7 +473,42 @@ class ApiService {
         interview_id: interviewId,
       }),
     });
-    if (!res.ok) throw new Error(`Recommendation generation failed: ${res.statusText}`);
+    if (!res.ok) throw await responseError(res, 'Could not find your pathways. Your answers are saved; please try again.');
+    return res.json();
+  }
+
+  async getDashboard(interviewId: string) {
+    const [profileResponse, matchesResponse] = await Promise.all([
+      fetch(`${API_BASE}/interviews/${encodeURIComponent(interviewId)}`, { headers: this.getHeaders() }),
+      fetch(`${API_BASE}/interviews/${encodeURIComponent(interviewId)}/recommendations`, { headers: this.getHeaders() }),
+    ]);
+    if (!profileResponse.ok) throw await responseError(profileResponse, 'Could not load your profile.');
+    if (!matchesResponse.ok) throw await responseError(matchesResponse, 'Could not load your options.');
+    const interview = await profileResponse.json();
+    const matches: RecommendationsResponse = await matchesResponse.json();
+    return { interview, recommendations: matches.recommendations };
+  }
+
+  async transcribeAnswer(interviewId: string, audio: Blob, language: string, signal: AbortSignal): Promise<string> {
+    const audioBase64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1]);
+      reader.onerror = () => reject(new Error('Could not read the microphone recording.'));
+      reader.readAsDataURL(audio);
+    });
+    const res = await fetch(`${API_BASE}/interviews/${encodeURIComponent(interviewId)}/transcribe`, {
+      method: 'POST', headers: this.getHeaders(), signal,
+      body: JSON.stringify({ audio_base64: audioBase64, mime_type: audio.type.split(';')[0], language }),
+    });
+    if (!res.ok) throw await responseError(res, 'Could not transcribe your answer. Try again or type.');
+    return (await res.json()).text;
+  }
+
+  async correctInterviewAnswer(interviewId: string, field: string, text: string): Promise<{ field_name: string; value: unknown }> {
+    const res = await fetch(`${API_BASE}/interviews/${encodeURIComponent(interviewId)}/corrections`, {
+      method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ field_name: field, text }),
+    });
+    if (!res.ok) throw await responseError(res, 'Could not understand that correction. Try again or type your answer.');
     return res.json();
   }
 
@@ -450,7 +518,8 @@ class ApiService {
   async createReferral(
     interviewId: string,
     reason: string = 'user_requested_human_help',
-    recommendationId?: string
+    recommendationId?: string,
+    notes?: string
   ): Promise<ReferralResponse> {
     const res = await fetch(`${API_BASE}/referrals`, {
       method: 'POST',
@@ -459,10 +528,12 @@ class ApiService {
         interview_id: interviewId,
         referral_reason: reason,
         recommendation_id: recommendationId,
+        notes,
       }),
     });
-    if (!res.ok) throw new Error(`Referral request failed: ${res.statusText}`);
-    return res.json();
+    if (!res.ok) throw await responseError(res, 'Your request was not sent. Please try again.');
+    const result = await res.json();
+    return { ...result, referral_id: result.referral_id || result.id };
   }
 
   /**

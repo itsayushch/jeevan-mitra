@@ -20,7 +20,7 @@ class ConsentRecordCreate(BaseModel):
     beneficiary_id: Optional[str] = None
     consent_type: Literal['ai_processing', 'profile_storage', 'counselor_referral', 'analytics', 'export_summary', 'dpdp_general']
     policy_version: Optional[str] = "1.0"
-    user_language: Optional[str] = "hi"
+    user_language: Optional[str] = None
     capture_channel: Optional[str] = "web_app"
     granted: Optional[bool] = True
 
@@ -62,7 +62,7 @@ class BeneficiaryCreate(BaseModel):
     gender: Optional[str] = "prefer_not_to_say"
     age: Optional[int] = None
     category: Optional[str] = "SC"
-    preferred_language: Optional[str] = "hi"
+    preferred_language: Optional[str] = None
     district: str
     block: str
     village: Optional[str] = None
@@ -90,7 +90,7 @@ class InterviewStartRequest(BaseModel):
     beneficiary_id: Optional[str] = None
     session_id: Optional[str] = None
     channel: Optional[str] = "web_app"
-    language: Optional[str] = "hi"
+    language: Optional[str] = None
 
 class InterviewTurnRequest(BaseModel):
     session_id: Optional[str] = None
@@ -101,7 +101,12 @@ class InterviewTurnRequest(BaseModel):
     text: Optional[str] = None
     speaker: Optional[str] = None
     mode: Optional[str] = "standard"
-    language: Optional[str] = "hi"
+    language: Optional[str] = None
+    input_mode: Optional[Literal['voice', 'text']] = 'text'
+
+class InterviewCorrectionRequest(BaseModel):
+    field_name: str = Field(min_length=1, max_length=60)
+    text: str = Field(min_length=1, max_length=400)
 
 class InterviewFieldUpdateRequest(BaseModel):
     value: Any
@@ -120,7 +125,7 @@ class QualificationCreate(BaseModel):
     nqr_code: str = Field(min_length=3, max_length=50)
     title: str = Field(min_length=3, max_length=200)
     sector: str = Field(min_length=2, max_length=100)
-    nsqf_level: int = Field(ge=1, le=10)
+    nsqf_level: float = Field(ge=1, le=10)
     duration_hours: int = Field(ge=10, le=2000)
     min_education: str
     min_education_rank: int = Field(ge=0, le=5)
@@ -137,7 +142,7 @@ class QualificationCreate(BaseModel):
 class QualificationUpdate(BaseModel):
     title: Optional[str] = None
     sector: Optional[str] = None
-    nsqf_level: Optional[int] = None
+    nsqf_level: Optional[float] = None
     duration_hours: Optional[int] = None
     min_education: Optional[str] = None
     min_education_rank: Optional[int] = None
@@ -210,7 +215,7 @@ class RecommendationMatchRequest(BaseModel):
     mobilityRadiusKm: float = 5.0
     accessibilityNeeds: Optional[str] = ""
     workPreference: Optional[str] = "both" # wage, self_employment, both
-    preferredLanguage: Optional[str] = "hi"
+    preferredLanguage: Optional[str] = None
     do_not_recommend: Optional[List[str]] = None
 
 class GenerateRecommendationsRequest(BaseModel):
@@ -221,7 +226,7 @@ class GenerateRecommendationsRequest(BaseModel):
     block: Optional[str] = None
     mobility_radius_km: Optional[float] = 5.0
     work_preference: Optional[str] = None
-    language: Optional[str] = "hi"
+    language: Optional[str] = None
     do_not_recommend: Optional[List[str]] = None
 
 # ============================================================================
@@ -297,7 +302,7 @@ class SignOffRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     beneficiary_id: Optional[str] = None
-    language: Optional[str] = "hi"
+    language: Optional[str] = None
 # ============================================================================
 # 10. Journey Models
 # ============================================================================
@@ -337,8 +342,7 @@ class JourneyConsentRequest(BaseModel):
 
 class JourneyRespondRequest(BaseModel):
     message: str
-    language: Optional[str] = "hi"
+    language: Optional[str] = None
 
 class JourneyConfirmProfileRequest(BaseModel):
     confirm: bool
-

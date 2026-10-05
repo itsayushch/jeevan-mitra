@@ -5,7 +5,7 @@ import hashlib
 from datetime import datetime, timezone, timedelta
 from fastapi.testclient import TestClient
 from app.main import app
-from app.database import get_db, seed_database
+from app.database import get_db, seed_demo_database as seed_database
 from app.core.security import create_access_token
 
 
@@ -241,8 +241,8 @@ class TestPlanningSnapshotsLifecycle:
         # Verify normalized metrics inserted into database
         with get_db() as conn:
             metric_rows = conn.execute("""
-                SELECT metric_group, metric_key, metric_value 
-                FROM planning_snapshot_metrics 
+                SELECT metric_group, metric_key, metric_value
+                FROM planning_snapshot_metrics
                 WHERE snapshot_id = ?;
             """, (snap_id,)).fetchall()
             assert len(metric_rows) >= 5

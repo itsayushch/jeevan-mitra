@@ -258,7 +258,10 @@ export const WaveformVisualizer: React.FC<{ active?: boolean; barCount?: number;
             className={`w-1 rounded-full transition-all duration-300 ${color}`}
             style={{
               height: `${heightPercent}%`,
-              animation: active ? `pulse 1.2s ease-in-out infinite` : 'none',
+              animationName: active ? 'pulse' : 'none',
+              animationDuration: '1.2s',
+              animationTimingFunction: 'ease-in-out',
+              animationIterationCount: 'infinite',
               animationDelay: `${delay}s`
             }}
           />

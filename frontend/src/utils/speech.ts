@@ -62,61 +62,111 @@ export class SoundFX {
   }
 }
 
+let currentAudio: HTMLAudioElement | null = null;
+let speechGeneration = 0;
+let speechTimeout: ReturnType<typeof setTimeout> | null = null;
+let speechPaused = false;
+let timerAction: (() => void) | null = null;
+let timerRemaining = 0;
+let timerStarted = 0;
+let resumeAction: (() => void) | null = null;
+function armSpeechTimer(action: () => void, milliseconds: number) {
+  if (speechTimeout) clearTimeout(speechTimeout);
+  speechTimeout = null;
+  timerAction = action; timerRemaining = milliseconds; timerStarted = Date.now();
+  if (!speechPaused) speechTimeout = setTimeout(action, milliseconds);
+}
+export function pauseSpeaking() {
+  if (speechPaused) return;
+  speechPaused = true;
+  if (speechTimeout) {
+    clearTimeout(speechTimeout); speechTimeout = null;
+    timerRemaining = Math.max(0, timerRemaining - (Date.now() - timerStarted));
+  }
+  currentAudio?.pause();
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.pause();
+}
+export function resumeSpeaking() {
+  if (!speechPaused) return;
+  speechPaused = false;
+  if (timerAction) armSpeechTimer(timerAction, timerRemaining);
+  resumeAction?.();
+}
 export function speakText(
   text: string,
   lang: SupportedLocale = 'en',
-  onEnd?: () => void
+  onEnd?: () => void,
+  onStart?: () => void
 ): boolean {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-    if (onEnd) setTimeout(onEnd, 500);
+  stopSpeaking();
+  const generation = speechGeneration;
+  let ended = false;
+  let fallbackStarted = false;
+  const finish = () => {
+    if (ended || generation !== speechGeneration) return;
+    ended = true;
+    if (speechTimeout) clearTimeout(speechTimeout);
+    speechTimeout = null;
+    timerAction = null; resumeAction = null;
+    onEnd?.();
+  };
+  if (typeof window === 'undefined' || getVoiceCapability(lang).tts !== 'supported') {
+    onStart?.(); finish();
     return false;
   }
-
-  const voiceCap = getVoiceCapability(lang);
-  if (voiceCap.tts !== 'supported') {
-    // Unsupported TTS: gracefully degrade without error
-    if (onEnd) setTimeout(onEnd, 500);
-    return false;
-  }
-
-  try {
-    window.speechSynthesis.cancel();
+  const fallback = () => {
+    if (fallbackStarted || ended || generation !== speechGeneration) return;
+    if (speechPaused) { resumeAction = fallback; return; }
+    fallbackStarted = true;
+    if (speechTimeout) clearTimeout(speechTimeout);
+    if (currentAudio) {
+      currentAudio.onended = null; currentAudio.onerror = null; currentAudio.onplaying = null;
+      currentAudio.pause(); currentAudio = null;
+    }
+    if (!('speechSynthesis' in window)) { finish(); return; }
     const utterance = new SpeechSynthesisUtterance(text);
-
-    const localeMap: Record<SupportedLocale, string> = {
-      hi: 'hi-IN',
-      en: 'en-IN',
-      ta: 'ta-IN',
-      bn: 'bn-IN',
-      mr: 'mr-IN',
+    utterance.lang = `${lang}-IN`;
+    utterance.rate = .95;
+    utterance.onstart = () => {
+      if (generation !== speechGeneration) return;
+      if (speechPaused) window.speechSynthesis.pause();
+      else onStart?.();
     };
-
-    utterance.lang = localeMap[lang] || 'en-IN';
-    utterance.rate = 0.95;
-    utterance.pitch = 1.0;
-
-    const voices = window.speechSynthesis.getVoices();
-    const matchedVoice = voices.find(
-      (v) => v.lang.startsWith(utterance.lang) || v.lang.includes(lang)
-    );
-    if (matchedVoice) {
-      utterance.voice = matchedVoice;
-    }
-
-    if (onEnd) {
-      utterance.onend = () => onEnd();
-      utterance.onerror = () => onEnd();
-    }
-
+    utterance.onend = finish;
+    utterance.onerror = finish;
+    resumeAction = () => window.speechSynthesis.resume();
+    armSpeechTimer(() => { window.speechSynthesis.cancel(); finish(); }, 60000);
+    window.speechSynthesis.resume();
     window.speechSynthesis.speak(utterance);
+  };
+  try {
+    currentAudio = new Audio(`/api/v1/tts/generate?text=${encodeURIComponent(text)}&lang=${lang}`);
+    currentAudio.onplaying = () => {
+      if (generation !== speechGeneration) return;
+      if (speechPaused) { currentAudio?.pause(); return; }
+      armSpeechTimer(() => { currentAudio?.pause(); finish(); }, 60000);
+      onStart?.();
+    };
+    currentAudio.onended = finish;
+    currentAudio.onerror = fallback;
+    resumeAction = () => { void currentAudio?.play().catch(fallback); };
+    armSpeechTimer(fallback, 8000);
+    void currentAudio.play().catch(fallback);
     return true;
-  } catch {
-    if (onEnd) setTimeout(onEnd, 500);
-    return false;
-  }
+  } catch { fallback(); return false; }
 }
 
 export function stopSpeaking() {
+  speechGeneration++;
+  if (speechTimeout) clearTimeout(speechTimeout);
+  speechTimeout = null;
+  speechPaused = false; timerAction = null; resumeAction = null;
+  if (currentAudio) {
+    currentAudio.onended = null; currentAudio.onerror = null; currentAudio.onplaying = null;
+    currentAudio.pause();
+    currentAudio.src = '';
+    currentAudio = null;
+  }
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     window.speechSynthesis.cancel();
   }

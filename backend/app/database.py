@@ -71,19 +71,19 @@ def init_database():
     logger.info(f"Initializing database at: {settings.DATABASE_URL}")
     import alembic.config
     import alembic.command
-    
+
     alembic_ini = Path(__file__).resolve().parent.parent / "alembic.ini"
     alembic_cfg = alembic.config.Config(str(alembic_ini))
     alembic_cfg.set_main_option("script_location", str(alembic_ini.parent / "alembic"))
-    
+
     # Use dynamic URL for test compatibility
     db_url = settings.DATABASE_URL
     if settings.DATABASE_PATH and db_url.startswith("sqlite") and "memory" not in db_url:
         db_path = Path(settings.DATABASE_PATH).absolute().as_posix()
         db_url = f"sqlite:///{db_path}"
-    
+
     alembic_cfg.set_main_option("sqlalchemy.url", db_url)
-    
+
     if "memory" in db_url:
         from app.db.session import get_engine
         engine = get_engine()
@@ -93,20 +93,18 @@ def init_database():
             alembic.command.upgrade(alembic_cfg, "head")
     else:
         alembic.command.upgrade(alembic_cfg, "head")
-        
+
     with get_db() as conn:
         logger.info("Database schema applied.")
         cols = conn.execute("PRAGMA table_info(audit_events);").fetchall()
         print(f"DEBUG: audit_events columns in {db_url}: {cols}")
-        # Seed default values if empty
-        check = conn.execute("SELECT COUNT(*) as count FROM qualifications;").fetchone()
-        if check and check['count'] == 0:
-            seed_database(conn)
+        from app.services.nqr_catalogue import import_catalogue
+        import_catalogue(conn)
 
 
-def seed_database(conn: sqlite3.Connection):
+def seed_demo_database(conn: sqlite3.Connection):
     now = datetime.now(timezone.utc).isoformat()
-    
+
     # 1. Qualifications
     quals = [
         (

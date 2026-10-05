@@ -1,16 +1,21 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { Language } from '../../types';
 import { api, type RecommendationItem } from '../../lib/api';
 import { AskQuestionVoice } from '../modules/AskQuestionVoice';
 import styles from './LiveJourney.module.css';
+import { ProfileReview } from './ProfileReview';
+import { normalizeProfile, type Profile } from '../../lib/interview';
 interface Props { mode?: 'journey' | 'assistant'; language: Language; onSelectLanguage: (language: Language) => void; onNavigateModule: (key: string) => void; }
-export function FlowContainer({ mode = 'journey', language, onSelectLanguage }: Props) {
+export function FlowContainer({ mode = 'journey', language, onSelectLanguage, onNavigateModule }: Props) {
   const hi = language === 'hi';
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const [review, setReview] = useState(false);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
+  const started = useRef(false);
   const [error, setError] = useState('');
   const [interviewId, setInterviewId] = useState('');
   const [firstQuestion, setFirstQuestion] = useState('');
@@ -27,16 +32,35 @@ export function FlowContainer({ mode = 'journey', language, onSelectLanguage }: 
     try { await action(); } catch (e) { setError(e instanceof Error ? e.message : 'Please try again.'); }
     finally { pending.current = false; setBusy(false); }
   }
+  useEffect(() => {
+    if (mode === 'assistant' && !started.current) {
+      started.current = true;
+      void begin();
+    }
+  }, [mode]);
+  const reviewedProfile = normalizeProfile({
+    district: profile.district, block: profile.block, education: profile.education,
+    interests: profile.interests.split(',').map(value => value.trim()).filter(Boolean),
+    traditional_or_existing_skills: profile.skills.split(',').map(value => value.trim()).filter(Boolean),
+    mobility: profile.mobility ? Number(profile.mobility) : null,
+    self_employment_or_wage_preference: profile.work, current_work: profile.current_work, access_needs: profile.access_needs,
+  });
+  const setReviewedProfile = (p: Profile) => setProfile({
+    district: p.district, block: p.block, education: p.education,
+    interests: p.interests.join(', '), skills: p.traditional_or_existing_skills.join(', '),
+    mobility: p.mobility == null ? '' : String(p.mobility), work: p.self_employment_or_wage_preference,
+    current_work: p.current_work, access_needs: p.access_needs,
+  });
   async function begin() {
     await perform(async () => {
       if (!api.getSessionToken()) await api.createAnonymousSession();
       await api.recordConsent('ai_processing', true, language);
       await api.recordConsent('profile_storage', true, language);
       const interview = await api.startInterview(language);
-      setInterviewId(interview.interview_id); 
+      setInterviewId(interview.interview_id);
       setFirstQuestion(interview.first_question || interview.last_question || '');
       setStep(2);
-      
+
       // If the user clicked "My Journey", skip the AI conversational chat
       // and drop them straight into the manual form so it feels different.
       if (mode === 'journey') {
@@ -54,6 +78,7 @@ export function FlowContainer({ mode = 'journey', language, onSelectLanguage }: 
         current_work: profile.current_work.trim(), access_needs: profile.access_needs.trim(), language,
       });
       const result = await api.generateRecommendations(interviewId);
+      if (mode === 'assistant') { router.replace(`/dashboard?interview=${encodeURIComponent(interviewId)}`); return; }
       setRecommendations(result.recommendations); setSelected(null); setReferralId(''); setReferralConsent(false); setStep(3);
     });
   }
@@ -61,7 +86,7 @@ export function FlowContainer({ mode = 'journey', language, onSelectLanguage }: 
     <aside className="flow-progress"><div className="eyebrow">JEEVANMITRA</div><h1>{mode === "assistant" ? (hi ? "???? ?????????" : "AI Assistant") : (hi ? "???? ???" : "My journey")}</h1><p>{mode === "assistant" ? (hi ? "????????? ?? ???? ??? ????" : "Speak to JeevanMitra directly.") : (hi ? "???? ??????? ?? ?????? ?? ?? ???" : "From your interests to your opportunities.")}</p><ol>{labels.map((label, i) => <li key={label}><span className={`flow-step ${step === i + 1 ? 'current' : ''}`} aria-current={step === i + 1 ? 'step' : undefined}><span>{i + 1}</span>{label}</span></li>)}</ol></aside>
     <div className={`flow-canvas ${styles.page}`} aria-busy={busy}>
       {error && <p role="alert" className={styles.error}>{error} {hi ? 'कृपया फिर से कोशिश करें।' : 'Your answers are still here. Please try again.'}</p>}
-      {step === 1 && <section><div className="eyebrow">LET’S BEGIN WITH YOU</div><h2>{mode === 'assistant' ? (hi ? 'बातचीत शुरू करने से पहले' : 'Before we start chatting') : (hi ? 'आपके लिए सही रास्ता खोजें' : 'Find a path that fits you.')}</h2><p>{mode === 'assistant' ? (hi ? 'कृपया एआई सहायक का उपयोग करने की सहमति दें।' : 'Please provide your consent to talk with the AI assistant.') : (hi ? 'आपकी पढ़ाई, रुचि और यात्रा की सीमा के आधार पर विकल्प खोजें।' : 'Explore training pathways based on your education, interests and travel preferences.')}</p><label>{hi ? 'भाषा' : 'Language'}<select value={language} onChange={e => onSelectLanguage(e.target.value as Language)}><option value="en">English</option><option value="hi">हिन्दी</option></select></label><label className={styles.check}><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} />{hi ? 'मैं अपनी दी गई जानकारी को सुरक्षित रखने और AI आधारित सुझावों के लिए उपयोग करने की सहमति देता/देती हूँ।' : 'I agree to store my answers and process them with the configured AI service to create my profile and recommendations.'}</label><p>{hi ? 'कोई आवेदन स्वतः नहीं भेजा जाएगा।' : 'No application is submitted automatically. Counselor sharing requires separate consent.'}</p><button className="primary-button" disabled={!consent || busy} onClick={begin}>{busy ? (hi ? 'शुरू हो रहा है…' : 'Starting…') : (hi ? 'शुरू करें' : 'Get started')}</button></section>}
+      {step === 1 && mode !== 'assistant' && <section><div className="eyebrow">LET’S BEGIN WITH YOU</div><h2>{hi ? 'आपके लिए सही रास्ता खोजें' : 'Find a path that fits you.'}</h2><p>{hi ? 'आपकी पढ़ाई, रुचि और यात्रा की सीमा के आधार पर विकल्प खोजें।' : 'Explore training pathways based on your education, interests and travel preferences.'}</p><label>{hi ? 'भाषा' : 'Language'}<select value={language} onChange={e => onSelectLanguage(e.target.value as Language)}><option value="en">English</option><option value="hi">हिन्दी</option></select></label><label className={styles.check}><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} />{hi ? 'मैं अपनी दी गई जानकारी को सुरक्षित रखने और AI आधारित सुझावों के लिए उपयोग करने की सहमति देता/देती हूँ।' : 'I agree to store my answers and process them with the configured AI service to create my profile and recommendations.'}</label><p>{hi ? 'कोई आवेदन स्वतः नहीं भेजा जाएगा।' : 'No application is submitted automatically. Counselor sharing requires separate consent.'}</p><button className="primary-button" disabled={!consent || busy} onClick={begin}>{busy ? (hi ? 'शुरू हो रहा है…' : 'Starting…') : (hi ? 'शुरू करें' : 'Get started')}</button></section>}
       {step === 2 && !review && <AskQuestionVoice language={language} interviewId={interviewId} firstQuestion={firstQuestion} onReview={p => {
         setProfile({ district: p.district || '', block: p.block || '', education: p.education || '',
           interests: (p.interests || []).join(', '), skills: (p.traditional_or_existing_skills || []).join(', '),
@@ -69,16 +94,21 @@ export function FlowContainer({ mode = 'journey', language, onSelectLanguage }: 
           current_work: p.current_work || '', access_needs: p.access_needs || '' });
         setReview(true);
       }} />}
-      {step === 2 && review && <form onSubmit={e => { e.preventDefault(); void match(); }}><div className="eyebrow">YOUR PROFILE</div><h2>{hi ? 'अपनी जानकारी जाँचें' : 'Tell us what matters to you.'}</h2><p>{hi ? 'सुझाव पाने से पहले जानकारी की पुष्टि करें।' : 'Confirm these details to find your top three pathways. Separate multiple interests or skills with commas.'}</p><fieldset disabled={busy} className={styles.fields}>
+      {step === 2 && review && mode !== 'assistant' && <form onSubmit={e => { e.preventDefault(); void match(); }}><div className="eyebrow">YOUR PROFILE</div><h2>{hi ? 'अपनी जानकारी जाँचें' : 'Tell us what matters to you.'}</h2><p>{hi ? 'सुझाव पाने से पहले जानकारी की पुष्टि करें।' : 'Confirm these details to find your top three pathways. Separate multiple interests or skills with commas.'}</p><fieldset disabled={busy} className={styles.fields}>
         {field('district', hi ? 'जिला' : 'District')}{field('block', hi ? 'ब्लॉक' : 'Block')}
         <label>{hi ? 'पढ़ाई' : 'Education'}<select required value={profile.education} onChange={e => setProfile(p => ({ ...p, education: e.target.value }))}><option value="">{hi ? 'चुनें' : 'Choose education'}</option>{['No formal education', 'Class 5', 'Class 8', 'Class 10', 'Class 12', 'Graduate', 'Post Graduate'].map(x => <option key={x}>{x}</option>)}</select></label>
         {field('interests', hi ? 'रुचि' : 'Interests — e.g. farming, tailoring')}{field('skills', hi ? 'मौजूदा कौशल (वैकल्पिक)' : 'Existing skills (optional)', false)}{field('current_work', hi ? 'वर्तमान काम (वैकल्पिक)' : 'Current work (optional)', false)}{field('mobility', hi ? 'यात्रा की सीमा (किमी)' : 'Travel radius (km)', true, 'number')}
         <label>{hi ? 'काम की पसंद' : 'Work preference'}<select required value={profile.work} onChange={e => setProfile(p => ({ ...p, work: e.target.value }))}><option value="">{hi ? 'चुनें' : 'Choose preference'}</option><option value="both">{hi ? 'दोनों' : 'Open to both'}</option><option value="wage">{hi ? 'नौकरी' : 'Wage employment'}</option><option value="self_employment">{hi ? 'स्वरोजगार' : 'Self-employment'}</option></select></label>{field('access_needs', hi ? 'पहुँच संबंधी ज़रूरतें (वैकल्पिक)' : 'Accessibility needs (optional)', false)}
       </fieldset><button className="primary-button" disabled={busy} type="submit">{busy ? (hi ? 'विकल्प खोज रहे हैं…' : 'Finding your matches…') : (hi ? 'पुष्टि करें और विकल्प खोजें' : 'Confirm and find matches')}</button></form>}
-      {step === 3 && <section><div className="eyebrow">YOUR NEXT CHAPTER</div><h2>{selected ? selected.qualification.title : hi ? 'आपके लिए विकल्प' : 'Your recommended pathways'}</h2><button className={styles.link} disabled={busy} onClick={() => selected ? setSelected(null) : setStep(2)}>{selected ? (hi ? 'सभी विकल्प' : 'Back to matches') : (hi ? 'जानकारी बदलें' : 'Edit my profile')}</button>
+      {step === 1 && mode === 'assistant' && <section className="interview-loading" role="status"><p>{busy ? (hi ? 'बातचीत शुरू हो रही है…' : 'Getting your interview ready…') : (hi ? 'फिर कोशिश करें' : 'Please try starting again.')}</p>{!busy && <button className="primary-button" onClick={() => void begin()}>{hi ? 'फिर कोशिश करें' : 'Try again'}</button>}</section>}{step === 2 && review && mode === 'assistant' && <ProfileReview profile={reviewedProfile} language={language} interviewId={interviewId} busy={busy} onChange={setReviewedProfile} onConfirm={() => void match()}/>} {step === 3 && <section><div className="eyebrow">YOUR NEXT CHAPTER</div><h2>{selected ? selected.qualification.title : hi ? 'आपके लिए विकल्प' : 'Your recommended pathways'}</h2><button className={styles.link} disabled={busy} onClick={() => selected ? setSelected(null) : setStep(2)}>{selected ? (hi ? 'सभी विकल्प' : 'Back to matches') : (hi ? 'जानकारी बदलें' : 'Edit my profile')}</button>
         {!recommendations.length && <p role="status">{hi ? 'अभी कोई उपयुक्त विकल्प नहीं मिला। अपनी जानकारी बदलें या सलाहकार की मदद लें।' : 'No pathways match these constraints yet. Edit your profile or request help from a counselor.'}</p>}
         {(selected ? [selected] : recommendations).map((rec, i) => <article key={rec.recommendation_id} className={styles.result}><div className={styles.meta}><span>{selected ? rec.qualification.sector : `0${i + 1} · ${rec.qualification.sector}`}</span><span>{rec.local_availability.status === 'verified_open' ? (hi ? 'स्थानीय बैच सत्यापित' : 'Local batch verified') : (hi ? 'स्थानीय बैच की पुष्टि बाकी' : 'Local batch pending verification')}</span></div>{!selected && <h3>{rec.qualification.title}</h3>}<p>NSQF {rec.qualification.nsqf_level} · {rec.qualification.duration_hours} {hi ? 'घंटे' : 'hours'} · {rec.qualification.nqr_code}</p><ul>{rec.why_recommended.map(reason => <li key={reason}>{reason}</li>)}</ul>{selected && <><p>{hi ? 'सीखने वाले कौशल: ' : 'Skills to develop: '}{rec.skill_gaps.join(', ') || '—'}</p>{rec.local_availability.centre_name && <p>{rec.local_availability.centre_name} · {rec.local_availability.district}</p>}<p>{rec.caveat}</p>{rec.qualification.official_url?.startsWith('https://') && <a href={rec.qualification.official_url} target="_blank" rel="noreferrer">{hi ? 'आधिकारिक योग्यता देखें' : 'View official qualification'} ↗</a>}</>}{!selected && <button className={styles.link} onClick={() => { setSelected(rec); setReferralId(''); setReferralConsent(false); }}>{hi ? 'विवरण देखें' : 'Explore this pathway'} →</button>}</article>)}
         <div className={styles.help}><h3>{hi ? 'अगले कदम में सहायता चाहिए?' : 'Need help with the next step?'}</h3>{referralId ? <p role="status">{hi ? 'अनुरोध भेज दिया गया: ' : 'Counselor request received: '}{referralId}</p> : <><label className={styles.check}><input type="checkbox" checked={referralConsent} onChange={e => setReferralConsent(e.target.checked)} />{hi ? 'मैं अपनी जानकारी सलाहकार के साथ साझा करने की सहमति देता/देती हूँ।' : 'I agree to share my profile with a counselor.'}</label><button className="primary-button" disabled={!referralConsent || busy} onClick={() => perform(async () => { await api.recordConsent('counselor_referral', true, language); const r = await api.createReferral(interviewId, 'user_requested_human_help', selected?.recommendation_id); setReferralId(r.referral_id); })}>{busy ? '…' : hi ? 'सहायता का अनुरोध करें' : 'Request counselor help'}</button></>}</div>
+        <div style={{ marginTop: '40px', borderTop: '1px solid #e2e8f0', paddingTop: '20px', textAlign: 'center' }}>
+          <button className="primary-button" style={{ width: '100%', background: '#0f172a' }} onClick={() => onNavigateModule('journey')}>
+            {hi ? 'मेरा डैशबोर्ड देखें' : 'View My Dashboard'}
+          </button>
+        </div>
       </section>}
     </div>
   </div>;

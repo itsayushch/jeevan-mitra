@@ -34,6 +34,8 @@ def generate_recommendations(
             ):
                 raise HTTPException(403, "This interview belongs to another session")
             verify_consent(conn, "ai_processing", interview["beneficiary_id"], interview["session_id"])
+            if interview["status"] not in ('ready_for_matching', 'recommendations_generated'):
+                raise HTTPException(409, "Confirm your latest answers before generating recommendations")
             confirmed = conn.execute("SELECT 1 FROM profile_field_values WHERE interview_id = ? AND user_confirmed = 1 LIMIT 1", (interview_id,)).fetchone()
             if not confirmed:
                 raise HTTPException(409, "Confirm your profile before generating recommendations")
@@ -84,11 +86,20 @@ def get_recommendation_detail(recommendation_id: str, request: Request):
         return RecommendationService.get_recommendation_by_id(conn, recommendation_id, locale=locale)
 
 @router.get("/interviews/{interview_id}/recommendations")
-def get_interview_recommendations(interview_id: str):
+def get_interview_recommendations(interview_id: str, actor: Actor = Depends(get_current_actor)):
     """
     Retrieves recommendations generated for a specific interview session.
     """
     with get_db() as conn:
+        interview = conn.execute('SELECT * FROM interview_sessions WHERE id = ?', (interview_id,)).fetchone()
+        if not interview:
+            raise HTTPException(404, 'Interview not found')
+        if not actor.is_staff() and not (
+            (actor.session_id and actor.session_id == interview['session_id'])
+            or (actor.beneficiary_id and actor.beneficiary_id == interview['beneficiary_id'])
+        ):
+            raise HTTPException(403, 'This interview belongs to another session')
+        verify_consent(conn, 'profile_storage', interview['beneficiary_id'], interview['session_id'])
         recs = RecommendationService.get_recommendations_for_interview(conn, interview_id)
         return {
             "interview_id": interview_id,

@@ -10,6 +10,10 @@ ALLOWED_WORK_PREFERENCES = ["wage", "self_employment", "both"]
 
 def education_to_rank(edu_str: str) -> int:
     s = str(edu_str).lower()
+    grade = re.fullmatch(r'\s*(?:class|grade)\s*(\d{1,2})\s*', s)
+    if grade:
+        completed = int(grade.group(1))
+        return 4 if completed >= 12 else 3 if completed >= 10 else 2 if completed >= 8 else 1 if completed >= 5 else 0
     if 'post' in s or 'master' in s or 'phd' in s:
         return 6
     if 'degree' in s or 'graduate' in s or 'ba' in s or 'bsc' in s or 'bcom' in s or 'btech' in s:

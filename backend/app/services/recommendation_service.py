@@ -10,6 +10,7 @@ from app.ai_layers.layer3_matching.ml_adapter import rerank_candidates
 from app.ai_layers.layer5_planning.demand_record_service import DemandRecordService
 from app.ai_layers.layer3_matching.explanation_generator import ExplanationGenerator
 from app.services.catalogue_service import CatalogueService
+from app.services.nqr_catalogue import is_current
 from app.utils.audit_events import log_audit_event
 from app.utils.errors import EntityNotFoundException
 
@@ -21,7 +22,7 @@ class RecommendationService:
         actor_id: str = "system"
     ) -> Dict[str, Any]:
         now = datetime.now(timezone.utc).isoformat()
-        
+
         # 1. Retrieve confirmed profile answers
         confirmed_profile: Dict[str, Any] = {}
         target_ben_id = req.beneficiary_id
@@ -69,8 +70,10 @@ class RecommendationService:
         skills = confirmed_profile.get("traditional_or_existing_skills") or confirmed_profile.get("skills") or []
         if isinstance(skills, str):
             skills = [skills]
-        
-        mobility_raw = confirmed_profile.get("mobility") or confirmed_profile.get("mobility_radius_km") or req.mobility_radius_km or 5.0
+
+        mobility_raw = next((value for value in (
+            confirmed_profile.get("mobility"), confirmed_profile.get("mobility_radius_km"), req.mobility_radius_km
+        ) if value is not None), 5.0)
         try:
             mobility_radius = float(mobility_raw)
         except Exception:
@@ -107,7 +110,7 @@ class RecommendationService:
 
         # 2. Fetch all verified qualifications (support both legacy 'verified' and Sprint 4 'VERIFIED')
         quals_cursor = conn.execute("SELECT * FROM qualifications WHERE UPPER(verification_status) = 'VERIFIED';")
-        quals = [dict(r) for r in quals_cursor.fetchall()]
+        quals = [dict(r) for r in quals_cursor.fetchall() if is_current(dict(r))]
 
         # 3. Fetch active, non-expired local opportunities for district
         opp_cursor = conn.execute("""
@@ -246,7 +249,7 @@ class RecommendationService:
                 why_reasons.append(f"Fits your mobility preference: verified training centre within {dist_km:.1f} km at {best_opp.get('centre_or_employer_name')}")
             else:
                 access_score = 5.0
-                why_reasons.append("National qualification pathway available within your mobility preference (local batch verification pending)")
+                why_reasons.append("Official national course; local training batch has not been verified")
 
             # 4. Work preference fit (15 pts)
             if work_pref == "both" or qual_work_type == "both" or qual_work_type == work_pref:
@@ -281,7 +284,13 @@ class RecommendationService:
                     "nsqf_level": qual["nsqf_level"],
                     "sector": qual["sector"],
                     "official_url": qual.get("official_source_url") or qual.get("nqr_link") or qual.get("source_url"),
-                    "duration_hours": qual.get("duration_hours")
+                    "duration_hours": qual.get("duration_hours"),
+                    "entry_criteria": qual.get("entry_criteria"),
+                    "school_entry": qual.get("min_education"),
+                    "certification_body": qual.get("certification_body"),
+                    "source_checked_at": qual.get("source_verified_at"),
+                    "valid_to": json.loads(qual.get("entry_requirements_json") or "{}").get("valid_to"),
+                    "skills": json.loads(qual.get("skills_acquired") or "[]"),
                 },
                 "why_recommended": why_reasons[:3],
                 "matched_skills": matched_skills[:4],
@@ -458,10 +467,20 @@ class RecommendationService:
         d = dict(row)
         qual_row = conn.execute("SELECT * FROM qualifications WHERE id = ?;", (d["qualification_id"],)).fetchone()
         opp_row = conn.execute("SELECT * FROM local_opportunities WHERE id = ?;", (d["local_opportunity_id"],)).fetchone() if d.get("local_opportunity_id") else None
+        qual_row = dict(qual_row) if qual_row else None
+        opp_row = dict(opp_row) if opp_row else None
 
         qual_info = {
             "id": qual_row["nqr_code"] if qual_row else d["qualification_id"],
             "title": qual_row["title"] if qual_row else "Qualification",
+            "nqr_code": qual_row["nqr_code"] if qual_row else "",
+            "duration_hours": qual_row.get("duration_hours") if qual_row else None,
+            "entry_criteria": qual_row.get("entry_criteria") if qual_row else None,
+            "school_entry": qual_row.get("min_education") if qual_row else None,
+            "certification_body": qual_row.get("certification_body") if qual_row else None,
+            "source_checked_at": qual_row.get("source_verified_at") if qual_row else None,
+            "valid_to": json.loads(qual_row.get("entry_requirements_json") or "{}").get("valid_to") if qual_row else None,
+            "skills": json.loads(qual_row.get("skills_acquired") or "[]") if qual_row else [],
             "nsqf_level": qual_row["nsqf_level"] if qual_row else None,
             "sector": qual_row["sector"] if qual_row else "General",
             "official_url": (qual_row.get("official_source_url") or qual_row.get("nqr_link")) if qual_row else ""
@@ -487,6 +506,9 @@ class RecommendationService:
             )
 
         active_locale = locale if isinstance(locale, SupportedLocale) else SupportedLocale.EN
+        if d.get("local_opportunity_status") != "verified_open":
+            facts = [fact for fact in facts if fact.get("factor") not in
+                     ("TRAVEL_FEASIBILITY", "LOCATION_RELEVANCE", "VERIFIED_LOCAL_AVAILABILITY")]
         why_rec = RecommendationExplanationService.get_explanation(
             locale=active_locale,
             facts=facts,
@@ -503,6 +525,7 @@ class RecommendationService:
             "title": qual_info["title"],
             "rank": d.get("rank", 1),
             "score": d["score"],
+            "ranking_factors": json.loads(d.get("ranking_factors") or "{}"),
             "match_state": "VERIFIED_MATCH" if is_verified else "INTEREST_MATCH",
             "matchState": "VERIFIED_MATCH" if is_verified else "INTEREST_MATCH",
             "qualification": qual_info,
@@ -515,6 +538,8 @@ class RecommendationService:
             "local_availability": {
                 "status": d.get("local_opportunity_status") or "unknown",
                 "district": opp_row["district"] if opp_row else None,
+                "centre_name": (opp_row.get("centre_or_employer_name") or opp_row.get("title")) if opp_row else None,
+                "batch_start_date": opp_row.get("batch_start_date") if opp_row else None,
                 "source_url": opp_row.get("source_url") if opp_row else None,
                 "last_verified_at": opp_row.get("verified_at") if opp_row else None
             },
@@ -529,4 +554,10 @@ class RecommendationService:
             ORDER BY rank ASC;
         """, (interview_id, interview_id)).fetchall()
 
-        return [RecommendationService.get_recommendation_by_id(conn, r["id"]) for r in rows]
+        current = []
+        for row in rows:
+            rec = RecommendationService.get_recommendation_by_id(conn, row["id"])
+            qual = conn.execute("SELECT * FROM qualifications WHERE id = ?", (rec["qualification_id"],)).fetchone()
+            if qual and is_current(dict(qual)):
+                current.append(rec)
+        return current

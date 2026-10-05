@@ -13,9 +13,11 @@ interface Step1Props {
 export function Step1WelcomeLogin({ language, onSelectLanguage, onNext }: Step1Props) {
   const [consent, setConsent] = useState(false);
   const hi = language === 'hi';
+
+  // Simplified text for villagers
   const notice = hi
-    ? 'इस डेमो में आपकी रुचि, पढ़ाई और काम की पसंद के नमूना जवाब दिखाए जाएंगे। आप कभी भी रुक सकते हैं। कोई आवेदन नहीं भेजा जाएगा।'
-    : 'This demo explores your interests, education and work preferences using sample responses. You can stop at any time. No application will be submitted.';
+    ? 'हम आपसे कुछ आसान सवाल पूछेंगे ताकि आपके लिए सही काम और ट्रेनिंग ढूंढ सकें। आपकी जानकारी सुरक्षित रहेगी।'
+    : 'We will ask a few simple questions to find the right training and jobs for you. Your information is safe.';
 
   const enabledLocales = getEnabledLocales();
 
@@ -24,15 +26,14 @@ export function Step1WelcomeLogin({ language, onSelectLanguage, onNext }: Step1P
       <span className="welcome-icon">
         <Sprout size={28} />
       </span>
-      <div className="eyebrow">LET’S BEGIN WITH YOU</div>
-      <h2>{hi ? 'बेहतर कल की ओर पहला कदम।' : 'A little about you. A new way forward.'}</h2>
+      <div className="eyebrow">{hi ? 'शुरुआत करें' : 'LET’S BEGIN'}</div>
+      <h2>{hi ? 'जीवन मित्रा में आपका स्वागत है' : 'Welcome to Jeevan Mitra'}</h2>
       <p>
         {hi
-          ? 'अपनी भाषा चुनें, फिर कौशल और आजीविका के रास्ते जानें।'
-          : 'Choose your language, then explore skills and livelihoods that could suit you.'}
+          ? 'आप किस भाषा में बात करना चाहेंगे?'
+          : 'Which language do you prefer to talk in?'}
       </p>
 
-      <h3>{hi ? 'अपनी भाषा चुनें' : 'Choose your language'}</h3>
       <div className="language-options">
         {enabledLocales.map((x) => (
           <button
@@ -40,13 +41,14 @@ export function Step1WelcomeLogin({ language, onSelectLanguage, onNext }: Step1P
             aria-pressed={language === x.code}
             onClick={() => onSelectLanguage(x.code)}
           >
-            {x.nativeLabel} ({x.label})
+            {x.nativeLabel}
           </button>
         ))}
       </div>
 
-      <h3>{hi ? 'शुरू करने से पहले' : 'Before we get started'}</h3>
+      <h3>{hi ? 'जरूरी जानकारी' : 'Important Information'}</h3>
       <p>{notice}</p>
+
       <label className="consent-label">
         <input
           type="checkbox"
@@ -55,8 +57,8 @@ export function Step1WelcomeLogin({ language, onSelectLanguage, onNext }: Step1P
         />
         <span>
           {hi
-            ? 'मैं समझता/समझती हूँ और नमूना यात्रा शुरू करना चाहता/चाहती हूँ।'
-            : 'I understand and would like to explore the sample journey.'}
+            ? 'हां, मैं समझ गया/गई हूँ।'
+            : 'Yes, I understand.'}
         </span>
       </label>
 
@@ -66,7 +68,7 @@ export function Step1WelcomeLogin({ language, onSelectLanguage, onNext }: Step1P
           disabled={!consent}
           onClick={onNext}
         >
-          {hi ? 'आगे बढ़ें' : 'Let’s get started'}
+          {hi ? 'आगे बढ़ें' : 'Next Step'}
           <ArrowRight size={17} />
         </button>
         <button
@@ -74,14 +76,9 @@ export function Step1WelcomeLogin({ language, onSelectLanguage, onNext }: Step1P
           onClick={() => speakText(notice, language)}
         >
           <Volume2 size={17} />
-          {hi ? 'सुनें' : 'Listen to this'}
+          {hi ? 'सुनें' : 'Listen'}
         </button>
       </div>
-      <p className="privacy-note">
-        {hi
-          ? 'कोई पहचान पत्र या बायोमेट्रिक आवश्यक नहीं है।'
-          : 'No identity documents or biometric sign-in needed for this preview.'}
-      </p>
     </div>
   );
 }

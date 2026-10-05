@@ -56,7 +56,9 @@ def test_conversation_to_review_to_ml(client, monkeypatch):
     result = response.json()
     assert result['inferred_profile']['education'] == 'Class 10'
     assert result['inferred_profile']['district'] is None
-    assert result['next_question'] == 'Which district do you live in?'
+    from app.ai_layers.layer2_extraction.interview_language import question_field
+    assert question_field({'text': result['next_question']}) == 'district'
+    assert result['next_question'] != 'Which district do you live in?'
     for answer in ('Moradabad', 'Chhajlet', 'both'):
         response = client.post(url, headers=headers, json={'text': answer, 'language': 'en', 'mode': 'conversational'})
         assert response.status_code == 200
@@ -69,3 +71,19 @@ def test_conversation_to_review_to_ml(client, monkeypatch):
     client.post(url, headers=headers, json={'text': 'Actually I completed class 8', 'language': 'en', 'mode': 'conversational'})
     assert client.post(generate, headers=headers, json={'interview_id': interview}).status_code == 409
     assert client.post(url, json={'text': 'Change profile', 'mode': 'conversational'}).status_code == 403
+
+
+@pytest.mark.parametrize('field,answer,expected', [
+    ('mobility', 'about ten kilometres would be okay', 10),
+    ('mobility', 'पाँच किलोमीटर', 5),
+    ('education', 'ten', 'Class 10'),
+    ('education', 'SSC', 'Class 10'),
+    ('education', 'intermediate', 'Class 12'),
+    ('self_employment_or_wage_preference', 'a salaried job sounds good', 'wage'),
+    ('self_employment_or_wage_preference', 'either is fine', 'both'),
+])
+def test_natural_short_replies(field, answer, expected):
+    from app.ai_layers.layer2_extraction.conversation import QUESTIONS
+    result = guided_extract([{'speaker': 'ai', 'text': QUESTIONS[field][0]},
+                             {'speaker': 'user', 'text': answer}])
+    assert getattr(result, field) == expected

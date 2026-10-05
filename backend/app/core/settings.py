@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     OFFICER_NAME: str = ""
     OFFICER_DISTRICT: str = ""
     GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_MODEL: str = "openai/gpt-oss-20b"
 
     AI_PROVIDER: str = "gemini"
     GEMINI_API_KEY: str = ""
